@@ -2,8 +2,6 @@
 
 A graph-based predictive routing system that simulates suspect movement in ER:LC using Dijkstra’s algorithm, behavioural weighting, and a Gemini-powered inference layer.
 
-It’s not magic. It’s maths pretending to be intuition.
-
 ---
 
 ## What this actually does
