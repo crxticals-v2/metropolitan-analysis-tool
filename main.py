@@ -2,7 +2,6 @@ import asyncio
 
 import discord
 from discord.ext import commands
-from discord import app_commands
 import networkx as nx
 import json
 import math
@@ -74,79 +73,85 @@ class ERLCGraph:
                 type=info.get("type")
             )
 
-        # Load Edges (store ONLY base geometric cost; no multipliers yet)
-        for edge in data["edges"]:
+        # ================================
+        # COMPATIBLE EDGE LOADER (v2)
+        # Supports:
+        # - missing road fields
+        # - missing metadata.postals
+        # - bidirectional or implicit edges
+        # - simplified JSON structures
+        # ================================
+
+        for edge in data.get("edges", []):
             if not isinstance(edge, dict):
                 continue
+
             s = edge.get("source")
             t = edge.get("target")
 
             if not s or not t:
                 continue
 
+            # Ensure nodes exist
+            if s not in data.get("nodes", {}) or t not in data.get("nodes", {}):
+                continue
+
             n1 = data["nodes"][s]
             n2 = data["nodes"][t]
 
-            base_cost = math.hypot(
-                n2["x"] - n1["x"],
-                n2["y"] - n1["y"]
-            )
+            # Safe coordinate extraction
+            sx, sy = n1.get("x", 0), n1.get("y", 0)
+            tx, ty = n2.get("x", 0), n2.get("y", 0)
+
+            base_cost = math.hypot(tx - sx, ty - sy)
 
             edge_type = edge.get("type", "local")
-            road = edge.get("road", "unknown")
 
+            # ROAD COMPATIBILITY FIX:
+            # If road missing, generate stable fallback name
+            road = edge.get("road")
+            if not road:
+                road = f"{s}__{t}"
+
+            # Ensure road graph exists
             if road not in self.road_graph:
                 self.road_graph[road] = {}
 
+            # Build road adjacency (undirected logical structure)
             self.road_graph[road].setdefault(s, set()).add(t)
             self.road_graph[road].setdefault(t, set()).add(s)
 
-            self.graph.add_edge(
-                s,
-                t,
-                road=edge["road"],
-                type=edge_type,
-                is_one_way=edge.get("is_one_way", False),
-                postals=edge.get("metadata", {}).get("postals", []),
-                base_cost=base_cost,
-                weight=base_cost  # enforce consistency
-            )
+            # Metadata compatibility
+            metadata = edge.get("metadata") or {}
+            postals = metadata.get("postals") or []
 
-            # Attach geometric polyline for rendering
-            self.graph[s][t]["geometry"] = [
-                (n1["x"], n1["y"]),
-                (n2["x"], n2["y"])
-            ]
+            # Determine directionality (default: bidirectional TRUE)
+            bidirectional = edge.get("bidirectional", True)
 
-            # =========================
-            # POSTAL NODE INTEGRATION
-            # =========================
-            postals = edge.get("metadata", {}).get("postals", []) or edge.get("postals", [])
+            def add_edge(u, v):
+                self.graph.add_edge(
+                    u,
+                    v,
+                    road=road,
+                    type=edge_type,
+                    is_one_way=(not bidirectional),
+                    postals=postals,
+                    base_cost=base_cost,
+                    weight=base_cost
+                )
 
-            for postal in postals:
-                if not postal:
-                    continue
+                # Attach geometry for rendering
+                self.graph[u][v]["geometry"] = [
+                    (self.nodes_data[u]["x"], self.nodes_data[u]["y"]),
+                    (self.nodes_data[v]["x"], self.nodes_data[v]["y"])
+                ]
 
-                postal_node_id = f"postal_{postal}"
+            # Always add forward edge
+            add_edge(s, t)
 
-                # avoid duplicate nodes
-                if postal_node_id not in self.graph:
-                    self.graph.add_node(
-                        postal_node_id,
-                        x=(n1["x"] + n2["x"]) / 2,
-                        y=(n1["y"] + n2["y"]) / 2,
-                        label=f"Postal {postal}"
-                    )
-
-                # store mapping
-                self.postal_nodes[postal] = postal_node_id
-
-                # connect postal node to both ends of the road segment
-                self.graph.add_edge(postal_node_id, s, base_cost=0.1, type="postal", weight=0.1)
-                self.graph.add_edge(s, postal_node_id, base_cost=0.1, type="postal", weight=0.1)
-
-                self.graph.add_edge(postal_node_id, t, base_cost=0.1, type="postal", weight=0.1)
-                self.graph.add_edge(t, postal_node_id, base_cost=0.1, type="postal", weight=0.1)
+            # Add reverse edge if bidirectional
+            if bidirectional:
+                add_edge(t, s)
 
         self.build_road_geometry()
     def build_road_geometry(self):
@@ -164,7 +169,7 @@ class ERLCGraph:
 
             start = nodes[0]
             stack = [(start, None)]
-
+ 
             while stack:
                 node, parent = stack.pop()
 
@@ -422,7 +427,7 @@ def draw_map_path(paths_to_draw: list) -> io.BytesIO:
         raise RuntimeError(f"Map image failed to load: {e}")
 
     draw = ImageDraw.Draw(img)
-    print("[MAP DEBUG] paths_to_draw received:", paths_to_draw)
+    print("[MAP DEBUG] Drawing map with", len(paths_to_draw), "paths")
     # Draw primary path (Red) and secondary paths (Orange, slightly transparent)
     colors = [
         (255, 0, 0, 255),      # solid red
@@ -431,6 +436,7 @@ def draw_map_path(paths_to_draw: list) -> io.BytesIO:
     ]
     
     for idx, path_nodes in enumerate(paths_to_draw[:3]):  # Draw top 3 to avoid clutter
+        print(f"[MAP DEBUG] Drawing path {idx}:", path_nodes)
         color = colors[0] if idx == 0 else colors[1]
         line_width = 8 if idx == 0 else 4
 
@@ -438,15 +444,16 @@ def draw_map_path(paths_to_draw: list) -> io.BytesIO:
         for i in range(len(path_nodes) - 1):
             a = path_nodes[i]
             b = path_nodes[i + 1]
-
+            print(f"[MAP DEBUG] Segment: {a} -> {b}")
             # fetch edge geometry if available (preferred)
             edge_data = bot.erlc_graph.graph.get_edge_data(a, b)
 
             if edge_data:
-                road = edge_data.get("road")
-                if road and road in bot.erlc_graph.road_geometry:
+                geometry = edge_data.get("geometry")
+
+                if geometry and len(geometry) >= 2:
                     draw.line(
-                        bot.erlc_graph.road_geometry[road],
+                        geometry,
                         fill=color,
                         width=line_width
                     )
@@ -470,7 +477,6 @@ def draw_map_path(paths_to_draw: list) -> io.BytesIO:
                 fill=color,
                 width=line_width
             )
-            
     # Save to buffer
     buffer = io.BytesIO()
 
@@ -757,13 +763,19 @@ async def metro_predict(
     crime_logs = []
 
     if suspect_name:
-        cursor = bot.suspect_logs.find(
-            {"suspect_name": suspect_name.lower()}
-        ).sort("timestamp", -1).limit(20)
+        try:
+            cursor = bot.suspect_logs.find(
+                {"suspect_name": suspect_name.lower()}
+            ).sort("timestamp", -1).limit(20)
 
-        crime_logs = await cursor.to_list(length=20)
+            crime_logs = await cursor.to_list(length=20)
+
+        except Exception as e:
+            print(f"[MONGO ERROR] Failed to fetch suspect logs: {e}")
+            crime_logs = []
 
     history_text = "No prior history available."
+    print(f"[DEBUG] Retrieved {len(crime_logs)} logs for suspect: {suspect_name}")
 
     if crime_logs:
         crime_texts = []
@@ -959,17 +971,17 @@ async def metro_predict(
     embed_color = color_map.get(prediction_data.get("risk_level", "Medium"), discord.Color.blue())
 
     embed = discord.Embed(
-        title="🚨 Metro Predictive Policing Engine",
-        description=f"**Target Analysis:** LKA `{postal}` | Vehicle: `{vehicle}`",
+        title="🚨 Metro Predictive Engine",
+        description=f"**Target Analysis:** LKL `{postal}` | Vehicle: `{vehicle}`",
         color=embed_color
     )
     
     embed.add_field(name="Predicted Destination", value=f"**{prediction_data.get('primary_destination', 'Unknown')}**", inline=True)
-    embed.add_field(name="Probability", value=f"{prediction_data.get('probability', 'N/A')} (Conf: {prediction_data.get('confidence_score', 0.0)})", inline=True)
+    embed.add_field(name="Probability", value=f"{prediction_data.get('probability', 'N/A')}", inline=True)
     embed.add_field(name="ETA Window", value=prediction_data.get('eta_window', 'N/A'), inline=True)
     
     intercepts = ", ".join(prediction_data.get("intercept_postals", []))
-    embed.add_field(name="Recommended Intercepts", value=f"`{intercepts}`" if intercepts else "None viable", inline=False)
+    embed.add_field(name="Secondary Predicted Destination", value=f"`{intercepts}`" if intercepts else "None viable", inline=False)
     
     embed.add_field(name="Tactical Analysis", value=prediction_data.get('tactical_analysis', 'N/A'), inline=False)
     

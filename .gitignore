@@ -1,1 +1,13 @@
 .env
+east_bottom_detail.png
+east_county_crop.png
+east_county_dirt_mask_grid.png
+east_county_dirt_mask.png
+east_county_grid.png
+east_county_nodes_overlay.png
+east_north_detail.png
+east_northwide_detail.png
+east_top_detail.png
+debug_map_overlay.png
+erlc_map2.json
+erlc_map_updated.json
