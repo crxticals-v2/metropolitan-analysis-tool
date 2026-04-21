@@ -446,7 +446,7 @@ class MetroAnnouncementModal(discord.ui.Modal):
         self.role = role
 
     announcement = discord.ui.TextInput(
-        label="Announcement (Markdown Supported)",
+        label="Announcement",
         style=discord.TextStyle.paragraph,
         placeholder="Write your announcement here using markdown...",
         required=True,
@@ -512,6 +512,8 @@ class metroBot(commands.Bot):
         self.db = self.mongo_client["erlc_database"]
         self.suspect_logs = self.db["suspect_logs"]
         self.crime_heatmap = CrimeHeatmap()
+        # request_metro cooldown tracking (user_id -> timestamp)
+        self.request_metro_cooldowns = {}
     async def setup_hook(self):
         await self.tree.sync()
         print("Slash commands synced")
@@ -1155,14 +1157,9 @@ async def metro_openings(interaction: discord.Interaction):
         ])
     ]
 
-    # Use placeholder emojis for the seals. USER MUST REPLACE THESE with their guild's emoji syntax.
-    # Example guild emoji syntax: <:metro_seal:123456789012345678>
-    metro_seal = "<:LAPD_Metropolitan:1495867271501975552>" # REPLACE THIS
-    line_divider = "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**" # Thick block character for bold lines
-
-    # Color scheme matching the example
+    metro_seal = "<:LAPD_Metropolitan:1495867271501975552>"
+    line_divider = "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
     embed_color = discord.Color.from_rgb(5, 164, 232) # Very dark grey
-    mention_purple = 0x6b21a8 # Purple for mentions in code, can't easily color embed text like that, so just use standard mentions
 
     embed_list = []
 
@@ -1481,6 +1478,280 @@ async def metro_predict(
         await interaction.followup.send(embed=embed, file=file)
     else:
         await interaction.followup.send(embed=embed)
+
+@bot.tree.command(name="request_metro", description="Request Metropolitan + SWAT response for active incidents.")
+async def request_metro(interaction: discord.Interaction, reason: str):
+    import time
+
+    now = time.time()
+
+    guild_id = interaction.guild.id
+    cooldown_map = bot.request_metro_cooldowns
+
+    last_used = cooldown_map.get(guild_id)
+
+    # 12 hour cooldown (43200 seconds)
+    if last_used and (now - last_used) < 43200:
+        remaining = int(43200 - (now - last_used))
+        hours = remaining // 3600
+        minutes = (remaining % 3600) // 60
+
+        await interaction.response.send_message(
+            f"⏳ Command on cooldown for this server. Try again in {hours}h {minutes}m.",
+            ephemeral=True
+        )
+        return
+
+    cooldown_map[guild_id] = now
+
+    guild = interaction.guild
+    metro_role = discord.utils.get(guild.roles, name="Metropolitan Division")
+    swat_role = discord.utils.get(guild.roles, name="Special Weapons and Tactics Team")
+
+    if not metro_role or not swat_role:
+        await interaction.response.send_message(
+            "No valid response roles found.",
+            ephemeral=True
+        )
+        return
+
+    host = interaction.user
+
+    desc = (
+        "## 🚨 | ACTIVE REQUEST: METRO + SWAT DEPLOYMENT\n"
+        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+        f"**Requested By:** {host.mention}\n\n"
+        f"**Incident Type:** {reason}\n\n"
+        "**Units Requested:**\n"
+        f"- {metro_role.mention if metro_role else 'Metro Missing'}\n"
+        f"- {swat_role.mention if swat_role else 'SWAT Missing'}\n\n"
+        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+    )
+
+    embed = discord.Embed(
+        description=desc,
+        color=discord.Color.red()
+    )
+
+    embed.set_footer(
+        text=f"Dispatch issued by {host.display_name}",
+        icon_url=host.display_avatar.url if host.display_avatar else None
+    )
+
+    await interaction.response.send_message("✅ Request sent.", ephemeral=True)
+
+    content_ping = ""
+    if metro_role:
+        content_ping += metro_role.mention + " "
+    if swat_role:
+        content_ping += swat_role.mention
+
+    await interaction.channel.send(content=content_ping.strip(), embed=embed)
+
+@bot.tree.command(name="k9_deploy", description="Log a K9 deployment for Metropolitan Division.")
+async def k9_deploy(
+    interaction: discord.Interaction,
+    handler_name: str,
+    k9_name: str,
+    reason: str,
+    result: str,
+    evidence: discord.Attachment = None
+):
+    await interaction.response.defer()
+
+    evidence_text = evidence.url if evidence else "None"
+
+    desc = (
+        "### <:LAPD_Metropolitan:1495867271501975552>  | Metropolitan K-Platoon Deployment Log\n"
+        "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"
+        f"> **Handler Name:** {handler_name}\n"
+        f"> **K9 Name:** {k9_name}\n"
+        f"> **Reason for Deployment:** {reason}\n"
+        f"> **Result:** {result}\n"
+        f"> **Evidence:** {evidence_text}\n"
+        "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+    )
+
+    embed = discord.Embed(
+        description=desc,
+        color=discord.Color.dark_blue()
+    )
+
+    embed.set_footer(
+        text=f"Logged by {interaction.user.display_name}",
+        icon_url=interaction.user.display_avatar.url if interaction.user.display_avatar else None
+    )
+
+    await interaction.channel.send(embed=embed)
+    await interaction.followup.send("✅ K9 deployment logged.", ephemeral=True)
+
+    
+# ==========================================
+# METRO PROFILER COMMAND
+# ==========================================
+
+class MetroProfilerView(discord.ui.View):
+    def __init__(self, embeds):
+        super().__init__(timeout=180)
+        self.embeds = embeds
+        self.index = 0
+
+    def update_buttons(self):
+        self.children[0].disabled = self.index <= 0
+        self.children[1].disabled = self.index >= len(self.embeds) - 1
+
+    @discord.ui.button(label="Previous", style=discord.ButtonStyle.secondary)
+    async def previous(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.index > 0:
+            self.index -= 1
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.embeds[self.index], view=self)
+
+    @discord.ui.button(label="Next", style=discord.ButtonStyle.secondary)
+    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.index < len(self.embeds) - 1:
+            self.index += 1
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.embeds[self.index], view=self)
+
+
+@bot.tree.command(name="metro_profiler", description="Open a detailed suspect profiler from Roblox username.")
+async def metro_profiler(interaction: discord.Interaction, roblox_username: str):
+    await interaction.response.defer()
+
+    # ==============================
+    # 1. Resolve Roblox UserId
+    # ==============================
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(
+                "https://users.roblox.com/v1/usernames/users",
+                json={"usernames": [roblox_username], "excludeBannedUsers": False}
+            ) as resp:
+                data = await resp.json()
+
+            if not data.get("data"):
+                await interaction.followup.send("❌ Roblox user not found.", ephemeral=True)
+                return
+
+            user_id = data["data"][0]["id"]
+        except Exception as e:
+            await interaction.followup.send("❌ Failed to resolve Roblox user.", ephemeral=True)
+            return
+
+        # Fetch Roblox avatar thumbnail using correct API params
+        try:
+            thumb_url = "https://thumbnails.roblox.com/v1/users/avatar-headshot"
+            params = {
+                "userIds": user_id,
+                "size": "420x420",
+                "format": "Png",
+                "isCircular": "false"
+            }
+
+            async with session.get(thumb_url, params=params) as resp:
+                avatar_data = await resp.json()
+
+            image_url = None
+            if avatar_data and avatar_data.get("data"):
+                image_url = avatar_data["data"][0].get("imageUrl")
+
+        except Exception:
+            image_url = None
+
+    # ==============================
+    # 2. Fetch Crime History
+    # ==============================
+    logs_cursor = bot.suspect_logs.find({"suspect_name": roblox_username.lower()}).sort("timestamp", -1).limit(20)
+    logs = await logs_cursor.to_list(length=20)
+
+    if not logs:
+        await interaction.followup.send("No records found for this suspect.", ephemeral=True)
+        return
+
+    # ==============================
+    # 3. Paginate crimes (5 per page)
+    # ==============================
+    pages = []
+    for i in range(0, len(logs), 5):
+        chunk = logs[i:i+5]
+
+        desc = f"## 👤 Metro Profiler: {roblox_username}\n**━━━━━━━━━━━━━━━━━━━━**\n"
+
+        for log in chunk:
+            desc += (
+                f"\n**Crime:** {log.get('crimes', 'Unknown')}\n"
+                f"**Location:** {log.get('poi') or log.get('postal') or 'Unknown'}\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+        embed = discord.Embed(description=desc, color=discord.Color.dark_red())
+
+        if image_url:
+            embed.set_thumbnail(url=image_url)
+
+        pages.append(embed)
+
+    # ==============================
+    # 4. Compute frequent POIs + path
+    # ==============================
+    poi_counts = {}
+    for log in logs:
+        poi = log.get("poi") or log.get("postal")
+        if poi:
+            poi_counts[poi] = poi_counts.get(poi, 0) + 1
+
+    top_pois = sorted(poi_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    nodes = []
+
+    for poi, _ in top_pois:
+        resolved = bot.erlc_graph.resolve_target(poi)
+        if resolved:
+            nodes.append(resolved)
+
+    paths_to_draw = []
+    for i in range(len(nodes) - 1):
+        try:
+            path = nx.shortest_path(bot.erlc_graph.graph, nodes[i], nodes[i+1], weight="weight")
+            paths_to_draw.append(path)
+        except Exception:
+            continue
+
+    loop = asyncio.get_running_loop()
+    map_buffer = await loop.run_in_executor(None, draw_map_path, paths_to_draw)
+
+    # attach map to first page only
+    if pages:
+        pages[0].set_image(url="attachment://profile_map.png")
+
+    file = discord.File(fp=map_buffer, filename="profile_map.png")
+
+    # ==============================
+    # 5. LLM Behaviour Analysis
+    # ==============================
+    prompt = f"""
+You are analysing a suspect profile.
+Username: {roblox_username}
+Recent crimes: {[l.get('crimes') for l in logs[:10]]}
+Frequent locations: {list(poi_counts.keys())}
+Provide behavioural robbery pattern analysis.
+"""
+
+    llm_result = await call_llm(prompt)
+
+    analysis = "Unavailable"
+    if llm_result and isinstance(llm_result, dict):
+        analysis = llm_result.get("prediction", {}).get("reasoning", "No analysis generated.")
+
+    pages[0].add_field(name="Behavioural Pattern", value=analysis[:1024], inline=False)
+
+    # ==============================
+    # 6. Send with pagination
+    # ==============================
+    view = MetroProfilerView(pages)
+    view.update_buttons()
+
+    await interaction.followup.send(embed=pages[0], view=view, file=file)
 
 # ==========================================
 # RUN BOT
