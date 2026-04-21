@@ -1,7 +1,10 @@
 import asyncio
+import datetime
 
 import discord
+import certifi
 from discord.ext import commands
+from discord import app_commands
 import networkx as nx
 import json
 import math
@@ -10,13 +13,18 @@ import re
 import aiohttp
 from motor.motor_asyncio import AsyncIOMotorClient
 from PIL import Image, ImageDraw
-
-# For .env config
 import os
 from dotenv import load_dotenv
 
 # ==========================================
-# CONFIG
+# METROPOLITAN SERVICES V1
+# This bot is designed to service all of the Metropolitan Division
+# Allowing efficient work logging and suspect tracking through the
+# Simon Program. 
+# ==========================================
+
+# ==========================================
+# CONFIGURATOR
 # ==========================================
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -372,6 +380,61 @@ class ERLCGraph:
         destinations.sort(key=lambda x: x['distance_score'])
         return destinations[:top_n]
 
+class MetroTrainingModal(discord.ui.Modal):
+    def __init__(self, host, co_host, trainee, outcome, notes):
+        super().__init__(title="Metro Entry Training Score Entry")
+        self.host = host
+        self.co_host = co_host
+        self.trainee = trainee
+        self.outcome = outcome
+        self.notes = notes
+
+    # Text Inputs for the three sections
+    s1 = discord.ui.TextInput(label="SECT.I - Firearms Exercise", placeholder="Score (0-10)", min_length=1, max_length=2)
+    s2 = discord.ui.TextInput(label="SECT.II - Stealth/Tactical Exercise", placeholder="Score (0-10)", min_length=1, max_length=2)
+    s3 = discord.ui.TextInput(label="SECT.III - Specialist Protection", placeholder="Score (0-10)", min_length=1, max_length=2)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Validate scores are numbers
+        try:
+            score1 = int(self.s1.value)
+            score2 = int(self.s2.value)
+            score3 = int(self.s3.value)
+            total_score = score1 + score2 + score3
+        except ValueError:
+            await interaction.response.send_message("❌ Scores must be valid numbers.", ephemeral=True)
+            return
+
+        # Build the Embed
+        desc = (
+            "## **<:LAPD_Metropolitan:1495867271501975552>︱ Training Results**\n"
+            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            f"**Trainee:** {self.trainee.mention}\n\n"
+            f"**Field Training Officer:** {self.host.mention}\n\n"
+            f"**Co-Host:** {self.co_host.mention if self.co_host else 'None'}\n\n"
+            "**Your Training Results:**\n"
+            f"**SECT. I | Firearms Exercise:** {score1}/10\n"
+            f"**SECT. II | Stealth/Tactical:** {score2}/10\n"
+            f"**SECT. III | Specialist Protection:** {score3}/10\n"
+            f"**Overall Score:** {total_score}/30\n"
+            f"**Outcome:** {self.outcome}\n\n"
+            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            "**Notes:**\n"
+            f"> {self.notes}\n\n"
+            "**Whats Next?**\n"
+            "If you passed, congratulations! You are now one of us! You will be roled shortly and get access to the full division resources.\n"
+            "If you failed, do not be discouraged. You may request training anytime.\n"
+        )
+
+        embed = discord.Embed(description=desc, color=discord.Color.blue())
+        embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
+        embed.set_footer(text=f"Issued by {self.host.display_name}", icon_url=self.host.display_avatar.url)
+
+        # To prevent the "User used /command" header, we send to the channel directly
+        # and respond to the interaction ephemerally.
+        await interaction.channel.send(embed=embed)
+        await interaction.response.send_message("✅ Training log has been posted successfully.", ephemeral=True)
+
 class CrimeHeatmap:
     """Maintains per-postal crime weighting derived from MongoDB logs."""
     def __init__(self):
@@ -399,24 +462,74 @@ class CrimeHeatmap:
 # ==========================================
 # DISCORD BOT & MONGODB SETUP
 # ==========================================
-class PredictiveBot(commands.Bot):
+class metroBot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix="!", intents=discord.Intents.default())
+        intents = discord.Intents.default()
+        intents.members = True
+        intents.guilds = True
+
+        super().__init__(command_prefix="!", intents=intents)
         self.erlc_graph = ERLCGraph(MAP_JSON_PATH)
-        self.mongo_client = AsyncIOMotorClient(MONGO_URI)
+        self.mongo_client = AsyncIOMotorClient(
+            MONGO_URI,
+            tls=True,
+            tlsCAFile=certifi.where()
+        )
         self.db = self.mongo_client["erlc_database"]
         self.suspect_logs = self.db["suspect_logs"]
         self.crime_heatmap = CrimeHeatmap()
-
     async def setup_hook(self):
         await self.tree.sync()
-        print("Bot is ready and slash commands synced")
+        print("Slash commands synced")
 
-bot = PredictiveBot()
+bot = metroBot()
 
 # ==========================================
 # HELPER FUNCTIONS
 # ==========================================
+def draw_heatmap_overlay(heatmap_data: dict) -> io.BytesIO:
+    """Draws a heatmap overlay on the ER:LC map based on node frequencies."""
+    try:
+        img = Image.open(MAP_IMAGE_PATH).convert("RGBA")
+    except Exception as e:
+        print(f"Failed to load map image for heatmap: {e}")
+        raise RuntimeError(f"Map image failed to load: {e}")
+
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    
+    if not heatmap_data:
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+        return buffer
+
+    max_count = max(heatmap_data.values())
+
+    for node_id, count in heatmap_data.items():
+        node_info = bot.erlc_graph.nodes_data.get(node_id)
+        if not node_info or 'x' not in node_info or 'y' not in node_info:
+            continue
+
+        x, y = node_info['x'], node_info['y']
+        intensity = count / max_count
+        
+        # Draw glowing blobs using alpha blending
+        # High intensity = larger, more opaque red blobs
+        base_radius = 45
+        for r in range(base_radius, 0, -3):
+            # Alpha increases toward center and with higher intensity
+            alpha = int(140 * intensity * (1 - (r / base_radius)**1.5))
+            draw.ellipse([x-r, y-r, x+r, y+r], fill=(255, 0, 0, alpha))
+
+    # Composite the overlay onto the map
+    combined = Image.alpha_composite(img, overlay)
+    
+    buffer = io.BytesIO()
+    combined.save(buffer, format="PNG")
+    buffer.seek(0)
+    return buffer
+
 def draw_map_path(paths_to_draw: list) -> io.BytesIO:
     """Draws predicted paths on the ER:LC map image."""
     
@@ -570,6 +683,11 @@ You are NOT, and I repeat, NOT, allowed to modify the names of the schema fields
                         print(parsed)
                         print("================================\n")
 
+                        # Schema validation (hard fail if malformed)
+                        if not isinstance(parsed, dict) or "prediction" not in parsed:
+                            print("[LLM ERROR] Invalid schema returned from model")
+                            return None
+
                         return parsed
 
                     elif resp.status == 503:
@@ -584,7 +702,7 @@ You are NOT, and I repeat, NOT, allowed to modify the names of the schema fields
 
         except Exception as e:
             wait_time = 2 ** attempt
-            print(f"Request failed ({e}). Retrying in {wait_time}s...")
+            print(f"[LLM ERROR] Type: {type(e).__name__} | Value: {repr(e)}")
             await asyncio.sleep(wait_time)
 
     return None
@@ -688,6 +806,25 @@ Return ONLY JSON in this format:
             "⚠️ Logged with fallback due to database or parsing issue.",
             ephemeral=True
         )
+
+@bot.tree.command(name="metro_log_training", description="Log results for a Metropolitan Division training session.")
+async def metro_log_training(
+    interaction: discord.Interaction,
+    trainee: discord.Member,
+    outcome: str,
+    notes: str,
+    co_host: discord.Member = None
+):
+    # We send the modal to the user who ran the command
+    await interaction.response.send_modal(
+        MetroTrainingModal(
+            host=interaction.user,
+            co_host=co_host,
+            trainee=trainee,
+            outcome=outcome,
+            notes=notes
+        )
+    )
 @bot.tree.command(name="metro_promote", description="Issue a promotion to an officer.")
 async def metro_promote(
     interaction: discord.Interaction,
@@ -697,20 +834,39 @@ async def metro_promote(
     notes: str,
     signed: str
 ):
-    embed = discord.Embed(
-        title="🚨 ︱Metropolitan Promotion!",
-        color=discord.Color.blue()
+    # Constructing the description block instead of using fields.
+    # The \n\n adds the blank spacing between each line.
+    desc = (
+        "## **<:LAPD_Metropolitan:1495867271501975552>︱ Metropolitan Promotion!**\n"
+        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+        f"**Metro Operative:** {officer.mention}\n\n"
+        f"**Old Rank:** {previous_rank}\n\n"
+        f"**New Rank:** {new_rank}\n\n"
+        f"**Notes:** {notes}\n\n"
+        f"**Signed:** {signed}\n\n"
+        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
     )
 
-    embed.add_field(name="Metro Operative", value=officer.mention, inline=False)
-    embed.add_field(name="Old Rank", value=previous_rank, inline=False)
-    embed.add_field(name="New Rank", value=new_rank, inline=False)
-    embed.add_field(name="Notes", value=notes, inline=False)
-    embed.add_field(name="Signed", value=signed, inline=False)
+    # Note: If you want the exact purple color from the first image, 
+    # change discord.Color.blue() to color=0x6b21a8 (or your preferred hex)
+    embed = discord.Embed(
+        description=desc,
+        color=discord.Color.blue() 
+    )
 
-    embed.set_footer(text=f"Issued by {signed}")
+    # This places the large badge icon on the top right
+    # Be sure to replace the URL with an actual link to your Metro Badge image!
+    embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
 
-    await interaction.response.send_message(embed=embed)
+    # This creates the bottom text and pulls the avatar of the person running the command
+    user_avatar = interaction.user.display_avatar.url if interaction.user.display_avatar else None
+    embed.set_footer(
+        text=f"Issued by {interaction.user.display_name}", 
+        icon_url=user_avatar
+    )
+
+    await interaction.channel.send(content=f"{officer.mention}", embed=embed)
+    await interaction.response.send_message("✅ Promotion successfully logged!", ephemeral=True)
 
 
 @bot.tree.command(name="metro_infract", description="Issue an infraction to an officer.")
@@ -722,25 +878,239 @@ async def metro_infract(
     appealable: str,
     signed: str
 ):
+    # Constructing the description block with the inline format
+    desc = (
+        "## **<:LAPD_Metropolitan:1495867271501975552>︱ Metro Infraction**\n"
+        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+        f"**Officer:** {officer.mention}\n\n"
+        f"**Punishment:** {punishment}\n\n"
+        f"**Reason:** {reason}\n\n"
+        f"**Appealable:** {appealable}\n\n"
+        f"**Signed:** {signed}\n\n"
+        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+    )
+
     embed = discord.Embed(
-        title="⚠️ Metro Infraction",
+        description=desc,
         color=discord.Color.red()
     )
 
-    embed.add_field(name="Officer", value=officer.mention, inline=False)
-    embed.add_field(name="\u200b", value="\u200b", inline=False)
-    embed.add_field(name="Punishment", value=punishment, inline=False)
-    embed.add_field(name="\u200b", value="\u200b", inline=False)
-    embed.add_field(name="Reason", value=reason, inline=False)
-    embed.add_field(name="\u200b", value="\u200b", inline=False)
-    embed.add_field(name="Appealable", value=appealable, inline=False)
-    embed.add_field(name="\u200b", value="\u200b", inline=False)
-    embed.add_field(name="Signed", value=signed, inline=False)
+    # Fetching the avatar for the footer
+    user_avatar = interaction.user.display_avatar.url if interaction.user.display_avatar else None
+    embed.set_footer(
+        text=f"Issued by {interaction.user.display_name}",
+        icon_url=user_avatar
+    )
 
-    embed.set_footer(text=f"Issued by {interaction.user.display_name}")
+    embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
 
-    await interaction.response.send_message("Infraction Issued")
-    await interaction.followup.send(embed=embed)
+    # Sending the message with the ping in the 'content' field outside the embed
+    await interaction.channel.send(content=f"{officer.mention}", embed=embed)
+    await interaction.response.send_message("✅ Infraction has been posted successfully.", ephemeral=True)
+
+@bot.tree.command(name="metro_mass_shift", description="Announce a Metropolitan Division mass shift.")
+async def metro_mass_shift(interaction: discord.Interaction,co_host: discord.Member = None):
+    guild = interaction.guild
+    metro_role = discord.utils.get(guild.roles, name="Metropolitan Division")
+
+    if metro_role is None:
+        await interaction.response.send_message("Metropolitan Division role not found.", ephemeral=True)
+        return
+
+    host = interaction.user
+
+    # Build description (styled like promo command)
+    desc = (
+        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+        f"**Hosted By:** {host.mention}\n\n"
+        f"**Co-Host:** {co_host.mention if co_host else 'None'}\n\n"
+        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+        "All Metropolitan Operatives are to respond immediately.\n"
+        "Maintain readiness and follow standard deployment protocol.\n\n"
+        "**Reactions:**\n"
+        "✅ = Coming\n"
+        "❔ = Maybe\n"
+        "❌ = Unable\n"
+    )
+
+    embed = discord.Embed(
+        title=f"## <:LAPD_Metropolitan:1495867271501975552> ︱ Metro Mass Shift",
+        description=desc,
+        color=discord.Color.red()
+    )
+
+    embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
+
+    embed.set_footer(
+        text=f"Issued by {host.display_name}",
+        icon_url=host.display_avatar.url if host.display_avatar else None
+    )
+
+    # Send ping + embed
+    await interaction.response.send_message(
+        content=metro_role.mention,
+        embed=embed
+    )
+    await interaction.channel.send(content=metro_role.mention, embed=embed)
+
+    try:
+        msg = await interaction.original_response()
+        await msg.add_reaction("✅")
+        await msg.add_reaction("❔")
+        await msg.add_reaction("❌")
+    except Exception as e:
+        print(f"[MASS SHIFT REACTION ERROR] {e}")
+
+@bot.tree.command(name="metro_crime_heatmap", description="Generate a visual heatmap of historical crime activity.")
+async def metro_crime_heatmap(interaction: discord.Interaction):
+    await interaction.response.defer()
+
+    try:
+        # Aggregate logs by postal to get counts from MongoDB Atlas
+        pipeline = [
+            {"$match": {"postal": {"$ne": None}}},
+            {"$group": {"_id": "$postal", "count": {"$sum": 1}}}
+        ]
+        cursor = bot.suspect_logs.aggregate(pipeline)
+        results = await cursor.to_list(length=None)
+        
+        heatmap_data = {res["_id"]: res["count"] for res in results}
+        
+        if not heatmap_data:
+            await interaction.followup.send("No historical crime data found in the database to generate a heatmap.")
+            return
+
+        # Generate the image in a separate thread to avoid blocking the event loop
+        loop = asyncio.get_running_loop()
+        buffer = await loop.run_in_executor(None, draw_heatmap_overlay, heatmap_data)
+        
+        file = discord.File(fp=buffer, filename="heatmap.png")
+        
+        embed = discord.Embed(
+            title="<:LAPD_Metropolitan:1495867271501975552> Metropolitan Crime Heatmap",
+            color=discord.Color.red()
+        )
+        embed.set_image(url="attachment://heatmap.png")
+        
+        # Add summary statistics to the embed
+        total_incidents = sum(heatmap_data.values())
+        top_postal = max(heatmap_data, key=heatmap_data.get)
+        
+        await interaction.followup.send(embed=embed, file=file)
+
+    except Exception as e:
+        print(f"[HEATMAP ERROR] {e}")
+        await interaction.followup.send("An error occurred while generating the crime heatmap.")
+        
+@bot.tree.command(name="metro_openings", description="Display current roster and openings for Metropolitan Division ranks.")
+async def metro_openings(interaction: discord.Interaction):
+    """Generates multiple embeds showing rank availability for Metro and MCS."""
+    
+    # We need to defer to give time to fetch members without timing out
+    await interaction.response.defer()
+
+    guild = interaction.guild
+    if not guild:
+        await interaction.followup.send("This command must be run in a guild.")
+        return
+
+    # Ensure member cache is populated for the guild
+    if guild.member_count != len(guild.members):
+        await guild.chunk()
+
+    # --- Define Ranks, Quotas, and Hierarchical Order ---
+    # Structure: (Embed Group Name, List of (Rank Name, Quota))
+    # Quotas are hypothetical; replace with real values.
+    rank_groups = [
+        ("[MD] Senior High Rank", [
+            ("Metro Director", 1), 
+            ("Metro Deputy Director", 4),
+        ]),
+        ("[MD] High Rank", [
+            ("Metro Detective Chief Inspector", 4),
+            ("Metro Chief Inspector", 4),
+        ]),
+        ("[MD] Supervisory Staff", [
+            ("Metro Supervisory Sergeant", 5)
+        ]),
+        ("[MD] Major Crimes Services", [
+            ("Metro Senior Detective", 7),
+            ("Metro Junior Detective", 50)
+        ]),
+        ("[MD] Low Rank", [
+            ("Metro Senior Officer", 50),
+            ("Metro Junior Officer", 50)
+        ]),
+        ("[MD] Probationary Rank Openings", [
+            ("Metro Probationary Officer", 50)
+        ])
+    ]
+
+    # Use placeholder emojis for the seals. USER MUST REPLACE THESE with their guild's emoji syntax.
+    # Example guild emoji syntax: <:metro_seal:123456789012345678>
+    metro_seal = "<:LAPD_Metropolitan:1495867271501975552>" # REPLACE THIS
+    line_divider = "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**" # Thick block character for bold lines
+
+    # Color scheme matching the example
+    embed_color = discord.Color.from_rgb(5, 164, 232) # Very dark grey
+    mention_purple = 0x6b21a8 # Purple for mentions in code, can't easily color embed text like that, so just use standard mentions
+
+    embed_list = []
+
+    # --- Create Main Title Embed (Embed 0) ---
+    main_header_desc = f"# {metro_seal} **METRO Division Openings**\n{line_divider}\n\n"
+    embed0 = discord.Embed(
+        description=main_header_desc,
+        color=embed_color,
+    )
+    embed_list.append(embed0)
+
+    # --- Loop through Rank Groups and build other embeds ---
+    for group_name, ranks in rank_groups:
+        embed_desc = f"## {metro_seal} **{group_name}** {metro_seal}\n{line_divider}\n"
+        
+        for rank_name, quota in ranks:
+            embed_desc += f"**{rank_name}**\n{line_divider}\n"
+
+            # Find members with the role
+            role = discord.utils.get(guild.roles, name=rank_name)
+            members = []
+            if role:
+                members = role.members
+            
+            # Format the member list
+            if not members:
+                embed_desc += f"• No officers currently hold this rank.\n"
+                num_members = 0
+            else:
+                member_mentions = []
+                for m in members:
+                    # Assuming a standard name formatting. You may need to customize this based on how names are structured in your guild.
+                    # For now, just use the mention. You can try to reconstruct parts if needed.
+                    member_mentions.append(f"• {m.mention}")
+                embed_desc += "\n".join(member_mentions) + "\n"
+                num_members = len(members)
+
+            # Calculate spots
+            spots_closed = num_members
+            spots_open = max(0, quota - num_members) # Ensure it doesn't go below 0
+
+            # Add spot count lines
+            embed_desc += f"→ **Closed Spots:** {spots_closed}/{quota}\n"
+            embed_desc += f"→ **Open Spots:** {spots_open}/{quota}\n\n"
+
+        # Finish each embed description and add to list
+        embed_desc += line_divider # Add a final line at the bottom of each embed block
+        embed = discord.Embed(
+            description=embed_desc,
+            color=embed_color,
+        )
+        embed_list.append(embed)
+
+    # Send all embeds together
+    await interaction.channel.send(embeds=embed_list)
+    await interaction.followup.send_message("✅ Openings been updated successfully.", ephemeral=True)
+
 
 @bot.tree.command(name="metro_predict", description="Run a predictive policing algorithm on a suspect.")
 async def metro_predict(
@@ -863,9 +1233,9 @@ async def metro_predict(
                 "secondary_target": None,
                 "threat_level": "MEDIUM",
                 "behavioral_profile": "",
-                "tactical_recommendation": "Maintain visual.",
+                "tactical_recommendation": "LLM failure fallback.",
                 "probability_score": 0.0,
-                "reasoning": "Fallback due to LLM failure."
+                "reasoning": "LLM returned None or invalid schema. System fallback activated."
             }
         }
 
@@ -963,7 +1333,8 @@ async def metro_predict(
     # 4. (removed duplicate LLM call and normalization block)
 
     # 5. Generate Map Image
-    map_image_buffer = draw_map_path(paths_to_draw)
+    loop = asyncio.get_running_loop()
+    map_image_buffer = await loop.run_in_executor(None, draw_map_path, paths_to_draw)
     file = discord.File(fp=map_image_buffer, filename="predictive_map.png") if map_image_buffer else discord.utils.MISSING
 
     # 6. Build Stylized Discord Embed
@@ -971,7 +1342,7 @@ async def metro_predict(
     embed_color = color_map.get(prediction_data.get("risk_level", "Medium"), discord.Color.blue())
 
     embed = discord.Embed(
-        title="🚨 Metro Predictive Engine",
+        title="<:LAPD_Metropolitan:1495867271501975552> Metro Predictive Engine",
         description=f"**Target Analysis:** LKL `{postal}` | Vehicle: `{vehicle}`",
         color=embed_color
     )

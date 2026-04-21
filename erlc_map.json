@@ -1,8 +1,8 @@
 {
   "system_config": {
-    "version": "9.0",
+    "version": "0.8",
     "baked_weights": true,
-    "description": "COMPLETE MAP v9: All postals, all named roads, full bidirectional network. City grid (200s-500s), suburban (700s), rural north (800s), lake/county north (900s), county east (1100s), Oak Valley south (1200s). Road types: highway=0.6x, arterial=1.0x, local=1.2x, industrial=1.4x, winding=1.6x",
+    "description": "v0.8",
     "multiplier_map": {
       "highway": 0.6,
       "arterial": 1.0,
@@ -13,11 +13,11 @@
   },
   "nodes": {
     "ind_sandstone": {
-      "x": 795,
-      "y": 1983
+      "x": 794,
+      "y": 1944
     },
     "ind_durham": {
-      "x": 866,
+      "x": 798,
       "y": 1986
     },
     "ind_main": {
@@ -25,24 +25,20 @@
       "y": 1986
     },
     "ind_park": {
-      "x": 1070,
-      "y": 2000
+      "x": 1071,
+      "y": 1987
     },
     "ind_riverside": {
       "x": 1246,
       "y": 1985
     },
-    "ind_industrial": {
-      "x": 1416,
-      "y": 1922
-    },
     "ind_cross": {
-      "x": 1580,
-      "y": 2037
+      "x": 1556,
+      "y": 2000
     },
     "ind_cline": {
-      "x": 1810,
-      "y": 1934
+      "x": 1825,
+      "y": 1961
     },
     "orch_fairfax": {
       "x": 472,
@@ -58,7 +54,7 @@
     },
     "orch_park": {
       "x": 1078,
-      "y": 2156
+      "y": 2157
     },
     "orch_riverside": {
       "x": 1234,
@@ -73,12 +69,12 @@
       "y": 2152
     },
     "orch_cline": {
-      "x": 1824,
-      "y": 2152
+      "x": 1728,
+      "y": 2159
     },
     "grand_fairfax": {
-      "x": 513,
-      "y": 2267
+      "x": 536,
+      "y": 2270
     },
     "grand_sandstone": {
       "x": 659,
@@ -96,17 +92,9 @@
       "x": 1077,
       "y": 2268
     },
-    "grand_industrial": {
-      "x": 1450,
-      "y": 2250
-    },
-    "grand_cross": {
-      "x": 1600,
-      "y": 2250
-    },
     "free_fairfax": {
-      "x": 480,
-      "y": 2400
+      "x": 495,
+      "y": 2401
     },
     "free_sandstone": {
       "x": 659,
@@ -129,16 +117,16 @@
       "y": 2398
     },
     "free_industrial": {
-      "x": 1450,
-      "y": 2400
+      "x": 1419,
+      "y": 2399
     },
     "free_cross": {
       "x": 1600,
       "y": 2400
     },
     "free_cline": {
-      "x": 1800,
-      "y": 2400
+      "x": 1731,
+      "y": 2399
     },
     "south_fairfax": {
       "x": 612,
@@ -161,16 +149,16 @@
       "y": 2530
     },
     "georgia_industrial": {
-      "x": 1450,
-      "y": 2240
+      "x": 1421,
+      "y": 2275
     },
     "georgia_cross": {
-      "x": 1600,
-      "y": 2240
+      "x": 1572,
+      "y": 2279
     },
     "georgia_cline": {
-      "x": 1800,
-      "y": 2240
+      "x": 1730,
+      "y": 2276
     },
     "madison_main": {
       "x": 1441,
@@ -181,28 +169,28 @@
       "y": 2521
     },
     "col_lower": {
-      "x": 1342,
-      "y": 1934
+      "x": 1421,
+      "y": 1857
     },
     "col_south": {
       "x": 1200,
       "y": 2050
     },
     "col_complex": {
-      "x": 1350,
-      "y": 1580
+      "x": 1831,
+      "y": 2158
     },
     "riv_upper": {
-      "x": 1080,
-      "y": 1400
+      "x": 1066,
+      "y": 1390
     },
     "riv_mid": {
       "x": 1227,
       "y": 1611
     },
     "riv_lower": {
-      "x": 1080,
-      "y": 1720
+      "x": 1073,
+      "y": 1785
     },
     "riv_city": {
       "x": 1200,
@@ -213,16 +201,16 @@
       "y": 635
     },
     "hwy55_n1": {
-      "x": 2165,
-      "y": 879
+      "x": 2144,
+      "y": 816
     },
     "hwy55_n2": {
-      "x": 2170,
-      "y": 1129
+      "x": 2171,
+      "y": 1117
     },
     "hwy55_mid": {
-      "x": 2171,
-      "y": 1409
+      "x": 2154,
+      "y": 1508
     },
     "hwy55_s1": {
       "x": 2170,
@@ -245,28 +233,28 @@
       "y": 2010
     },
     "oakval_m2": {
-      "x": 2470,
-      "y": 2170
+      "x": 2506,
+      "y": 2181
     },
     "oakval_s": {
-      "x": 2320,
-      "y": 2490
+      "x": 2383,
+      "y": 2429
     },
     "oakval_e": {
-      "x": 2685,
-      "y": 1735
+      "x": 2690,
+      "y": 1422
     },
     "county_1206_loop_e": {
-      "x": 2595,
-      "y": 2610
+      "x": 2519,
+      "y": 2608
     },
     "spring_creek_w": {
       "x": 1481,
       "y": 839
     },
     "spring_creek_e": {
-      "x": 1704,
-      "y": 970
+      "x": 1982,
+      "y": 969
     },
     "iron_road_n": {
       "x": 1845,
@@ -280,29 +268,13 @@
       "x": 700,
       "y": 1480
     },
-    "franklin_w": {
-      "x": 480,
-      "y": 1680
-    },
-    "franklin_e": {
-      "x": 700,
-      "y": 1680
-    },
     "emerson_s": {
       "x": 380,
       "y": 1800
     },
     "arbor_upper": {
-      "x": 480,
-      "y": 1350
-    },
-    "valley_n": {
-      "x": 380,
-      "y": 1900
-    },
-    "valley_m": {
-      "x": 330,
-      "y": 2100
+      "x": 516,
+      "y": 1215
     },
     "valley_s": {
       "x": 330,
@@ -341,7 +313,7 @@
       "x": 919,
       "y": 2476,
       "poi": "Dealership",
-      "robable": true,
+      "robable": false,
       "type": "commercial"
     },
     "N-204": {
@@ -349,13 +321,13 @@
       "x": 1072,
       "y": 2432,
       "poi": "N/A",
-      "robable": true,
+      "robable": false,
       "type": "recreational"
     },
     "N-205": {
       "label": "INT_FAIRFAX_ORCHARD",
-      "x": 528,
-      "y": 2320,
+      "x": 541,
+      "y": 2321,
       "poi": "Bank",
       "robable": true,
       "type": "commercial"
@@ -365,7 +337,7 @@
       "x": 918,
       "y": 2302,
       "poi": "Civic Plaza",
-      "robable": true,
+      "robable": false,
       "type": "recreational"
     },
     "N-208": {
@@ -405,7 +377,7 @@
       "x": 909,
       "y": 2150,
       "poi": "RC Parking Complex",
-      "robable": true,
+      "robable": false,
       "type": "commercial"
     },
     "N-216": {
@@ -426,8 +398,8 @@
     },
     "N-218": {
       "label": "INT_PARK_ORCHARD",
-      "x": 1050,
-      "y": 2150,
+      "x": 1076,
+      "y": 2141,
       "poi": "Park",
       "robable": false,
       "type": "recreational"
@@ -442,7 +414,7 @@
     },
     "N-221": {
       "label": "INT_DURHAM_SOUTH",
-      "x": 811,
+      "x": 801,
       "y": 2610,
       "poi": "N/A",
       "robable": false,
@@ -482,39 +454,39 @@
     },
     "N-304": {
       "label": "INT_CROSS_GEORGIA",
-      "x": 1600,
-      "y": 2260,
+      "x": 1607,
+      "y": 2214,
       "poi": "Outdoor Parking",
       "robable": false,
       "type": "utility"
     },
     "N-305": {
       "label": "INT_POLICE_STATION",
-      "x": 1476,
-      "y": 2041,
+      "x": 1471,
+      "y": 2067,
       "poi": "Police Station",
       "robable": false,
       "type": "government"
     },
     "N-306": {
       "label": "INT_POWERPLANT",
-      "x": 1496,
-      "y": 2216,
+      "x": 1506,
+      "y": 2200,
       "poi": "Powerplant",
       "robable": false,
       "type": "utility"
     },
     "N-307": {
       "label": "INT_CROSS_ORCHARD",
-      "x": 1600,
-      "y": 2150,
+      "x": 1579,
+      "y": 2170,
       "poi": "Industrial Supply",
       "robable": false,
       "type": "industrial"
     },
     "N-309": {
       "label": "INT_IND_RIVERSIDE_IND",
-      "x": 1533,
+      "x": 1426,
       "y": 1984,
       "poi": "Shops",
       "robable": false,
@@ -538,8 +510,8 @@
     },
     "N-314": {
       "label": "INT_SOUTH_FAR",
-      "x": 810,
-      "y": 2780,
+      "x": 799,
+      "y": 2687,
       "poi": "Grasslands",
       "robable": false,
       "type": "utility"
@@ -584,34 +556,26 @@
       "robable": false,
       "type": "utility"
     },
-    "N-409": {
-      "label": "INT_VALLEY_MID",
-      "x": 380,
-      "y": 2060,
-      "poi": "Valley",
-      "robable": false,
-      "type": "utility"
-    },
     "N-410": {
       "label": "INT_ARBOR_MID",
-      "x": 480,
-      "y": 1800,
+      "x": 550,
+      "y": 1744,
       "poi": "Dirt Tracks",
       "robable": false,
       "type": "utility"
     },
     "N-411": {
       "label": "INT_RIVERSIDE_UPPER",
-      "x": 1240,
-      "y": 1530,
+      "x": 1245,
+      "y": 1629,
       "poi": "Riverside Drive North (To the Right)",
       "robable": false,
       "type": "utility"
     },
     "N-501": {
       "label": "INT_COLONIAL_VINE",
-      "x": 1920,
-      "y": 1860,
+      "x": 1973,
+      "y": 1856,
       "poi": "Illegal Chop Shop (Sells Stolen Vehicles)",
       "robable": false,
       "type": "commercial"
@@ -624,14 +588,6 @@
       "robable": false,
       "type": "utility"
     },
-    "N-509": {
-      "label": "INT_GIBSON_VINE",
-      "x": 1900,
-      "y": 1670,
-      "poi": "Grasslands",
-      "robable": false,
-      "type": "commercial"
-    },
     "N-510": {
       "label": "INT_COLONIAL_IND",
       "x": 1501,
@@ -640,34 +596,26 @@
       "robable": false,
       "type": "utility"
     },
-    "N-511": {
-      "label": "INT_VINE_GIBSON",
-      "x": 1500,
-      "y": 2280,
-      "poi": "Mountains",
-      "robable": false,
-      "type": "utility"
-    },
     "N-600": {
       "label": "INT_RIV_COL_UPPER",
-      "x": 1535,
-      "y": 1540,
+      "x": 1507,
+      "y": 1467,
       "poi": "Farm",
       "robable": false,
       "type": "utility"
     },
     "N-601": {
       "label": "INT_COLONIAL_COMPLEX",
-      "x": 1600,
-      "y": 1420,
+      "x": 1623,
+      "y": 1359,
       "poi": "Cornfields",
       "robable": false,
       "type": "government"
     },
     "N-602": {
       "label": "INT_COLONIAL_W",
-      "x": 1500,
-      "y": 1311,
+      "x": 1534,
+      "y": 1300,
       "poi": "Gas Station (Rural)",
       "robable": true,
       "type": "commercial"
@@ -682,8 +630,8 @@
     },
     "N-604": {
       "label": "INT_COLONIAL_COMPLEX_E",
-      "x": 1730,
-      "y": 1310,
+      "x": 1818,
+      "y": 1558,
       "poi": "Farmland",
       "robable": false,
       "type": "commercial"
@@ -696,18 +644,10 @@
       "robable": false,
       "type": "utility"
     },
-    "N-701": {
-      "label": "INT_ARBOR_N",
-      "x": 480,
-      "y": 1620,
-      "poi": "Arbor Homes",
-      "robable": false,
-      "type": "residential"
-    },
     "N-704": {
       "label": "INT_ACADEMY_PL",
-      "x": 400,
-      "y": 1690,
+      "x": 396,
+      "y": 1697,
       "poi": "Academy Pl. Field",
       "robable": false,
       "type": "utility"
@@ -720,18 +660,10 @@
       "robable": false,
       "type": "residential"
     },
-    "N-706": {
-      "label": "INT_JOYNER_FRANKLIN",
-      "x": 693,
-      "y": 1390,
-      "poi": "Franklin Homes East",
-      "robable": false,
-      "type": "residential"
-    },
     "N-707": {
       "label": "INT_RIVERSIDE_N",
-      "x": 684,
-      "y": 1415,
+      "x": 686,
+      "y": 1392,
       "poi": "Riverside North",
       "robable": false,
       "type": "utility"
@@ -739,15 +671,15 @@
     "N-708": {
       "label": "INT_PINEVIEW_W",
       "x": 481,
-      "y": 1268,
+      "y": 1308,
       "poi": "Pineview West Homes",
       "robable": false,
       "type": "residential"
     },
     "N-800": {
       "label": "INT_RIVER_RURAL",
-      "x": 688,
-      "y": 1091,
+      "x": 686,
+      "y": 1205,
       "poi": "River Crossing",
       "robable": false,
       "type": "utility"
@@ -760,18 +692,10 @@
       "robable": false,
       "type": "utility"
     },
-    "N-803": {
-      "label": "INT_NW_RURAL",
-      "x": 455,
-      "y": 1190,
-      "poi": "NW Farmland",
-      "robable": false,
-      "type": "utility"
-    },
     "N-804": {
       "label": "INT_FAR_NORTH",
       "x": 1323,
-      "y": 480,
+      "y": 476,
       "poi": "Far North Road",
       "robable": false,
       "type": "utility"
@@ -826,16 +750,16 @@
     },
     "N-906": {
       "label": "INT_MAPLE_COUNTY",
-      "x": 1887,
-      "y": 1088,
+      "x": 1976,
+      "y": 1091,
       "poi": "Maple Street County",
       "robable": false,
       "type": "utility"
     },
     "N-907": {
       "label": "INT_SPRING_CREEK_E",
-      "x": 1663,
-      "y": 970,
+      "x": 1703,
+      "y": 971,
       "poi": "Spring Creek Ranch",
       "robable": false,
       "type": "utility"
@@ -866,16 +790,16 @@
     },
     "N-1104": {
       "label": "INT_ALT_SPAWN",
-      "x": 2236,
-      "y": 888,
+      "x": 2309,
+      "y": 898,
       "poi": "Alternate Spawn",
       "robable": false,
       "type": "utility"
     },
     "N-1105": {
       "label": "INT_SHOPS_COUNTY",
-      "x": 2563,
-      "y": 888,
+      "x": 2593,
+      "y": 887,
       "poi": "Shops",
       "robable": true,
       "type": "commercial"
@@ -890,8 +814,8 @@
     },
     "N-1107": {
       "label": "INT_ELM_COUNTY",
-      "x": 2330,
-      "y": 1078,
+      "x": 2329,
+      "y": 1087,
       "poi": "Elm Street Area",
       "robable": false,
       "type": "residential"
@@ -914,8 +838,8 @@
     },
     "N-1110": {
       "label": "INT_GAS_STATION_COUNTY",
-      "x": 2236,
-      "y": 1318,
+      "x": 2300,
+      "y": 1312,
       "poi": "Gas Station (County)",
       "robable": true,
       "type": "commercial"
@@ -938,32 +862,32 @@
     },
     "N-1113": {
       "label": "INT_COUNTY_SW",
-      "x": 2236,
-      "y": 1078,
+      "x": 2294,
+      "y": 1090,
       "poi": "County SW Area",
       "robable": false,
       "type": "utility"
     },
     "N-1200": {
       "label": "INT_HWY55_OAK_N",
-      "x": 2585,
-      "y": 1450,
+      "x": 2563,
+      "y": 1694,
       "poi": "Hwy 55 / Oak Valley N",
       "robable": false,
       "type": "utility"
     },
     "N-1201": {
       "label": "INT_OAK_VALLEY_MID",
-      "x": 2295,
-      "y": 1815,
+      "x": 2258,
+      "y": 1734,
       "poi": "Oak Valley Drive",
       "robable": false,
       "type": "utility"
     },
     "N-1202": {
       "label": "INT_OAK_VALLEY_S2",
-      "x": 2495,
-      "y": 1905,
+      "x": 2563,
+      "y": 2000,
       "poi": "Oak Valley South",
       "robable": false,
       "type": "utility"
@@ -978,8 +902,8 @@
     },
     "N-1204": {
       "label": "INT_COUNTY_S",
-      "x": 2295,
-      "y": 2245,
+      "x": 2324,
+      "y": 2230,
       "poi": "County South Area",
       "robable": false,
       "type": "utility"
@@ -1002,21 +926,21 @@
     },
     "N-1207": {
       "label": "INT_COUNTY_S_BOTTOM",
-      "x": 2210,
-      "y": 2625,
+      "x": 2260,
+      "y": 2616,
       "poi": "South County Road End",
       "robable": false,
       "type": "utility"
     },
     "N-702": {
-      "x": 792,
-      "y": 1395,
+      "x": 790,
+      "y": 1394,
       "label": "INT_ARBOR_FRANKLIN",
       "robable": false
     },
     "N-406": {
-      "x": 1038,
-      "y": 1620,
+      "x": 1014,
+      "y": 1629,
       "label": "Fairfax Road",
       "type": "commercial",
       "robable": false
@@ -1026,6 +950,174 @@
       "y": 1302,
       "label": "Franklin Court",
       "type": "commercial",
+      "robable": false
+    },
+    "N-910": {
+      "x": 2103,
+      "y": 1091,
+      "label": "HW55 North East On-Ramp",
+      "type": "commercial",
+      "robable": false
+    },
+    "N-11131": {
+      "x": 2217,
+      "y": 1094,
+      "label": "HW55 North East Off-Ramp",
+      "type": "commercial",
+      "robable": false
+    },
+    "N-7071": {
+      "x": 1081,
+      "y": 1222,
+      "label": "frank_upper",
+      "poi": "Housing Suburbs",
+      "robable": false
+    },
+    "N-7056": {
+      "x": 946,
+      "y": 1205,
+      "label": "INT_JOYNER_FRANKLIN",
+      "poi": "Housing Suburbs",
+      "type": "Housing",
+      "robable": true
+    },
+    "N-7021": {
+      "x": 945,
+      "y": 1393,
+      "poi": "Housing Suburbs",
+      "type": "Housing Suburbs",
+      "robable": true
+    },
+    "N-7091": {
+      "x": 700,
+      "y": 1072,
+      "label": "PINEVIEW",
+      "poi": "Housing Suburbs",
+      "type": "Housing",
+      "robable": true
+    },
+    "N-7092": {
+      "x": 927,
+      "y": 1072,
+      "label": "PINEVIEW CIRCLE",
+      "poi": "Housing Suburbs",
+      "type": "Housing",
+      "robable": true
+    },
+    "N-7001": {
+      "x": 342,
+      "y": 1306,
+      "label": "ACADEMY_PLACE",
+      "poi": "Housing Suburbs",
+      "type": "Housing",
+      "robable": false
+    },
+    "N-12011": {
+      "x": 2344,
+      "y": 1903,
+      "label": "oakval_m2",
+      "type": "commercial",
+      "robable": false
+    },
+    "N-12041": {
+      "x": 2474,
+      "y": 2322,
+      "label": "oakval_m4",
+      "type": "commercial",
+      "robable": false
+    },
+    "N-409": {
+      "x": 478,
+      "y": 1613,
+      "label": "VALLEY_DR",
+      "type": "Utility",
+      "robable": false
+    },
+    "N-4101": {
+      "x": 795,
+      "y": 1615,
+      "label": "INT_VALLEY_ARBOR",
+      "type": "commercial",
+      "robable": false
+    },
+    "INT_FAIRFAX_ARBOR": {
+      "x": 795,
+      "y": 1761,
+      "label": "INT_FAIRFAX_ARBOR",
+      "poi": "Roundabout",
+      "type": "Utility",
+      "robable": false
+    },
+    "N-503": {
+      "x": 1503,
+      "y": 1735,
+      "label": "Gibson Lane",
+      "type": "Utility",
+      "robable": false
+    },
+    "INT_COL_GIBSON": {
+      "x": 1826,
+      "y": 1733,
+      "label": "INT_COL_GIBSON",
+      "poi": "N/A",
+      "type": "Utility",
+      "robable": false
+    },
+    "N-500": {
+      "x": 1964,
+      "y": 2091,
+      "label": "CURVE_VINE",
+      "type": "Utility",
+      "robable": false
+    },
+    "N-509": {
+      "x": 1975,
+      "y": 1732,
+      "label": "Gibson_Vine",
+      "type": "Utility",
+      "robable": false
+    },
+    "N-5091": {
+      "x": 1952,
+      "y": 1633,
+      "label": "Vine-Curve",
+      "type": "Utility",
+      "robable": false
+    },
+    "N-505": {
+      "x": 1827,
+      "y": 1620,
+      "label": "INT_Vine_Colonial",
+      "type": "commercial",
+      "robable": false
+    },
+    "N-504": {
+      "x": 1648,
+      "y": 1602,
+      "label": "CDU_Vine",
+      "type": "commercial",
+      "robable": false
+    },
+    "N-506": {
+      "x": 1717,
+      "y": 1614,
+      "label": "INT_LEE_VINE",
+      "type": "Utility",
+      "robable": false
+    },
+    "N-5041": {
+      "x": 1692,
+      "y": 1737,
+      "label": "INT_GIB_LEE",
+      "type": "Utility",
+      "robable": false
+    },
+    "N-6001": {
+      "x": 1493,
+      "y": 1584,
+      "label": "Farm",
+      "poi": "Farm",
+      "type": "Farm",
       "robable": false
     }
   },
@@ -1131,84 +1223,6 @@
         "postals": [
           "308",
           "309"
-        ]
-      }
-    },
-    {
-      "source": "ind_riverside",
-      "target": "ind_industrial",
-      "road": "Independence Parkway",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "309",
-          "305"
-        ]
-      }
-    },
-    {
-      "source": "ind_industrial",
-      "target": "ind_riverside",
-      "road": "Independence Parkway",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "309",
-          "305"
-        ]
-      }
-    },
-    {
-      "source": "ind_industrial",
-      "target": "ind_cross",
-      "road": "Independence Parkway",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "305",
-          "308"
-        ]
-      }
-    },
-    {
-      "source": "ind_cross",
-      "target": "ind_industrial",
-      "road": "Independence Parkway",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "305",
-          "308"
-        ]
-      }
-    },
-    {
-      "source": "ind_cross",
-      "target": "ind_cline",
-      "road": "Independence Parkway",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "308",
-          "310"
-        ]
-      }
-    },
-    {
-      "source": "ind_cline",
-      "target": "ind_cross",
-      "road": "Independence Parkway",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "308",
-          "310"
         ]
       }
     },
@@ -1473,32 +1487,6 @@
       }
     },
     {
-      "source": "grand_industrial",
-      "target": "grand_cross",
-      "road": "Grand Avenue",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "303",
-          "304"
-        ]
-      }
-    },
-    {
-      "source": "grand_cross",
-      "target": "grand_industrial",
-      "road": "Grand Avenue",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "303",
-          "304"
-        ]
-      }
-    },
-    {
       "source": "free_fairfax",
       "target": "free_sandstone",
       "road": "Freedom Avenue",
@@ -1729,32 +1717,6 @@
         "postals": [
           "224",
           "220"
-        ]
-      }
-    },
-    {
-      "source": "south_sandstone",
-      "target": "south_durham",
-      "road": "Southern Avenue",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "220",
-          "221"
-        ]
-      }
-    },
-    {
-      "source": "south_durham",
-      "target": "south_sandstone",
-      "road": "Southern Avenue",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "220",
-          "221"
         ]
       }
     },
@@ -2199,30 +2161,6 @@
       }
     },
     {
-      "source": "ind_durham",
-      "target": "N-403",
-      "road": "Durham Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "217"
-        ]
-      }
-    },
-    {
-      "source": "N-403",
-      "target": "ind_durham",
-      "road": "Durham Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "217"
-        ]
-      }
-    },
-    {
       "source": "N-212",
       "target": "grand_durham",
       "road": "Durham Road",
@@ -2363,30 +2301,6 @@
       "metadata": {
         "postals": [
           "221"
-        ]
-      }
-    },
-    {
-      "source": "N-404",
-      "target": "N-217",
-      "road": "Main Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "404"
-        ]
-      }
-    },
-    {
-      "source": "N-217",
-      "target": "N-404",
-      "road": "Main Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "404"
         ]
       }
     },
@@ -2847,54 +2761,6 @@
       }
     },
     {
-      "source": "ind_industrial",
-      "target": "N-305",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "305"
-        ]
-      }
-    },
-    {
-      "source": "N-305",
-      "target": "ind_industrial",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "305"
-        ]
-      }
-    },
-    {
-      "source": "N-305",
-      "target": "N-306",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "305"
-        ]
-      }
-    },
-    {
-      "source": "N-306",
-      "target": "N-305",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "305"
-        ]
-      }
-    },
-    {
       "source": "N-306",
       "target": "orch_industrial",
       "road": "Industrial Road",
@@ -2939,78 +2805,6 @@
       "metadata": {
         "postals": [
           "306"
-        ]
-      }
-    },
-    {
-      "source": "georgia_industrial",
-      "target": "grand_industrial",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "303"
-        ]
-      }
-    },
-    {
-      "source": "grand_industrial",
-      "target": "georgia_industrial",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "303"
-        ]
-      }
-    },
-    {
-      "source": "grand_industrial",
-      "target": "free_industrial",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "303"
-        ]
-      }
-    },
-    {
-      "source": "free_industrial",
-      "target": "grand_industrial",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "303"
-        ]
-      }
-    },
-    {
-      "source": "free_industrial",
-      "target": "N-301",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "301"
-        ]
-      }
-    },
-    {
-      "source": "N-301",
-      "target": "free_industrial",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "301"
         ]
       }
     },
@@ -3039,30 +2833,6 @@
       }
     },
     {
-      "source": "N-309",
-      "target": "orch_cross",
-      "road": "Cross Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "309"
-        ]
-      }
-    },
-    {
-      "source": "orch_cross",
-      "target": "N-309",
-      "road": "Cross Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "309"
-        ]
-      }
-    },
-    {
       "source": "orch_cross",
       "target": "N-307",
       "road": "Cross Street",
@@ -3111,126 +2881,6 @@
       }
     },
     {
-      "source": "georgia_cross",
-      "target": "grand_cross",
-      "road": "Cross Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "304"
-        ]
-      }
-    },
-    {
-      "source": "grand_cross",
-      "target": "georgia_cross",
-      "road": "Cross Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "304"
-        ]
-      }
-    },
-    {
-      "source": "grand_cross",
-      "target": "free_cross",
-      "road": "Cross Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "304"
-        ]
-      }
-    },
-    {
-      "source": "free_cross",
-      "target": "grand_cross",
-      "road": "Cross Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "304"
-        ]
-      }
-    },
-    {
-      "source": "free_cross",
-      "target": "N-311",
-      "road": "Cross Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "311"
-        ]
-      }
-    },
-    {
-      "source": "N-311",
-      "target": "free_cross",
-      "road": "Cross Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "311"
-        ]
-      }
-    },
-    {
-      "source": "ind_cline",
-      "target": "orch_cline",
-      "road": "Cline Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "310"
-        ]
-      }
-    },
-    {
-      "source": "orch_cline",
-      "target": "ind_cline",
-      "road": "Cline Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "310"
-        ]
-      }
-    },
-    {
-      "source": "orch_cline",
-      "target": "N-310",
-      "road": "Cline Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "310"
-        ]
-      }
-    },
-    {
-      "source": "N-310",
-      "target": "orch_cline",
-      "road": "Cline Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "310"
-        ]
-      }
-    },
-    {
       "source": "N-310",
       "target": "georgia_cline",
       "road": "Cline Street",
@@ -3269,30 +2919,6 @@
     {
       "source": "N-311",
       "target": "georgia_cline",
-      "road": "Cline Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "311"
-        ]
-      }
-    },
-    {
-      "source": "N-311",
-      "target": "free_cline",
-      "road": "Cline Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "311"
-        ]
-      }
-    },
-    {
-      "source": "free_cline",
-      "target": "N-311",
       "road": "Cline Street",
       "type": "local",
       "is_one_way": false,
@@ -3759,30 +3385,6 @@
       }
     },
     {
-      "source": "orch_industrial",
-      "target": "N-306",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "306"
-        ]
-      }
-    },
-    {
-      "source": "N-306",
-      "target": "orch_industrial",
-      "road": "Industrial Road",
-      "type": "industrial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "306"
-        ]
-      }
-    },
-    {
       "source": "orch_cross",
       "target": "N-307",
       "road": "Cross Street",
@@ -3803,54 +3405,6 @@
       "metadata": {
         "postals": [
           "307"
-        ]
-      }
-    },
-    {
-      "source": "orch_cline",
-      "target": "N-310",
-      "road": "Cline Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "310"
-        ]
-      }
-    },
-    {
-      "source": "N-310",
-      "target": "orch_cline",
-      "road": "Cline Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "310"
-        ]
-      }
-    },
-    {
-      "source": "ind_industrial",
-      "target": "N-305",
-      "road": "Independence Pkwy",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "305"
-        ]
-      }
-    },
-    {
-      "source": "N-305",
-      "target": "ind_industrial",
-      "road": "Independence Pkwy",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "305"
         ]
       }
     },
@@ -3927,30 +3481,6 @@
       }
     },
     {
-      "source": "free_cline",
-      "target": "N-311",
-      "road": "Freedom Avenue",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "311"
-        ]
-      }
-    },
-    {
-      "source": "N-311",
-      "target": "free_cline",
-      "road": "Freedom Avenue",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "311"
-        ]
-      }
-    },
-    {
       "source": "ind_riverside",
       "target": "N-309",
       "road": "Independence Pkwy",
@@ -3975,30 +3505,6 @@
       }
     },
     {
-      "source": "ind_durham",
-      "target": "N-404",
-      "road": "Durham Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "404"
-        ]
-      }
-    },
-    {
-      "source": "N-404",
-      "target": "ind_durham",
-      "road": "Durham Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "404"
-        ]
-      }
-    },
-    {
       "source": "orch_fairfax",
       "target": "N-402",
       "road": "Fairfax Road",
@@ -4019,54 +3525,6 @@
       "metadata": {
         "postals": [
           "402"
-        ]
-      }
-    },
-    {
-      "source": "valley_m",
-      "target": "N-408",
-      "road": "Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "408"
-        ]
-      }
-    },
-    {
-      "source": "N-408",
-      "target": "valley_m",
-      "road": "Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "408"
-        ]
-      }
-    },
-    {
-      "source": "valley_n",
-      "target": "N-409",
-      "road": "Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "409"
-        ]
-      }
-    },
-    {
-      "source": "N-409",
-      "target": "valley_n",
-      "road": "Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "409"
         ]
       }
     },
@@ -4115,78 +3573,6 @@
       "metadata": {
         "postals": [
           "502"
-        ]
-      }
-    },
-    {
-      "source": "orch_industrial",
-      "target": "N-509",
-      "road": "Gibson Lane",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "509"
-        ]
-      }
-    },
-    {
-      "source": "N-509",
-      "target": "orch_industrial",
-      "road": "Gibson Lane",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "509"
-        ]
-      }
-    },
-    {
-      "source": "ind_industrial",
-      "target": "N-510",
-      "road": "Colonial Drive",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "510"
-        ]
-      }
-    },
-    {
-      "source": "N-510",
-      "target": "ind_industrial",
-      "road": "Colonial Drive",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "510"
-        ]
-      }
-    },
-    {
-      "source": "georgia_cross",
-      "target": "N-511",
-      "road": "Vine Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "511"
-        ]
-      }
-    },
-    {
-      "source": "N-511",
-      "target": "georgia_cross",
-      "road": "Vine Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "511"
         ]
       }
     },
@@ -4311,32 +3697,6 @@
       }
     },
     {
-      "source": "N-705",
-      "target": "N-704",
-      "road": "Arbor Lane",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "705",
-          "704"
-        ]
-      }
-    },
-    {
-      "source": "N-704",
-      "target": "N-705",
-      "road": "Arbor Lane",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "705",
-          "704"
-        ]
-      }
-    },
-    {
       "source": "N-704",
       "target": "N-700",
       "road": "Arbor Lane",
@@ -4385,110 +3745,6 @@
         "postals": [
           "700",
           "408"
-        ]
-      }
-    },
-    {
-      "source": "N-408",
-      "target": "valley_m",
-      "road": "Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "408",
-          "409"
-        ]
-      }
-    },
-    {
-      "source": "valley_m",
-      "target": "N-408",
-      "road": "Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "408",
-          "409"
-        ]
-      }
-    },
-    {
-      "source": "valley_m",
-      "target": "N-409",
-      "road": "Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "409",
-          "405"
-        ]
-      }
-    },
-    {
-      "source": "N-409",
-      "target": "valley_m",
-      "road": "Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "409",
-          "405"
-        ]
-      }
-    },
-    {
-      "source": "N-409",
-      "target": "valley_n",
-      "road": "Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "409",
-          "400"
-        ]
-      }
-    },
-    {
-      "source": "valley_n",
-      "target": "N-409",
-      "road": "Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "409",
-          "400"
-        ]
-      }
-    },
-    {
-      "source": "N-705",
-      "target": "N-706",
-      "road": "Franklin Court",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "705",
-          "706"
-        ]
-      }
-    },
-    {
-      "source": "N-706",
-      "target": "N-705",
-      "road": "Franklin Court",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "705",
-          "706"
         ]
       }
     },
@@ -4829,32 +4085,6 @@
       }
     },
     {
-      "source": "N-806",
-      "target": "hwy55_north",
-      "road": "Highway 55",
-      "type": "highway",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "806",
-          "900"
-        ]
-      }
-    },
-    {
-      "source": "hwy55_north",
-      "target": "N-806",
-      "road": "Highway 55",
-      "type": "highway",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "806",
-          "900"
-        ]
-      }
-    },
-    {
       "source": "N-900",
       "target": "hwy55_north",
       "road": "Highway 55",
@@ -4875,56 +4105,6 @@
       "metadata": {
         "postals": [
           "900"
-        ]
-      }
-    },
-    {
-      "source": "N-902",
-      "target": "hwy55_n1",
-      "road": "Highway 55",
-      "type": "highway",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "902"
-        ]
-      }
-    },
-    {
-      "source": "hwy55_n1",
-      "target": "N-902",
-      "road": "Highway 55",
-      "type": "highway",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "902"
-        ]
-      }
-    },
-    {
-      "source": "N-908",
-      "target": "hwy55_n2",
-      "road": "Maple Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "908",
-          "906"
-        ]
-      }
-    },
-    {
-      "source": "hwy55_n2",
-      "target": "N-908",
-      "road": "Maple Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "908",
-          "906"
         ]
       }
     },
@@ -5031,32 +4211,6 @@
       }
     },
     {
-      "source": "N-905",
-      "target": "N-908",
-      "road": "Maple Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "905",
-          "908"
-        ]
-      }
-    },
-    {
-      "source": "N-908",
-      "target": "N-905",
-      "road": "Maple Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "905",
-          "908"
-        ]
-      }
-    },
-    {
       "source": "N-908",
       "target": "N-906",
       "road": "Maple Street",
@@ -5157,30 +4311,6 @@
       }
     },
     {
-      "source": "spring_creek_e",
-      "target": "N-909",
-      "road": "Spring Creek Rd",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "909"
-        ]
-      }
-    },
-    {
-      "source": "N-909",
-      "target": "spring_creek_e",
-      "road": "Spring Creek Rd",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "909"
-        ]
-      }
-    },
-    {
       "source": "N-909",
       "target": "N-906",
       "road": "Iron Road",
@@ -5203,32 +4333,6 @@
         "postals": [
           "909",
           "906"
-        ]
-      }
-    },
-    {
-      "source": "N-904",
-      "target": "N-909",
-      "road": "Spring Creek Rd",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "904",
-          "909"
-        ]
-      }
-    },
-    {
-      "source": "N-909",
-      "target": "N-904",
-      "road": "Spring Creek Rd",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "904",
-          "909"
         ]
       }
     },
@@ -5337,32 +4441,6 @@
       }
     },
     {
-      "source": "N-908",
-      "target": "N-1113",
-      "road": "Maple Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "908",
-          "1113"
-        ]
-      }
-    },
-    {
-      "source": "N-1113",
-      "target": "N-908",
-      "road": "Maple Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "908",
-          "1113"
-        ]
-      }
-    },
-    {
       "source": "N-1113",
       "target": "N-1107",
       "road": "Maple Street",
@@ -5619,58 +4697,6 @@
       }
     },
     {
-      "source": "oakval_e",
-      "target": "N-1202",
-      "road": "Oak Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1200",
-          "1202"
-        ]
-      }
-    },
-    {
-      "source": "N-1202",
-      "target": "oakval_e",
-      "road": "Oak Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1200",
-          "1202"
-        ]
-      }
-    },
-    {
-      "source": "N-1112",
-      "target": "N-1201",
-      "road": "Oak Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1112",
-          "1201"
-        ]
-      }
-    },
-    {
-      "source": "N-1201",
-      "target": "N-1112",
-      "road": "Oak Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1112",
-          "1201"
-        ]
-      }
-    },
-    {
       "source": "N-1201",
       "target": "oakval_m1",
       "road": "Oak Valley Drive",
@@ -5691,32 +4717,6 @@
       "metadata": {
         "postals": [
           "1201"
-        ]
-      }
-    },
-    {
-      "source": "oakval_m1",
-      "target": "N-1202",
-      "road": "Oak Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1201",
-          "1202"
-        ]
-      }
-    },
-    {
-      "source": "N-1202",
-      "target": "oakval_m1",
-      "road": "Oak Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1201",
-          "1202"
         ]
       }
     },
@@ -5768,30 +4768,6 @@
       "metadata": {
         "postals": [
           "1202",
-          "1204"
-        ]
-      }
-    },
-    {
-      "source": "oakval_m2",
-      "target": "N-1204",
-      "road": "County South Rd",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1204"
-        ]
-      }
-    },
-    {
-      "source": "N-1204",
-      "target": "oakval_m2",
-      "road": "County South Rd",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
           "1204"
         ]
       }
@@ -5943,32 +4919,6 @@
       "metadata": {
         "postals": [
           "1207"
-        ]
-      }
-    },
-    {
-      "source": "N-1207",
-      "target": "free_cline",
-      "road": "County South Rd",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1207",
-          "302"
-        ]
-      }
-    },
-    {
-      "source": "free_cline",
-      "target": "N-1207",
-      "road": "County South Rd",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1207",
-          "302"
         ]
       }
     },
@@ -6030,24 +4980,6 @@
       }
     },
     {
-      "source": "N-702",
-      "target": "ind_sandstone",
-      "type": "local",
-      "bidirectional": true,
-      "metadata": {
-        "postals": []
-      }
-    },
-    {
-      "source": "N-406",
-      "target": "N-402",
-      "type": "local",
-      "bidirectional": true,
-      "metadata": {
-        "postals": []
-      }
-    },
-    {
       "source": "N-406",
       "target": "riv_mid",
       "type": "local",
@@ -6093,15 +5025,6 @@
       }
     },
     {
-      "source": "N-702",
-      "target": "riv_upper",
-      "type": "local",
-      "bidirectional": true,
-      "metadata": {
-        "postals": []
-      }
-    },
-    {
       "source": "riv_upper",
       "target": "N-703",
       "type": "local",
@@ -6120,8 +5043,8 @@
       }
     },
     {
-      "source": "hwy55_mid",
-      "target": "N-1110",
+      "source": "N-223",
+      "target": "N-222",
       "type": "local",
       "bidirectional": true,
       "metadata": {
@@ -6129,10 +5052,748 @@
       }
     },
     {
-      "source": "N-223",
-      "target": "N-222",
+      "source": "N-904",
+      "target": "N-802",
       "type": "local",
       "bidirectional": true,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "ind_cross",
+      "target": "orch_cross",
+      "type": "local",
+      "bidirectional": true,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-309",
+      "target": "col_lower",
+      "type": "local",
+      "bidirectional": true,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-904",
+      "target": "N-603",
+      "road": "Riverside Drive",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "ind_sandstone",
+      "target": "N-403",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "ind_park",
+      "target": "N-404",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-906",
+      "target": "N-910",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-910",
+      "target": "N-11131",
+      "road": "Maple Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-11131",
+      "target": "N-1113",
+      "road": "Maple Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-11131",
+      "target": "hwy55_mid",
+      "road": "HW55 Off Ramp",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-910",
+      "target": "hwy55_mid",
+      "road": "HW55 On Ramp",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-910",
+      "target": "hwy55_n1",
+      "road": "HW55 Off Ramp",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "hwy55_n1",
+      "target": "N-11131",
+      "road": "HW55 On Ramp",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-1201",
+      "target": "oakval_n",
+      "road": "Oak Valley Drive",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "oakval_e",
+      "target": "N-1203",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "iron_road_n",
+      "target": "iron_road_s",
+      "road": "Iron Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-902",
+      "target": "N-907",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-907",
+      "target": "N-909",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-905",
+      "target": "spring_creek_e",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "spring_creek_e",
+      "target": "N-906",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-1104",
+      "target": "N-1113",
+      "road": "Cedar St",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "georgia_industrial",
+      "target": "free_industrial",
+      "road": "Industrial",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "free_industrial",
+      "target": "madison_main",
+      "road": "Madison Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "georgia_cline",
+      "target": "free_cline",
+      "road": "Cline Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "free_cline",
+      "target": "madison_cross",
+      "road": "Madison Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-309",
+      "target": "N-305",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "orch_cline",
+      "target": "georgia_cline",
+      "road": "Cline Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-705",
+      "target": "N-707",
+      "road": "Franklin Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-707",
+      "target": "N-702",
+      "road": "Franklin Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "riv_upper",
+      "target": "N-7021",
+      "road": "Franklin Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-702",
+      "target": "N-7021",
+      "road": "Franklin Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7021",
+      "target": "N-7056",
+      "road": "Joyner Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-708",
+      "target": "arbor_upper",
+      "road": "Franklin Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "arbor_upper",
+      "target": "N-800",
+      "road": "Franklin Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-800",
+      "target": "N-7056",
+      "road": "Franklin Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-800",
+      "target": "N-7091",
+      "road": "Pineview Circle",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7091",
+      "target": "N-7092",
+      "road": "Pineview Circle",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7092",
+      "target": "N-7056",
+      "road": "Pineview Circle",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-708",
+      "target": "N-7001",
+      "road": "Academy Place",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7001",
+      "target": "N-704",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "oakval_m1",
+      "target": "N-12011",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-12011",
+      "target": "N-12041",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "oakval_m2",
+      "target": "N-12041",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-704",
+      "target": "N-409",
+      "road": "Valley Drive",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-409",
+      "target": "N-4101",
+      "road": "Valley Drive",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-702",
+      "target": "N-4101",
+      "road": "Arbor Lane",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-4101",
+      "target": "INT_FAIRFAX_ARBOR",
+      "road": "Arbor Lane",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "INT_FAIRFAX_ARBOR",
+      "target": "ind_sandstone",
+      "road": "Arbor Lane",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-402",
+      "target": "INT_FAIRFAX_ARBOR",
+      "road": "Fairfax Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "INT_FAIRFAX_ARBOR",
+      "target": "N-406",
+      "road": "Fairfax Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-406",
+      "target": "riv_lower",
+      "road": "Medical Way",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-703",
+      "target": "N-7071",
+      "road": "Franklin Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7071",
+      "target": "N-7056",
+      "road": "Franklin Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "col_lower",
+      "target": "N-503",
+      "road": "Gibson Lane",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "INT_COL_GIBSON",
+      "target": "ind_cline",
+      "road": "Colonial Drive",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "ind_cline",
+      "target": "col_complex",
+      "road": "Colonial Drive",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "orch_cline",
+      "target": "col_complex",
+      "road": "Orchard Boulevard",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "col_complex",
+      "target": "N-500",
+      "road": "Vine Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-500",
+      "target": "N-501",
+      "road": "Vine Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-503",
+      "target": "N-5041",
+      "road": "Gibson Lane",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5041",
+      "target": "INT_COL_GIBSON",
+      "road": "Gibson Land",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "INT_COL_GIBSON",
+      "target": "N-509",
+      "road": "Gibson Land",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-509",
+      "target": "N-1201",
+      "road": "Gibson Land",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5091",
+      "target": "N-509",
+      "road": "Vine Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-505",
+      "target": "N-5091",
+      "road": "Vine Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-604",
+      "target": "N-505",
+      "road": "Colonial Drive",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-505",
+      "target": "INT_COL_GIBSON",
+      "road": "Colonial Drive",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-506",
+      "target": "N-505",
+      "road": "Vine Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-504",
+      "target": "N-506",
+      "road": "Vine Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5041",
+      "target": "N-506",
+      "road": "Lee Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-503",
+      "target": "N-6001",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-6001",
+      "target": "N-600",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-600",
+      "target": "N-602",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-501",
+      "target": "N-509",
+      "road": "Vine Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-704",
+      "target": "N-410",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
       "metadata": {
         "postals": []
       }

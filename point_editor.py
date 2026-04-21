@@ -4,12 +4,12 @@ from tkinter import ttk, messagebox, simpledialog
 from PIL import Image, ImageTk, ImageDraw
 
 # ==========================================
-# CONFIG
+# CONFIGURATOR
 # ==========================================
 MAP_JSON        = "erlc_map.json"
 MAP_IMAGE       = "fall_postals.jpg"
 OUTPUT_PNG      = "debug_map_overlay.png"
-GUI_SAVE_JSON   = "erlc_map2.json"
+GUI_SAVE_JSON   = "erlc_map_updated.json"
 
 NODE_R          = 7       # radius for drawing nodes
 SNAP_DIST       = 12      # pixel distance to "snap" click onto existing node
@@ -71,9 +71,6 @@ class MapEditor:
             self.data = json.load(f)
         self.nodes = self.data.setdefault("nodes", {})
         self.edges = self.data.setdefault("edges", [])
-        bad = [e for e in self.edges if not isinstance(e, dict)]
-        if bad:
-            print(f"[WARNING] Found {len(bad)} invalid edges (not dict). Example:", bad[:3])
 
         # ---- State ----
         self.mode          = self.MODE_MOVE
@@ -88,6 +85,12 @@ class MapEditor:
         self.oval_to_node  = {}   # {canvas_oval_id: node_id}
         self.node_to_oval  = {}   # {node_id: canvas_oval_id}
         self.node_to_label = {}   # {node_id: canvas_text_id}
+
+        # Canvas item → edge index
+        self.line_to_edge  = {}   # {canvas_line_id: index into self.edges}
+
+        # Canvas item → edge index
+        self.line_to_edge  = {}   # {canvas_line_id: index into self.edges}
 
         # ---- Build UI ----
         self._build_toolbar()
@@ -201,55 +204,31 @@ class MapEditor:
         self._draw_all_nodes()
 
     def _draw_all_edges(self):
-        for edge in self.edges:
-
-            # Guard against corrupted / legacy formats
-            if not isinstance(edge, dict):
-                print(f"[EDGE SKIP] Invalid edge type: {type(edge)} -> {edge}")
-                continue
-
+        self.line_to_edge.clear()
+        for idx, edge in enumerate(self.edges):
             s, t = edge.get("source"), edge.get("target")
-            if not s or not t:
-                continue
-
-            n1, n2 = self.nodes.get(s), self.nodes.get(t)
-            if not isinstance(n1, dict) or not isinstance(n2, dict):
-                continue
-
-            if "x" not in n1 or "y" not in n1 or "x" not in n2 or "y" not in n2:
-                continue
-
-            etype = edge.get("type", "local")
-
-            color_map = {
-                "highway": "#ffd54f",
-                "arterial": "#4fc3f7",
-                "local": "#90a4ae",
-                "winding": "#ce93d8",
-                "tunnel": "#80deea",
-                "cul-de-sac_access": "#a5d6a7"
-            }
-
-            color = color_map.get(etype, "#90a4ae")
-            width = 3 if etype == "highway" else 2 if etype == "arterial" else 1
-
-            self.canvas.create_line(
-                n1["x"], n1["y"], n2["x"], n2["y"],
-                fill=color,
-                width=width,
-                tags="edge"
-            )
-
-            # Direction hint for one-way edges
-            if edge.get("bidirectional") is False or edge.get("is_one_way") is True:
-                mx = (n1["x"] + n2["x"]) / 2
-                my = (n1["y"] + n2["y"]) / 2
-                self.canvas.create_text(
-                    mx, my,
-                    text="→",
-                    fill=color,
-                    tags="edge"
-                )
+            if s in self.nodes and t in self.nodes:
+                n1, n2 = self.nodes[s], self.nodes[t]
+                if "x" in n1 and "y" in n1 and "x" in n2 and "y" in n2:
+                    etype = edge.get("type", "local")
+                    color = {
+                        "highway":    "#ffdd57",
+                        "arterial":   "#4fc3f7",
+                        "industrial": "#ef9a9a",
+                        "local":      "#90a4ae",
+                        "winding":    "#ce93d8",
+                    }.get(etype, "#90a4ae")
+                    # Wide invisible line for easy clicking
+                    hit_line = self.canvas.create_line(
+                        n1["x"], n1["y"], n2["x"], n2["y"],
+                        fill="", width=12, tags="edge"
+                    )
+                    vis_line = self.canvas.create_line(
+                        n1["x"], n1["y"], n2["x"], n2["y"],
+                        fill=color, width=2, tags="edge"
+                    )
+                    self.line_to_edge[hit_line] = idx
+                    self.line_to_edge[vis_line] = idx
 
     def _draw_all_nodes(self):
         for node_id, info in self.nodes.items():
@@ -262,18 +241,12 @@ class MapEditor:
 
     def _create_node_item(self, node_id, x, y, info):
         r = NODE_R
-        if str(node_id).startswith("CITY"):
-            fill, outline = "#42a5f5", "#0d47a1"
-        elif str(node_id).startswith("HWY"):
-            fill, outline = "#ffd54f", "#ff6f00"
-        elif "cul-de-sac" in str(info.get("type", "")):
-            fill, outline = "#a5d6a7", "#1b5e20"
-        elif info.get("zone") == "rural":
-            fill, outline = "#b0bec5", "#37474f"
+        if str(node_id).startswith("postal_"):
+            fill, outline = "#69f0ae", "#00c853"
         elif info.get("robable"):
             fill, outline = "#ef5350", "#b71c1c"
         elif info.get("poi"):
-            fill, outline = "#4fc3f7", "#01579b"
+            fill, outline = "#42a5f5", "#0d47a1"
         else:
             fill, outline = "#78909c", "#455a64"
 
@@ -318,6 +291,14 @@ class MapEditor:
                 best_dist = d
                 best_id   = node_id
         return best_id
+
+    def _find_edge_at(self, cx, cy):
+        """Return index into self.edges for the line closest to (cx,cy), else None."""
+        items = self.canvas.find_closest(cx, cy)
+        if not items:
+            return None
+        item = items[0]
+        return self.line_to_edge.get(item)
 
     # --------------------------------------------------
     # MODE CHANGE
@@ -376,6 +357,11 @@ class MapEditor:
         elif self.mode == self.MODE_DELETE:
             if hit:
                 self._delete_node(hit)
+            else:
+                # Check if an edge line was clicked
+                edge_idx = self._find_edge_at(cx, cy)
+                if edge_idx is not None:
+                    self._delete_edge(edge_idx)
 
     def _on_drag(self, event):
         if self.mode != self.MODE_MOVE or not self.drag_node_id:
@@ -458,6 +444,12 @@ class MapEditor:
         menu.add_command(label="Delete node",           command=lambda: self._delete_node(hit))
         menu.add_separator()
         menu.add_command(label="Start edge from here",  command=lambda: self._start_edge(hit))
+        menu.tk_popup(event.x_root, event.y_root)
+
+    def _on_right_click_edge(self, event, edge_idx):
+        menu = tk.Menu(self.root, tearoff=0)
+        edge = self.edges[edge_idx]
+        menu.add_command(label=f"Delete edge: {edge.get('source')} → {edge.get('target')}", command=lambda: self._delete_edge(edge_idx))
         menu.tk_popup(event.x_root, event.y_root)
 
     def _on_node_hover(self, event, node_id):
@@ -625,23 +617,17 @@ class MapEditor:
             postals     = [p.strip() for p in postals_raw.split(",") if p.strip()] if postals_raw else []
 
             edge = {
-                "source": src,
-                "target": tgt,
-                "type": type_var.get().strip() or "local",
-                "bidirectional": not oneway_var.get(),
-                "metadata": {
-                    "postals": postals
-                }
+                "source":     src,
+                "target":     tgt,
+                "road":       road_var.get().strip() or "Unnamed Road",
+                "type":       type_var.get().strip()  or "local",
+                "is_one_way": oneway_var.get(),
+                "metadata":   {"postals": postals}
             }
 
             # Check for duplicate
             for e in self.edges:
-                if (
-                    e.get("source") == src and e.get("target") == tgt
-                ) or (
-                    e.get("bidirectional", True)
-                    and e.get("source") == tgt and e.get("target") == src
-                ):
+                if e.get("source") == src and e.get("target") == tgt:
                     if not messagebox.askyesno("Duplicate", "An edge between these nodes already exists. Add anyway?", parent=win):
                         win.destroy()
                         return
@@ -692,6 +678,19 @@ class MapEditor:
         self.canvas.delete("edge")
         self._draw_all_edges()
         self._status(f"Deleted: {node_id}")
+
+    # --------------------------------------------------
+    # DELETE EDGE
+    # --------------------------------------------------
+    def _delete_edge(self, edge_idx):
+        edge = self.edges[edge_idx]
+        label = f"{edge.get('source')} → {edge.get('target')}  ({edge.get('road', 'unnamed')})"
+        if not messagebox.askyesno("Delete Edge", f"Delete edge:\n{label}?"):
+            return
+        del self.edges[edge_idx]
+        self.canvas.delete("edge")
+        self._draw_all_edges()
+        self._status(f"Deleted edge: {label}")
 
     # --------------------------------------------------
     # SAVE
