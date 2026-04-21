@@ -435,6 +435,40 @@ class MetroTrainingModal(discord.ui.Modal):
         await interaction.channel.send(embed=embed)
         await interaction.response.send_message("✅ Training log has been posted successfully.", ephemeral=True)
 
+
+# ==========================
+# Metro Announcement Modal
+# ==========================
+class MetroAnnouncementModal(discord.ui.Modal):
+    def __init__(self, ping_role, role):
+        super().__init__(title="Metro Announcement")
+        self.ping_role = ping_role
+        self.role = role
+
+    announcement = discord.ui.TextInput(
+        label="Announcement (Markdown Supported)",
+        style=discord.TextStyle.paragraph,
+        placeholder="Write your announcement here using markdown...",
+        required=True,
+        max_length=4000
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        content = self.role.mention if self.ping_role and self.role else None
+
+        embed = discord.Embed(
+            description=self.announcement.value,
+            color=discord.Color.blue()
+        )
+
+        embed.set_footer(
+            text=f"Issued by {interaction.user.display_name}",
+            icon_url=interaction.user.display_avatar.url if interaction.user.display_avatar else None
+        )
+
+        await interaction.channel.send(content=content, embed=embed)
+        await interaction.response.send_message("✅ Announcement sent.", ephemeral=True)
+
 class CrimeHeatmap:
     """Maintains per-postal crime weighting derived from MongoDB logs."""
     def __init__(self):
@@ -652,11 +686,12 @@ You are NOT, and I repeat, NOT, allowed to modify the names of the schema fields
         "Content-Type": "application/json"
     }
 
-    timeout = aiohttp.ClientTimeout(total=10)
+    timeout = aiohttp.ClientTimeout(total=30)
+    connector = aiohttp.TCPConnector(ssl=False)
 
-    for attempt in range(4):
+    for attempt in range(6):
         try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
                 async with session.post(url, headers=headers, json=payload) as resp:
                     
                     if resp.status == 200:
@@ -701,8 +736,8 @@ You are NOT, and I repeat, NOT, allowed to modify the names of the schema fields
                         return None
 
         except Exception as e:
-            wait_time = 2 ** attempt
-            print(f"[LLM ERROR] Type: {type(e).__name__} | Value: {repr(e)}")
+            wait_time = min(2 ** attempt, 10)
+            print(f"[LLM ERROR] Type: {type(e).__name__} | Value: {repr(e)} | Retrying in {wait_time}s")
             await asyncio.sleep(wait_time)
 
     return None
@@ -868,6 +903,25 @@ async def metro_promote(
     await interaction.channel.send(content=f"{officer.mention}", embed=embed)
     await interaction.response.send_message("✅ Promotion successfully logged!", ephemeral=True)
 
+@bot.tree.command(name="metro_announcement", description="Send a Metropolitan Division announcement.")
+@app_commands.describe(ping_type="Choose whether to ping the division or not")
+@app_commands.choices(ping_type=[
+    app_commands.Choice(name="Ping Announcement", value="ping"),
+    app_commands.Choice(name="Non-Ping Announcement", value="no_ping")
+])
+async def metro_announcement(interaction: discord.Interaction, ping_type: app_commands.Choice[str]):
+    guild = interaction.guild
+    metro_role = discord.utils.get(guild.roles, name="Metropolitan Division")
+
+    ping_role = ping_type.value == "ping"
+
+    await interaction.response.send_modal(
+        MetroAnnouncementModal(
+            ping_role=ping_role,
+            role=metro_role
+        )
+    )
+
 
 @bot.tree.command(name="metro_infract", description="Issue an infraction to an officer.")
 async def metro_infract(
@@ -921,12 +975,12 @@ async def metro_mass_shift(interaction: discord.Interaction,co_host: discord.Mem
 
     # Build description (styled like promo command)
     desc = (
-        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+        f"## <:LAPD_Metropolitan:1495867271501975552> ︱ Metro Mass Shift\n"
+        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
         f"**Hosted By:** {host.mention}\n\n"
         f"**Co-Host:** {co_host.mention if co_host else 'None'}\n\n"
         "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
-        "All Metropolitan Operatives are to respond immediately.\n"
-        "Maintain readiness and follow standard deployment protocol.\n\n"
+        "Metropolitan Operatives are needed in-game. Join up people!\n"
         "**Reactions:**\n"
         "✅ = Coming\n"
         "❔ = Maybe\n"
@@ -934,7 +988,6 @@ async def metro_mass_shift(interaction: discord.Interaction,co_host: discord.Mem
     )
 
     embed = discord.Embed(
-        title=f"## <:LAPD_Metropolitan:1495867271501975552> ︱ Metro Mass Shift",
         description=desc,
         color=discord.Color.red()
     )
@@ -948,18 +1001,73 @@ async def metro_mass_shift(interaction: discord.Interaction,co_host: discord.Mem
 
     # Send ping + embed
     await interaction.response.send_message(
-        content=metro_role.mention,
-        embed=embed
+        content="✅ Mass Shift Issued",
+        ephemeral=True
     )
     await interaction.channel.send(content=metro_role.mention, embed=embed)
 
     try:
-        msg = await interaction.original_response()
+        msg = await interaction.channel.send()
         await msg.add_reaction("✅")
         await msg.add_reaction("❔")
         await msg.add_reaction("❌")
     except Exception as e:
         print(f"[MASS SHIFT REACTION ERROR] {e}")
+
+# =========================
+# Host Metro Training Command
+# =========================
+
+@bot.tree.command(name="host_metro_training", description="Host a Metropolitan Division training session.")
+async def host_metro_training(interaction: discord.Interaction, co_host: discord.Member = None, start_time: str = "TBD"):
+    guild = interaction.guild
+    metro_role = discord.utils.get(guild.roles, name="[𝐌𝐃] Awaiting Training Ping")
+
+    if metro_role is None:
+        await interaction.response.send_message("Metropolitan Division role not found.", ephemeral=True)
+        return
+
+    host = interaction.user
+
+    desc = (
+        f"## 📙 | Metropolitan Entry Training\n"
+        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+        f"**Host:** {host.mention}\n\n"
+        f"**Co-Host:** {co_host.mention if co_host else 'N/A'}\n\n"
+        f"**Starting Time:** {start_time}\n\n"
+        "**Weaponry Trainings** are hands-on trainings in which you, the trainee, undergo several scenarios designed to evaluate your performance and future in the Metropolitan Division. \n If you are a trainer, contact the host to join as a co-host! \n"
+        "This training consists of:\n"
+        "• Shooting Exercise\n"
+        "• Undercover (UC) Exercise\n"
+        "• Protection Detail Exercise\n\n"
+        "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+    )
+
+    embed = discord.Embed(
+        description=desc,
+        color=discord.Color.blue()
+    )
+
+    embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
+
+    embed.set_footer(
+        text=f"Announced by {host.display_name}",
+        icon_url=host.display_avatar.url if host.display_avatar else None
+    )
+
+    await interaction.response.send_message(
+        content="✅ Host training issued.",
+        ephemeral=True
+    )
+
+    msg = await interaction.channel.send(content=metro_role.mention, embed=embed)
+
+    try:
+        await msg.add_reaction("✅")
+        await msg.add_reaction("❔")
+        await msg.add_reaction("❌")
+    except Exception as e:
+        print(f"[TRAINING REACTION ERROR] {e}")
 
 @bot.tree.command(name="metro_crime_heatmap", description="Generate a visual heatmap of historical crime activity.")
 async def metro_crime_heatmap(interaction: discord.Interaction):
@@ -996,7 +1104,8 @@ async def metro_crime_heatmap(interaction: discord.Interaction):
         total_incidents = sum(heatmap_data.values())
         top_postal = max(heatmap_data, key=heatmap_data.get)
         
-        await interaction.followup.send(embed=embed, file=file)
+        await interaction.followup.send(content="✅ Crime heatmap generated successfully.", ephemeral=True)
+        await interaction.channel.send(embed=embed, file=file)
 
     except Exception as e:
         print(f"[HEATMAP ERROR] {e}")
@@ -1006,7 +1115,7 @@ async def metro_crime_heatmap(interaction: discord.Interaction):
 async def metro_openings(interaction: discord.Interaction):
     """Generates multiple embeds showing rank availability for Metro and MCS."""
     
-    # We need to defer to give time to fetch members without timing out
+    # Defer to prevent timeout
     await interaction.response.defer()
 
     guild = interaction.guild
@@ -1365,7 +1474,7 @@ async def metro_predict(
     if map_image_buffer:
         embed.set_image(url="attachment://predictive_map.png")
 
-    embed.set_footer(text="Simon - Metropolitan Predictive Analysis Program.")
+    embed.set_footer(text="PAPI - The Metropolitan Predictive Analysis Program Insight.")
 
     # 7. Send Response
     if map_image_buffer:
