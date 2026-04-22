@@ -4,7 +4,7 @@ from tkinter import ttk, messagebox, simpledialog
 from PIL import Image, ImageTk, ImageDraw
 
 # ==========================================
-# CONFIGURATOR
+# CONFIG
 # ==========================================
 MAP_JSON        = "erlc_map.json"
 MAP_IMAGE       = "fall_postals.jpg"
@@ -57,6 +57,7 @@ def draw_map():
 # ==========================================
 class MapEditor:
     # Modes
+    MODE_POINTER = "pointer"
     MODE_MOVE   = "move"
     MODE_ADD    = "add_node"
     MODE_EDGE   = "add_edge"
@@ -80,6 +81,9 @@ class MapEditor:
         self.edge_src      = None          # first node selected in EDGE mode
         self.selected_node = None          # highlighted node
         self.scale         = 1.0
+        self.info_panel    = None          # info panel Toplevel
+        self.last_click_node = None        # for double-click detection
+        self.last_click_time = 0
 
         # Canvas item → node_id
         self.oval_to_node  = {}   # {canvas_oval_id: node_id}
@@ -112,6 +116,7 @@ class MapEditor:
         self.mode_var = tk.StringVar(value=self.MODE_MOVE)
 
         for label, mode in [
+            ("🖱 Pointer",    self.MODE_POINTER),
             ("✋ Move",       self.MODE_MOVE),
             ("➕ Add Node",  self.MODE_ADD),
             ("🔗 Add Edge",  self.MODE_EDGE),
@@ -307,8 +312,10 @@ class MapEditor:
         self.mode          = self.mode_var.get()
         self.edge_src      = None
         self.drag_node_id  = None
+        self._close_info_panel()
         self._clear_selection()
         mode_labels = {
+            self.MODE_POINTER: "Pointer — click node to inspect | double-click to edit",
             self.MODE_MOVE:   "Move nodes — drag to reposition",
             self.MODE_ADD:    "Add Node — click empty space",
             self.MODE_EDGE:   "Add Edge — click source, then target node",
@@ -322,6 +329,23 @@ class MapEditor:
     def _on_left_click(self, event):
         cx, cy = self._canvas_xy(event)
         hit    = self._find_node_at(cx, cy)
+
+        if self.mode == self.MODE_POINTER:
+            import time
+            now = time.time()
+            is_double = (hit and hit == self.last_click_node and (now - self.last_click_time) < 0.4)
+            self.last_click_node = hit
+            self.last_click_time = now
+            if is_double:
+                self._close_info_panel()
+                if hit:
+                    self._edit_node_dialog(hit)
+            else:
+                if hit:
+                    self._show_info_panel(hit)
+                else:
+                    self._close_info_panel()
+            return
 
         if self.mode == self.MODE_MOVE:
             if hit:
@@ -691,6 +715,86 @@ class MapEditor:
         self.canvas.delete("edge")
         self._draw_all_edges()
         self._status(f"Deleted edge: {label}")
+
+    # --------------------------------------------------
+    # POINTER INFO PANEL
+    # --------------------------------------------------
+    def _show_info_panel(self, node_id):
+        self._close_info_panel()
+        info = self.nodes.get(node_id, {})
+
+        # Find all edges connected to this node
+        connected_edges = [
+            e for e in self.edges
+            if e.get("source") == node_id or e.get("target") == node_id
+        ]
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Node Info: {node_id}")
+        win.resizable(False, False)
+        win.attributes("-topmost", True)
+        # Position near top-right so it doesn't block the map
+        win.geometry("+%d+%d" % (self.root.winfo_rootx() + self.root.winfo_width() - 320, self.root.winfo_rooty() + 60))
+        self.info_panel = win
+
+        # Header
+        hdr = tk.Frame(win, bg="#1a1a2e", pady=6)
+        hdr.pack(fill=tk.X)
+        tk.Label(hdr, text=f"  {node_id}", font=("Helvetica", 12, "bold"),
+                 bg="#1a1a2e", fg="white", anchor="w").pack(fill=tk.X, padx=8)
+
+        # Fields
+        body = tk.Frame(win, padx=12, pady=8)
+        body.pack(fill=tk.BOTH)
+
+        def field(label, value):
+            fr = tk.Frame(body)
+            fr.pack(fill=tk.X, pady=1)
+            tk.Label(fr, text=label + ":", width=12, anchor="w",
+                     font=("Helvetica", 9, "bold")).pack(side=tk.LEFT)
+            tk.Label(fr, text=str(value) if value is not None else "—",
+                     anchor="w", font=("Helvetica", 9), fg="#333").pack(side=tk.LEFT)
+
+        field("Label",    info.get("label"))
+        field("POI",      info.get("poi"))
+        field("Type",     info.get("type"))
+        field("Robable",  info.get("robable", False))
+        field("X",        info.get("x"))
+        field("Y",        info.get("y"))
+
+        # Edges section
+        tk.Label(body, text=f"Edges ({len(connected_edges)}):",
+                 font=("Helvetica", 9, "bold"), anchor="w").pack(fill=tk.X, pady=(6, 1))
+        if connected_edges:
+            for e in connected_edges:
+                direction = "→" if e.get("source") == node_id else "←"
+                other     = e.get("target") if e.get("source") == node_id else e.get("source")
+                tk.Label(body,
+                         text=f"  {direction} {other}  [{e.get('road','?')}  {e.get('type','local')}]",
+                         font=("Helvetica", 8), fg="#555", anchor="w").pack(fill=tk.X)
+        else:
+            tk.Label(body, text="  None", font=("Helvetica", 8), fg="#999").pack(anchor="w")
+
+        # Buttons
+        btn_fr = tk.Frame(win, pady=6)
+        btn_fr.pack()
+        tk.Button(btn_fr, text="✏️ Edit",
+                  command=lambda: [self._close_info_panel(), self._edit_node_dialog(node_id)]
+                  ).pack(side=tk.LEFT, padx=4)
+        tk.Button(btn_fr, text="✖ Close",
+                  command=self._close_info_panel).pack(side=tk.LEFT, padx=4)
+
+        win.protocol("WM_DELETE_WINDOW", self._close_info_panel)
+        self._highlight(node_id)
+
+    def _close_info_panel(self):
+        if self.info_panel:
+            try:
+                self.info_panel.destroy()
+            except Exception:
+                pass
+            self.info_panel = None
+        self._clear_selection()
 
     # --------------------------------------------------
     # SAVE

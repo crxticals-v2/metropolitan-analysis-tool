@@ -7,61 +7,254 @@ Covers:
   - /metro_predict
   - /metro_profiler
   - /metro_crime_heatmap
+  - /metro_watchlist
 """
 
 import asyncio
+import io
+import math
 
 import aiohttp
 import discord
 import networkx as nx
 from discord import app_commands
 from discord.ext import commands
+from PIL import Image, ImageDraw, ImageFont
 
 from llm import call_llm
 from map_renderer import draw_heatmap_overlay, draw_map_path
 
 
-# ──────────────────────────────────────────────
-# HELPER: Paginated view used by metro_profiler
-# ──────────────────────────────────────────────
+# ==========================================
+# ROBLOX HELPER
+# ==========================================
+
+async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
+    """
+    Resolves a Roblox username → (user_id, display_name, avatar_url).
+    Returns (None, None, None) on any failure — callers must handle gracefully.
+    """
+    try:
+        async with session.post(
+            "https://users.roblox.com/v1/usernames/users",
+            json={"usernames": [username], "excludeBannedUsers": False}
+        ) as resp:
+            data = await resp.json()
+
+        if not data.get("data"):
+            return None, None, None
+
+        user = data["data"][0]
+        user_id = user["id"]
+        display_name = user.get("displayName") or user.get("name") or username
+
+    except Exception:
+        return None, None, None
+
+    try:
+        async with session.get(
+            "https://thumbnails.roblox.com/v1/users/avatar-headshot",
+            params={"userIds": user_id, "size": "420x420", "format": "Png", "isCircular": "false"}
+        ) as resp:
+            thumb_data = await resp.json()
+
+        avatar_url = None
+        if thumb_data and thumb_data.get("data"):
+            avatar_url = thumb_data["data"][0].get("imageUrl")
+
+    except Exception:
+        avatar_url = None
+
+    return user_id, display_name, avatar_url
+
+
+# ==========================================
+# WATCHLIST: COMPOSITE IMAGE BUILDER
+# ==========================================
+
+async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
+    """
+    suspects: list of dicts with keys:
+        _id   (str)  – suspect name (lowercase)
+        count (int)  – number of log entries
+    Returns a PNG BytesIO buffer or None on failure.
+    """
+    COLS       = 2
+    CELL_W     = 180
+    CELL_H     = 220      # 160 avatar + 60 label area
+    AVATAR_SZ  = 160
+    PADDING    = 10
+    BG_COLOR   = (18, 20, 28)       # dark navy
+    CARD_COLOR = (30, 33, 46)       # slightly lighter card
+    NAME_COLOR = (230, 230, 230)
+    COUNT_COLOR= (220, 80, 80)      # red accent
+
+    rows = math.ceil(len(suspects) / COLS)
+    grid_w = COLS * CELL_W + (COLS + 1) * PADDING
+    grid_h = rows  * CELL_H + (rows  + 1) * PADDING
+
+    grid = Image.new("RGB", (grid_w, grid_h), BG_COLOR)
+    draw = ImageDraw.Draw(grid)
+
+    # ── Font: try to load a small TTF; fall back gracefully ──────
+    try:
+        font_name  = ImageFont.load_default(size=14)
+        font_count = ImageFont.load_default(size=12)
+    except Exception:
+        font_name  = ImageFont.load_default()
+        font_count = ImageFont.load_default()
+
+    async with aiohttp.ClientSession() as session:
+        for idx, suspect in enumerate(suspects[:6]):
+            col = idx % COLS
+            row = idx // COLS
+
+            cell_x = PADDING + col * (CELL_W + PADDING)
+            cell_y = PADDING + row * (CELL_H + PADDING)
+
+            # card background
+            draw.rounded_rectangle(
+                [cell_x, cell_y, cell_x + CELL_W, cell_y + CELL_H],
+                radius=10,
+                fill=CARD_COLOR
+            )
+
+            # ── Avatar ───────────────────────────────────────────
+            avatar_x = cell_x + (CELL_W - AVATAR_SZ) // 2
+            avatar_y = cell_y + 8
+
+            _, _, avatar_url = await fetch_roblox_data(session, suspect["_id"])
+
+            if avatar_url:
+                try:
+                    async with session.get(avatar_url) as resp:
+                        raw = await resp.read()
+                    avatar_img = (
+                        Image.open(io.BytesIO(raw))
+                        .convert("RGB")
+                        .resize((AVATAR_SZ, AVATAR_SZ), Image.LANCZOS)
+                    )
+                    grid.paste(avatar_img, (avatar_x, avatar_y))
+                except Exception:
+                    # grey placeholder if download fails
+                    draw.rectangle(
+                        [avatar_x, avatar_y, avatar_x + AVATAR_SZ, avatar_y + AVATAR_SZ],
+                        fill=(60, 60, 70)
+                    )
+            else:
+                draw.rectangle(
+                    [avatar_x, avatar_y, avatar_x + AVATAR_SZ, avatar_y + AVATAR_SZ],
+                    fill=(60, 60, 70)
+                )
+
+            # ── Labels ───────────────────────────────────────────
+            label_y_name  = cell_y + AVATAR_SZ + 14
+            label_y_count = label_y_name + 18
+
+            display = suspect["_id"].title()
+            if len(display) > 18:
+                display = display[:16] + "…"
+
+            # centre-align text manually (bbox)
+            try:
+                name_bbox  = draw.textbbox((0, 0), display, font=font_name)
+                count_bbox = draw.textbbox((0, 0), f"{suspect['count']} logs", font=font_count)
+                name_x  = cell_x + (CELL_W - (name_bbox[2]  - name_bbox[0]))  // 2
+                count_x = cell_x + (CELL_W - (count_bbox[2] - count_bbox[0])) // 2
+            except Exception:
+                name_x  = cell_x + 10
+                count_x = cell_x + 10
+
+            draw.text((name_x,  label_y_name),  display,                  fill=NAME_COLOR,  font=font_name)
+            draw.text((count_x, label_y_count), f"{suspect['count']} logs", fill=COUNT_COLOR, font=font_count)
+
+    buf = io.BytesIO()
+    grid.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+
+# ==========================================
+# UI COMPONENTS
+# ==========================================
 
 class MetroProfilerView(discord.ui.View):
-    def __init__(self, embeds: list):
+    def __init__(self, embeds):
         super().__init__(timeout=180)
         self.embeds = embeds
-        self.index  = 0
+        self.index = 0
         self.update_buttons()
 
     def update_buttons(self):
         self.children[0].disabled = self.index <= 0
         self.children[1].disabled = self.index >= len(self.embeds) - 1
 
-    @discord.ui.button(label="Previous", style=discord.ButtonStyle.secondary)
-    async def previous(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
+    @discord.ui.button(label="◀  Previous", style=discord.ButtonStyle.secondary)
+    async def previous(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.index > 0:
             self.index -= 1
         self.update_buttons()
-        await interaction.response.edit_message(
-            embed=self.embeds[self.index], view=self
-        )
+        await interaction.response.edit_message(embed=self.embeds[self.index], view=self)
 
-    @discord.ui.button(label="Next", style=discord.ButtonStyle.secondary)
-    async def next(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ):
+    @discord.ui.button(label="Next  ▶", style=discord.ButtonStyle.secondary)
+    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.index < len(self.embeds) - 1:
             self.index += 1
         self.update_buttons()
-        await interaction.response.edit_message(
-            embed=self.embeds[self.index], view=self
+        await interaction.response.edit_message(embed=self.embeds[self.index], view=self)
+
+
+class WatchlistButton(discord.ui.Button):
+    """Opens an ephemeral profiler panel for this suspect."""
+    def __init__(self, cog, suspect_name: str, log_count: int, position: int):
+        label = f"{suspect_name.title()[:18]}  •  {log_count}"
+        super().__init__(
+            label=label,
+            style=discord.ButtonStyle.danger,
+            row=position // 3          # row 0 for first 3, row 1 for last 3
         )
+        self.cog = cog
+        self.suspect_name = suspect_name
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        # Call the shared builder on the cog
+        pages, map_file = await self.cog.build_profiler_result(self.suspect_name)
+
+        if not pages:
+            await interaction.followup.send(
+                f"❌ No records found for **{self.suspect_name}**.",
+                ephemeral=True
+            )
+            return
+
+        view = MetroProfilerView(pages)
+
+        if map_file:
+            await interaction.followup.send(embed=pages[0], view=view, file=map_file, ephemeral=True)
+        else:
+            await interaction.followup.send(embed=pages[0], view=view, ephemeral=True)
 
 
-# ──────────────────────────────────────────────
+class WatchlistView(discord.ui.View):
+    def __init__(self, cog, suspects: list):
+        super().__init__(timeout=300)   # buttons live for 5 minutes
+        self.cog = cog
+        for idx, suspect in enumerate(suspects[:6]):
+            self.add_item(
+                WatchlistButton(
+                    cog=self.cog,
+                    suspect_name=suspect["_id"],
+                    log_count=suspect["count"],
+                    position=idx
+                )
+            )
+
+
+# ==========================================
 # COG
-# ──────────────────────────────────────────────
+# ==========================================
 
 class Simon(commands.Cog):
     """SIMON – Predictive analysis commands."""
@@ -70,9 +263,217 @@ class Simon(commands.Cog):
         self.bot = bot
 
     # ------------------------------------------------------------------ #
-    # /metro_suspect_log                                                   #
+    # SHARED PROFILER BUILDER                                              #
     # ------------------------------------------------------------------ #
+    async def build_profiler_result(self, roblox_username: str):
+        """
+        Runs the full profiler pipeline for roblox_username.
+        Returns:
+            pages       : list[discord.Embed]  — paginated crime log embeds
+            map_file    : discord.File | None  — map overlay attachment
+        """
+        async with aiohttp.ClientSession() as session:
+            _, display_name, image_url = await fetch_roblox_data(session, roblox_username)
 
+        # ── Crime history ────────────────────────────────────────────
+        logs_cursor = (
+            self.bot.suspect_logs
+            .find({"suspect_name": roblox_username.lower()})
+            .sort("timestamp", -1)
+            .limit(20)
+        )
+        logs = await logs_cursor.to_list(length=20)
+
+        if not logs:
+            return [], None
+
+        # ── Paginate (5 crimes per page) ─────────────────────────────
+        pages = []
+        for i in range(0, len(logs), 5):
+            chunk = logs[i:i + 5]
+            desc = f"## 👤 Metro Profiler: {roblox_username}\n**━━━━━━━━━━━━━━━━━━━━**\n"
+
+            for log in chunk:
+                desc += (
+                    f"\n**Crime:** {log.get('crimes', 'Unknown')}\n"
+                    f"**Location:** {log.get('poi') or log.get('postal') or 'Unknown'}\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n"
+                )
+
+            embed = discord.Embed(description=desc, color=discord.Color.dark_red())
+            if image_url:
+                embed.set_thumbnail(url=image_url)
+            pages.append(embed)
+
+        # ── POI frequency → map overlay ──────────────────────────────
+        poi_counts = {}
+        for log in logs:
+            poi = log.get("poi") or log.get("postal")
+            if poi:
+                poi_counts[poi] = poi_counts.get(poi, 0) + 1
+
+        top_pois = sorted(poi_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        nodes = []
+        for poi, _ in top_pois:
+            resolved = self.bot.erlc_graph.resolve_target(poi)
+            if resolved:
+                nodes.append(resolved)
+
+        paths_to_draw = []
+        for i in range(len(nodes) - 1):
+            try:
+                path = nx.shortest_path(
+                    self.bot.erlc_graph.graph, nodes[i], nodes[i + 1], weight="weight"
+                )
+                paths_to_draw.append(path)
+            except Exception:
+                continue
+
+        loop = asyncio.get_running_loop()
+        map_buffer = await loop.run_in_executor(
+            None, draw_map_path, self.bot.erlc_graph, paths_to_draw
+        )
+
+        if pages and map_buffer:
+            pages[0].set_image(url="attachment://profile_map.png")
+
+        map_file = discord.File(fp=map_buffer, filename="profile_map.png") if map_buffer else None
+
+        # ── LLM behavioural analysis (first page only) ───────────────
+        prompt = f"""
+    You are analysing a suspect profile.
+    Username: {roblox_username}
+    Recent crimes: {[l.get('crimes') for l in logs[:10]]}
+    Frequent locations: {list(poi_counts.keys())}
+    Provide behavioural robbery pattern analysis.
+    """
+        llm_result = await call_llm(prompt)
+        analysis = "Unavailable"
+        if llm_result and isinstance(llm_result, dict):
+            analysis = (
+                llm_result.get("prediction", {}).get("reasoning")
+                or llm_result.get("analysis")
+                or "No analysis generated."
+            )
+
+        if pages:
+            pages[0].add_field(name="Behavioural Pattern", value=analysis[:1024], inline=False)
+
+        return pages, map_file
+
+
+    # ------------------------------------------------------------------ #
+    # /metro_watchlist                                                     #
+    # ------------------------------------------------------------------ #
+    @app_commands.command(
+        name="metro_watchlist",
+        description="Display the 6 most logged suspects on the Metro watchlist."
+    )
+    async def metro_watchlist(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        # ── 1. Aggregate top 6 from MongoDB ──────────────────────────
+        pipeline = [
+            {
+                "$group": {
+                    "_id": "$suspect_name",
+                    "count": {"$sum": 1},
+                    "last_crime":    {"$last": "$crimes"},
+                    "last_location": {"$last": "$poi"},
+                    "last_seen":     {"$last": "$timestamp"}
+                }
+            },
+            {"$sort":  {"count": -1}},
+            {"$limit": 6}
+        ]
+
+        cursor = self.bot.suspect_logs.aggregate(pipeline)
+        top_suspects = await cursor.to_list(length=6)
+
+        if not top_suspects:
+            await interaction.followup.send(
+                "❌ No suspect records found in the database.",
+                ephemeral=True
+            )
+            return
+
+        # ── 2. Build 2×3 headshot grid ────────────────────────────────
+        grid_buffer = await build_watchlist_grid(top_suspects)
+
+        # ── 3. Compose main embed ─────────────────────────────────────
+        embed = discord.Embed(
+            title="🚨  Metro Suspect Watchlist",
+            description=(
+                "Top **6** most-logged suspects ranked by incident frequency.\n"
+                "Select a name below to open their full **Metro Profiler** report."
+            ),
+            color=discord.Color.from_rgb(180, 30, 30)
+        )
+
+        for suspect in top_suspects:
+            last_seen = suspect.get("last_seen", "—")
+            if last_seen and last_seen != "—":
+                last_seen = last_seen[:10]
+
+            embed.add_field(
+                name=f"👤  {suspect['_id'].title()}",
+                value=(
+                    f"**Logs:** {suspect['count']}\n"
+                    f"**Last Crime:** {suspect.get('last_crime', '—')[:40]}\n"
+                    f"**Last Location:** {suspect.get('last_location') or '—'}\n"
+                    f"**Last Seen:** {last_seen}"
+                ),
+                inline=True          
+            )
+
+        if grid_buffer:
+            embed.set_image(url="attachment://watchlist_grid.png")
+
+        embed.set_footer(
+            text="Metro Predictive Policing Engine  •  Data sourced from suspect_logs",
+            icon_url=interaction.user.display_avatar.url if interaction.user.display_avatar else None
+        )
+
+        # ── 4. Attach view + file ─────────────────────────────────────
+        view = WatchlistView(self, top_suspects)
+        file = discord.File(fp=grid_buffer, filename="watchlist_grid.png") if grid_buffer else discord.utils.MISSING
+
+        if grid_buffer:
+            await interaction.followup.send(embed=embed, file=file, view=view)
+        else:
+            await interaction.followup.send(embed=embed, view=view)
+
+
+    # ------------------------------------------------------------------ #
+    # /metro_profiler                                                      #
+    # ------------------------------------------------------------------ #
+    @app_commands.command(
+        name="metro_profiler",
+        description="Open a detailed suspect profiler from Roblox username."
+    )
+    async def metro_profiler(self, interaction: discord.Interaction, roblox_username: str):
+        await interaction.response.defer()
+
+        pages, map_file = await self.build_profiler_result(roblox_username)
+
+        if not pages:
+            await interaction.followup.send(
+                "❌ No records found for this suspect.",
+                ephemeral=True
+            )
+            return
+
+        view = MetroProfilerView(pages)
+
+        if map_file:
+            await interaction.followup.send(embed=pages[0], view=view, file=map_file)
+        else:
+            await interaction.followup.send(embed=pages[0], view=view)
+
+            
+    # ------------------------------------------------------------------ #
+    # /metro_suspect_log                                                 #
+    # ------------------------------------------------------------------ #
     @app_commands.command(
         name="metro_suspect_log",
         description="Log a suspect's crime history for future predictive training.",
@@ -87,13 +488,11 @@ class Simon(commands.Cog):
     ):
         await interaction.response.defer()
 
-        # 1. Build valid node reference list for LLM extraction
         valid_nodes = "\n".join(
             f"{nid}: {info.get('poi', 'Unknown')}"
             for nid, info in self.bot.erlc_graph.nodes_data.items()
         )
 
-        # 2. LLM-powered location extraction
         extraction_prompt = f"""
 You are a strict JSON extractor.
 Map the provided location description to the closest valid node in the graph.
@@ -119,12 +518,10 @@ Return ONLY JSON in this format:
 
         extracted_postal = location_data.get("postal")
 
-        # hard-validate against graph
         if extracted_postal not in self.bot.erlc_graph.nodes_data:
             location_data    = {"postal": None, "poi": None, "confidence": 0.0}
             extracted_postal = None
 
-        # 3. Build log entry
         log_entry = {
             "suspect_name": suspect_name.lower(),
             "crimes":       crimes_committed,
@@ -136,7 +533,6 @@ Return ONLY JSON in this format:
             "timestamp":    interaction.created_at.isoformat(),
         }
 
-        # 4. Persist to MongoDB
         try:
             await self.bot.suspect_logs.insert_one(log_entry)
             await interaction.followup.send(
@@ -151,10 +547,10 @@ Return ONLY JSON in this format:
                 ephemeral=True,
             )
 
+            
     # ------------------------------------------------------------------ #
-    # /metro_predict                                                       #
+    # /metro_predict                                                     #
     # ------------------------------------------------------------------ #
-
     @app_commands.command(
         name="metro_predict",
         description="Run a predictive policing algorithm on a suspect.",
@@ -181,7 +577,6 @@ Return ONLY JSON in this format:
             )
             return
 
-        # 1. Fetch suspect history + build heatmap
         crime_logs   = []
         history_text = "No prior history available."
 
@@ -198,8 +593,6 @@ Return ONLY JSON in this format:
             except Exception as e:
                 print(f"[MONGO ERROR] Failed to fetch suspect logs: {e}")
 
-        print(f"[DEBUG] Retrieved {len(crime_logs)} logs for suspect: {suspect_name}")
-
         if crime_logs:
             crime_texts   = []
             sighting_texts = []
@@ -212,7 +605,6 @@ Return ONLY JSON in this format:
 
         self.bot.crime_heatmap.build_from_logs(crime_logs)
 
-        # 2. Graph routing
         modified_graph = self.bot.erlc_graph.apply_weights(vehicle, unwl_units)
         resolved_postal = postal
 
@@ -237,7 +629,6 @@ Return ONLY JSON in this format:
             )
             return
 
-        # 3. Behavioural scoring
         scored_dests = []
         for d in raw_dests:
             node_data = self.bot.erlc_graph.nodes_data.get(d["postal"])
@@ -251,7 +642,6 @@ Return ONLY JSON in this format:
         scored_dests.sort(key=lambda x: x["final_score"])
         top_dests = scored_dests[:7]
 
-        # 4. Build LLM prompt
         dest_lines   = [
             f"- {d['postal']} | POI: {d['poi']} | "
             f"dist={d['distance_score']} | heat={d['heat_score']} | "
@@ -277,7 +667,6 @@ Return ONLY JSON in this format:
 
         prediction_data = await call_llm(llm_prompt)
 
-        # Fallback if LLM fails
         if not prediction_data:
             prediction_data = {
                 "prediction": {
@@ -291,7 +680,6 @@ Return ONLY JSON in this format:
                 }
             }
 
-        # 5. Normalise to embed-compatible schema
         if isinstance(prediction_data, dict) and "prediction" in prediction_data:
             p = prediction_data["prediction"]
             prediction_data = {
@@ -306,10 +694,6 @@ Return ONLY JSON in this format:
                 "interference_risk":    "High" if unwl_units > 0 else "None",
                 "failsafe_suggestion":  p.get("tactical_recommendation"),
             }
-
-        # 6. Path resolution + map drawing
-        print("\n===== PATH DEBUG START =====")
-        print("Resolved start postal:", resolved_postal)
 
         def resolve_node(n):
             if not n:
@@ -334,18 +718,13 @@ Return ONLY JSON in this format:
             if not target:
                 continue
             try:
-                print(f"Computing path {resolved_postal} -> {target}")
                 path = nx.shortest_path(
                     modified_graph, resolved_postal, target, weight="weight"
                 )
                 path = [resolve_node(p) for p in path]
-                print("Path found:", path)
                 paths_to_draw.append(path)
-            except Exception as e:
-                print(f"Path FAILED {resolved_postal} -> {target}: {e}")
-
-        print("Final paths_to_draw:", paths_to_draw)
-        print("===== PATH DEBUG END =====\n")
+            except Exception:
+                pass
 
         loop             = asyncio.get_running_loop()
         map_image_buffer = await loop.run_in_executor(
@@ -357,7 +736,6 @@ Return ONLY JSON in this format:
             else discord.utils.MISSING
         )
 
-        # 7. Build embed
         color_map = {
             "Low":    discord.Color.green(),
             "Med":    discord.Color.orange(),
@@ -427,10 +805,10 @@ Return ONLY JSON in this format:
         else:
             await interaction.followup.send(embed=embed)
 
-    # ------------------------------------------------------------------ #
-    # /metro_crime_heatmap                                                 #
-    # ------------------------------------------------------------------ #
 
+    # ------------------------------------------------------------------ #
+    # /metro_crime_heatmap                                               #
+    # ------------------------------------------------------------------ #
     @app_commands.command(
         name="metro_crime_heatmap",
         description="Generate a visual heatmap of historical crime activity.",
@@ -476,160 +854,6 @@ Return ONLY JSON in this format:
             await interaction.followup.send(
                 "An error occurred while generating the crime heatmap."
             )
-
-    # ------------------------------------------------------------------ #
-    # /metro_profiler                                                      #
-    # ------------------------------------------------------------------ #
-
-    @app_commands.command(
-        name="metro_profiler",
-        description="Open a detailed suspect profiler from Roblox username.",
-    )
-    async def metro_profiler(
-        self, interaction: discord.Interaction, roblox_username: str
-    ):
-        await interaction.response.defer()
-
-        # 1. Resolve Roblox user ID
-        image_url = None
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.post(
-                    "https://users.roblox.com/v1/usernames/users",
-                    json={
-                        "usernames": [roblox_username],
-                        "excludeBannedUsers": False,
-                    },
-                ) as resp:
-                    data = await resp.json()
-
-                if not data.get("data"):
-                    await interaction.followup.send(
-                        "❌ Roblox user not found.", ephemeral=True
-                    )
-                    return
-
-                user_id = data["data"][0]["id"]
-            except Exception:
-                await interaction.followup.send(
-                    "❌ Failed to resolve Roblox user.", ephemeral=True
-                )
-                return
-
-            # 2. Fetch avatar thumbnail
-            try:
-                async with session.get(
-                    "https://thumbnails.roblox.com/v1/users/avatar-headshot",
-                    params={
-                        "userIds":   user_id,
-                        "size":      "420x420",
-                        "format":    "Png",
-                        "isCircular": "false",
-                    },
-                ) as resp:
-                    avatar_data = await resp.json()
-
-                if avatar_data and avatar_data.get("data"):
-                    image_url = avatar_data["data"][0].get("imageUrl")
-            except Exception:
-                pass
-
-        # 3. Fetch crime history
-        logs_cursor = (
-            self.bot.suspect_logs.find(
-                {"suspect_name": roblox_username.lower()}
-            )
-            .sort("timestamp", -1)
-            .limit(20)
-        )
-        logs = await logs_cursor.to_list(length=20)
-
-        if not logs:
-            await interaction.followup.send(
-                "No records found for this suspect.", ephemeral=True
-            )
-            return
-
-        # 4. Paginate (5 logs per page)
-        pages = []
-        for i in range(0, len(logs), 5):
-            chunk = logs[i : i + 5]
-            desc  = (
-                f"## 👤 Metro Profiler: {roblox_username}\n"
-                "**━━━━━━━━━━━━━━━━━━━━**\n"
-            )
-            for log in chunk:
-                desc += (
-                    f"\n**Crime:** {log.get('crimes', 'Unknown')}\n"
-                    f"**Location:** {log.get('poi') or log.get('postal') or 'Unknown'}\n"
-                    "━━━━━━━━━━━━━━━━━━━━\n"
-                )
-            embed = discord.Embed(description=desc, color=discord.Color.dark_red())
-            if image_url:
-                embed.set_thumbnail(url=image_url)
-            pages.append(embed)
-
-        # 5. Compute frequent POIs + draw path map
-        poi_counts: dict = {}
-        for log in logs:
-            poi = log.get("poi") or log.get("postal")
-            if poi:
-                poi_counts[poi] = poi_counts.get(poi, 0) + 1
-
-        top_pois = sorted(poi_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-        nodes    = [
-            self.bot.erlc_graph.resolve_target(poi)
-            for poi, _ in top_pois
-            if self.bot.erlc_graph.resolve_target(poi)
-        ]
-
-        paths_to_draw = []
-        for i in range(len(nodes) - 1):
-            try:
-                path = nx.shortest_path(
-                    self.bot.erlc_graph.graph,
-                    nodes[i],
-                    nodes[i + 1],
-                    weight="weight",
-                )
-                paths_to_draw.append(path)
-            except Exception:
-                continue
-
-        loop       = asyncio.get_running_loop()
-        map_buffer = await loop.run_in_executor(
-            None, draw_map_path, self.bot.erlc_graph, paths_to_draw
-        )
-
-        if pages:
-            pages[0].set_image(url="attachment://profile_map.png")
-
-        file = discord.File(fp=map_buffer, filename="profile_map.png")
-
-        # 6. LLM behavioural analysis
-        prompt = f"""
-You are analysing a suspect profile.
-Username: {roblox_username}
-Recent crimes: {[l.get('crimes') for l in logs[:10]]}
-Frequent locations: {list(poi_counts.keys())}
-Provide behavioural robbery pattern analysis.
-"""
-        llm_result = await call_llm(prompt)
-        analysis   = "Unavailable"
-        if llm_result and isinstance(llm_result, dict):
-            analysis = (
-                llm_result.get("prediction", {}).get("reasoning")
-                or "No analysis generated."
-            )
-
-        pages[0].add_field(
-            name="Behavioural Pattern", value=analysis[:1024], inline=False
-        )
-
-        # 7. Send with pagination
-        view = MetroProfilerView(pages)
-        await interaction.followup.send(embed=pages[0], view=view, file=file)
-
 
 async def setup(bot):
     await bot.add_cog(Simon(bot))

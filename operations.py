@@ -14,7 +14,7 @@ Metropolitan Division administrative & operational commands:
 """
 
 import time
-
+import datetime
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -94,7 +94,8 @@ class MetroTrainingModal(discord.ui.Modal):
             icon_url=self.host.display_avatar.url,
         )
 
-        await interaction.channel.send(embed=embed)
+        channel = self._resolve_output_channel(interaction, "metro_log_training")
+        await channel.send(embed=embed)
         await interaction.response.send_message(
             "✅ Training log has been posted successfully.", ephemeral=True
         )
@@ -132,7 +133,8 @@ class MetroAnnouncementModal(discord.ui.Modal):
             ),
         )
 
-        await interaction.channel.send(content=content, embed=embed)
+        channel = self._resolve_output_channel(interaction, "metro_announcement")
+        await channel.send(content=content, embed=embed)
         await interaction.response.send_message(
             "✅ Announcement sent.", ephemeral=True
         )
@@ -147,6 +149,27 @@ class Operations(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.channel_map = {
+            "metro_log_training": None,
+            "metro_promote": None,
+            "metro_announcement": None,
+            "metro_infract": None,
+            "metro_mass_shift": None,
+            "host_metro_training": None,
+            "metro_openings": None,
+            "request_metro": None,
+        }
+    def _resolve_output_channel(self, interaction: discord.Interaction, key: str):
+        channel_id = self.channel_map.get(key)
+
+        if channel_id:
+            channel = self.bot.get_channel(channel_id)
+            if channel:
+                if interaction.channel and interaction.channel.id == channel.id:
+                    return interaction.channel
+                return channel
+
+        return interaction.channel
 
     # ------------------------------------------------------------------ #
     # /metro_log_training                                                  #
@@ -213,7 +236,8 @@ class Operations(commands.Cog):
             ),
         )
 
-        await interaction.channel.send(content=officer.mention, embed=embed)
+        channel = self._resolve_output_channel(interaction, "metro_promote")
+        await channel.send(content=officer.mention, embed=embed)
         await interaction.response.send_message(
             "✅ Promotion successfully logged!", ephemeral=True
         )
@@ -287,7 +311,8 @@ class Operations(commands.Cog):
             ),
         )
 
-        await interaction.channel.send(content=officer.mention, embed=embed)
+        channel = self._resolve_output_channel(interaction, "metro_infract")
+        await channel.send(content=officer.mention, embed=embed)
         await interaction.response.send_message(
             "✅ Infraction has been posted successfully.", ephemeral=True
         )
@@ -335,9 +360,8 @@ class Operations(commands.Cog):
         await interaction.response.send_message(
             content="✅ Mass Shift Issued", ephemeral=True
         )
-        msg = await interaction.channel.send(
-            content=metro_role.mention, embed=embed
-        )
+        channel = self._resolve_output_channel(interaction, "metro_mass_shift")
+        msg = await channel.send(content=metro_role.mention, embed=embed)
 
         try:
             for emoji in ("✅", "❔", "❌"):
@@ -396,9 +420,8 @@ class Operations(commands.Cog):
         await interaction.response.send_message(
             content="✅ Host training issued.", ephemeral=True
         )
-        msg = await interaction.channel.send(
-            content=ping_role.mention, embed=embed
-        )
+        channel = self._resolve_output_channel(interaction, "host_metro_training")
+        msg = await channel.send(content=ping_role.mention, embed=embed)
 
         try:
             for emoji in ("✅", "❔", "❌"):
@@ -426,22 +449,22 @@ class Operations(commands.Cog):
             await guild.chunk()
 
         rank_groups = [
-            ("[MD] Senior High Rank", [
+            ("     [MD] Directorate     ", [
                 ("Metro Director",         1),
                 ("Metro Deputy Director",  4),
             ]),
-            ("[MD] High Rank", [
+            (" [MD] Command Inspector General ", [
                 ("Metro Detective Chief Inspector", 4),
                 ("Metro Chief Inspector",           4),
             ]),
-            ("[MD] Supervisory Staff", [
+            ("[MD] General Supervisory Staff", [
                 ("Metro Supervisory Sergeant", 5),
             ]),
-            ("[MD] Major Crimes Services", [
+            ("  [MCS] Major Crimes Detectives  ", [
                 ("Metro Senior Detective", 7),
                 ("Metro Junior Detective", 50),
             ]),
-            ("[MD] Low Rank", [
+            ("   [MD] B/C Platoon Operatives  ", [
                 ("Metro Senior Officer", 50),
                 ("Metro Junior Officer", 50),
             ]),
@@ -451,27 +474,27 @@ class Operations(commands.Cog):
         ]
 
         seal          = "<:LAPD_Metropolitan:1495867271501975552>"
-        divider       = "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+        divider       = "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
         embed_color   = discord.Color.from_rgb(5, 164, 232)
         embed_list    = []
 
         # title embed
         embed_list.append(
             discord.Embed(
-                description=f"# {seal} **METRO Division Openings**\n{divider}\n\n",
+                description=f"# {seal} **Metropolitan Division Openings**\n{divider}\n\n",
                 color=embed_color,
             )
         )
 
         for group_name, ranks in rank_groups:
-            desc = f"## {seal} **{group_name}** {seal}\n{divider}\n"
+            desc = f"## {seal} **{group_name}** {seal}\n"
 
             for rank_name, quota in ranks:
                 role    = discord.utils.get(guild.roles, name=rank_name)
                 members = role.members if role else []
                 count   = len(members)
 
-                desc += f"**{rank_name}**\n{divider}\n"
+                desc += f"{divider}\n**{rank_name}**\n{divider}\n"
                 if not members:
                     desc += "• No officers currently hold this rank.\n"
                 else:
@@ -486,9 +509,87 @@ class Operations(commands.Cog):
             embed_list.append(
                 discord.Embed(description=desc, color=embed_color)
             )
+        await interaction.response.send_message("✅ Openings have been updated successfully.", ephemeral=True)
+        channel = self._resolve_output_channel(interaction, "metro_openings")
+        await channel.send(embeds=embed_list)
+        
 
-        await interaction.channel.send(embeds=embed_list)
-        await interaction.followup.send("✅ Openings have been updated successfully.", ephemeral=True)
+    # ------------------------------------------------------------------ #
+    # /metro_after_action                                                 #
+    # ------------------------------------------------------------------ #
+
+    @app_commands.command(
+        name="metro_after_action",
+        description="Create a Metropolitan After Action Report.",
+    )
+    async def metro_after_action(
+        self,
+        interaction: discord.Interaction,
+        officers: str,
+        patrol_area: str,
+        time_observed: str,
+        suspicious_activity: str,
+        actions_taken: str,
+        additional_notes: str = None,
+        suspect_gender: str = None,
+        clothing: str = None,
+        vehicle: str = None,
+        direction_of_travel: str = None,
+    ):
+        unix_time = None
+        try:
+            now = datetime.datetime.now()
+            parsed = datetime.datetime.strptime(time_observed, "%H:%M")
+            combined = now.replace(hour=parsed.hour, minute=parsed.minute, second=0, microsecond=0)
+            unix_time = int(combined.timestamp())
+        except Exception:
+            unix_time = None
+
+        suspect_gender = suspect_gender if suspect_gender else "N/A"
+        clothing = clothing if clothing else "N/A"
+        vehicle = vehicle if vehicle else "N/A"
+        direction_of_travel = direction_of_travel if direction_of_travel else "N/A"
+
+        time_display = f"<t:{unix_time}:F>" if unix_time else "N/A"
+
+        metro_role = discord.utils.get(interaction.guild.roles, name="Metro Chief Inspector")
+
+        desc = (
+            "## <:LAPD_Metropolitan:1495867271501975552> | Metropolitan After Action Report\n"
+            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            f"**Officer(s):** {officers}\n"
+            f"**Patrol Area:** {patrol_area}\n"
+            f"**Time Observed:** {time_display}\n\n"
+            "**Suspicious Activity Observed:**\n"
+            f"> {suspicious_activity}\n\n"
+            "**Suspect Description:**\n"
+            f"- Gender: {suspect_gender}\n"
+            f"- Clothing: {clothing}\n"
+            f"- Vehicle: {vehicle}\n"
+            f"- Direction of Travel: {direction_of_travel}\n\n"
+            "**Actions Taken:**\n"
+            f"> {actions_taken}\n\n"
+            "**Additional Notes:**\n"
+            f"> {additional_notes}\n\n"
+            "**Signed,**\n"
+            f"{interaction.user.mention} - <:LAPD_Metropolitan:1495867271501975552> | Metro Operative\n\n"
+            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+        )
+
+        embed = discord.Embed(description=desc, color=discord.Color.dark_blue())
+        embed.set_footer(
+            text=f"Issued by {interaction.user.display_name}",
+            icon_url=interaction.user.display_avatar.url if interaction.user.display_avatar else None,
+        )
+
+        await interaction.channel.send(
+            content=metro_role.mention if metro_role else None,
+            embed=embed,
+        )
+
+        await interaction.response.send_message(
+            "✅ After Action Report posted.", ephemeral=True
+        )
 
     # ------------------------------------------------------------------ #
     # /request_metro                                                       #
@@ -496,7 +597,7 @@ class Operations(commands.Cog):
 
     @app_commands.command(
         name="request_metro",
-        description="Request Metropolitan + SWAT response for active incidents.",
+        description="Request Metropolitan x SWAT response for active incidents",
     )
     async def request_metro(
         self, interaction: discord.Interaction, reason: str
@@ -534,7 +635,7 @@ class Operations(commands.Cog):
 
         host = interaction.user
         desc = (
-            "## 🚨 | ACTIVE REQUEST: METRO + SWAT DEPLOYMENT\n"
+            "## 🚨 | ACTIVE REQUEST: METRO x SWAT DEPLOYMENT\n"
             "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
             f"**Requested By:** {host.mention}\n\n"
             f"**Incident Type:** {reason}\n\n"
@@ -553,7 +654,8 @@ class Operations(commands.Cog):
         await interaction.response.send_message(
             "✅ Request sent.", ephemeral=True
         )
-        await interaction.channel.send(
+        channel = self._resolve_output_channel(interaction, "request_metro")
+        await channel.send(
             content=f"{metro_role.mention} {swat_role.mention}",
             embed=embed,
         )

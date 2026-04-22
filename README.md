@@ -2,10 +2,6 @@
 
 A high-performance Discord bot designed for ER:LC Metropolitan Division operations, combining graph theory, behavioural modelling, and LLM-based prediction into a single operational tool.
 
-This is not a basic utility bot. It’s a decision-support system.
-
-⸻
-
 ## Overview
 
 Metropolitan Services integrates three core systems:
@@ -15,8 +11,6 @@ Metropolitan Services integrates three core systems:
 * LLM Integration (Gemini API) → Produces structured, tactical predictions
 
 The result is a system that doesn’t just track suspects — it anticipates them.
-
-⸻
 
 ## Core Features
 
@@ -33,15 +27,11 @@ Predictive Policing Engine
     * Risk levels
     * Visual route overlays
 
-⸻
-
 ## Crime Heatmap
 
 * Aggregates MongoDB crime logs
 * Generates real-time spatial intensity maps
 * Highlights high-risk zones based on historical activity
-
-⸻
 
 ## Suspect Logging System
 
@@ -49,9 +39,7 @@ Predictive Policing Engine
 * Uses LLM extraction to map vague inputs → valid nodes
 * Builds long-term behavioural profiles
 
-⸻
-
-## Metropolitan Command Tools
+## Metropolitan Operational Command Tools
 
 Includes operational Discord commands:
 
@@ -63,8 +51,6 @@ Includes operational Discord commands:
 * /metro_mass_shift → Division-wide mobilisation
 * /metro_openings → Rank availability tracker
 * /metro_log_training → Training evaluation system
-
-⸻
 
 ## System Architecture
 
@@ -80,8 +66,6 @@ LLM (Gemini API)
         ↓
 Prediction Output + Map Rendering (PIL)
 
-⸻
-
 ## Tech Stack
 
 * Python 3.11
@@ -90,9 +74,7 @@ Prediction Output + Map Rendering (PIL)
 * MongoDB Atlas (Motor) — async database
 * Pillow (PIL) — map rendering
 * aiohttp — API requests
-* Gemini API — structured AI predictions
-
-⸻
+* Gemini API — structured AI prediction
 
 ## Setup
 
@@ -108,7 +90,7 @@ DISCORD_TOKEN=your_token
 MONGO_URI=your_mongo_uri
 GEMINI_API_KEY=your_api_key
 
-⸻
+
 
 3. Run
 

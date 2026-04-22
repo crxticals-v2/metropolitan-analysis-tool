@@ -29,8 +29,8 @@
       "y": 1987
     },
     "ind_riverside": {
-      "x": 1246,
-      "y": 1985
+      "x": 1243,
+      "y": 1986
     },
     "ind_cross": {
       "x": 1556,
@@ -57,8 +57,8 @@
       "y": 2157
     },
     "orch_riverside": {
-      "x": 1234,
-      "y": 2152
+      "x": 1241,
+      "y": 2156
     },
     "orch_industrial": {
       "x": 1418,
@@ -113,7 +113,7 @@
       "y": 2400
     },
     "free_riverside": {
-      "x": 1246,
+      "x": 1242,
       "y": 2398
     },
     "free_industrial": {
@@ -121,7 +121,7 @@
       "y": 2399
     },
     "free_cross": {
-      "x": 1600,
+      "x": 1573,
       "y": 2400
     },
     "free_cline": {
@@ -185,8 +185,8 @@
       "y": 1390
     },
     "riv_mid": {
-      "x": 1227,
-      "y": 1611
+      "x": 1222,
+      "y": 1617
     },
     "riv_lower": {
       "x": 1073,
@@ -197,15 +197,15 @@
       "y": 2100
     },
     "hwy55_north": {
-      "x": 2054,
-      "y": 635
+      "x": 2045,
+      "y": 645
     },
     "hwy55_n1": {
-      "x": 2144,
+      "x": 2137,
       "y": 816
     },
     "hwy55_n2": {
-      "x": 2171,
+      "x": 2157,
       "y": 1117
     },
     "hwy55_mid": {
@@ -213,16 +213,16 @@
       "y": 1508
     },
     "hwy55_s1": {
-      "x": 2170,
-      "y": 1826
+      "x": 2154,
+      "y": 1859
     },
     "hwy55_s2": {
-      "x": 2175,
-      "y": 2091
+      "x": 2158,
+      "y": 2156
     },
     "hwy55_south": {
-      "x": 2169,
-      "y": 2359
+      "x": 2156,
+      "y": 2360
     },
     "oakval_n": {
       "x": 2460,
@@ -438,16 +438,16 @@
     },
     "N-301": {
       "label": "INT_CROSS_FREE",
-      "x": 1600,
-      "y": 2496,
+      "x": 1574,
+      "y": 2527,
       "poi": "Warehouse",
       "robable": false,
       "type": "industrial"
     },
     "N-302": {
-      "label": "INT_CLINE_FREE",
-      "x": 2170,
-      "y": 2401,
+      "label": "INT_HW55_FREE",
+      "x": 2156,
+      "y": 2400,
       "poi": "Grasslands",
       "robable": false,
       "type": "recreational"
@@ -526,8 +526,8 @@
     },
     "N-402": {
       "label": "INT_FAIRFAX_OUTER_N",
-      "x": 472,
-      "y": 1954,
+      "x": 475,
+      "y": 1947,
       "poi": "Mud",
       "robable": false,
       "type": "utility"
@@ -558,16 +558,16 @@
     },
     "N-410": {
       "label": "INT_ARBOR_MID",
-      "x": 550,
-      "y": 1744,
+      "x": 601,
+      "y": 1756,
       "poi": "Dirt Tracks",
       "robable": false,
       "type": "utility"
     },
     "N-411": {
       "label": "INT_RIVERSIDE_UPPER",
-      "x": 1245,
-      "y": 1629,
+      "x": 1243,
+      "y": 1627,
       "poi": "Riverside Drive North (To the Right)",
       "robable": false,
       "type": "utility"
@@ -606,8 +606,8 @@
     },
     "N-601": {
       "label": "INT_COLONIAL_COMPLEX",
-      "x": 1623,
-      "y": 1359,
+      "x": 1607,
+      "y": 1337,
       "poi": "Cornfields",
       "robable": false,
       "type": "government"
@@ -694,24 +694,24 @@
     },
     "N-804": {
       "label": "INT_FAR_NORTH",
-      "x": 1323,
-      "y": 476,
+      "x": 1322,
+      "y": 488,
       "poi": "Far North Road",
       "robable": false,
       "type": "utility"
     },
     "N-806": {
       "label": "INT_HWY55_TOP",
-      "x": 1601,
-      "y": 469,
+      "x": 1597,
+      "y": 487,
       "poi": "Highway 55 Entry North",
       "robable": false,
       "type": "utility"
     },
     "N-900": {
       "label": "INT_HWY55_N_AREA",
-      "x": 1865,
-      "y": 505,
+      "x": 1853,
+      "y": 516,
       "poi": "Highway 55 Top",
       "robable": false,
       "type": "utility"
@@ -720,8 +720,8 @@
       "label": "INT_COUNTY_UPPER",
       "x": 1720,
       "y": 866,
-      "poi": "County Upper Road",
-      "robable": false,
+      "poi": "Lakeview Housing",
+      "robable": true,
       "type": "utility"
     },
     "N-903": {
@@ -734,7 +734,7 @@
     },
     "N-904": {
       "label": "INT_SPRING_CREEK_W",
-      "x": 1247,
+      "x": 1240,
       "y": 840,
       "poi": "Spring Creek West",
       "robable": false,
@@ -744,8 +744,8 @@
       "label": "INT_COUNTY_UPPER_E",
       "x": 1960,
       "y": 863,
-      "poi": "Upper East County",
-      "robable": false,
+      "poi": "Lakeview Housing",
+      "robable": true,
       "type": "utility"
     },
     "N-906": {
@@ -774,8 +774,8 @@
     },
     "N-909": {
       "label": "INT_COUNTY_MID",
-      "x": 1714,
-      "y": 1079,
+      "x": 1722,
+      "y": 1082,
       "poi": "County Mid Road",
       "robable": false,
       "type": "utility"
@@ -800,9 +800,9 @@
       "label": "INT_SHOPS_COUNTY",
       "x": 2593,
       "y": 887,
-      "poi": "Shops",
+      "poi": "Basic Housing",
       "robable": true,
-      "type": "commercial"
+      "type": "Housing"
     },
     "N-1106": {
       "label": "INT_TERRACE_E",
@@ -939,8 +939,8 @@
       "robable": false
     },
     "N-406": {
-      "x": 1014,
-      "y": 1629,
+      "x": 1027,
+      "y": 1620,
       "label": "Fairfax Road",
       "type": "commercial",
       "robable": false
@@ -1119,6 +1119,14 @@
       "poi": "Farm",
       "type": "Farm",
       "robable": false
+    },
+    "INT_TOOL_STORE": {
+      "x": 890,
+      "y": 1742,
+      "label": "Tool Store",
+      "poi": "Tool Store",
+      "type": "commercial",
+      "robable": true
     }
   },
   "edges": [
@@ -1989,30 +1997,6 @@
       "metadata": {
         "postals": [
           "200"
-        ]
-      }
-    },
-    {
-      "source": "ind_sandstone",
-      "target": "N-216",
-      "road": "Sandstone Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "216"
-        ]
-      }
-    },
-    {
-      "source": "N-216",
-      "target": "ind_sandstone",
-      "road": "Sandstone Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "216"
         ]
       }
     },
@@ -3241,30 +3225,6 @@
       }
     },
     {
-      "source": "ind_sandstone",
-      "target": "N-216",
-      "road": "Independence Pkwy",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "216"
-        ]
-      }
-    },
-    {
-      "source": "N-216",
-      "target": "ind_sandstone",
-      "road": "Independence Pkwy",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "216"
-        ]
-      }
-    },
-    {
       "source": "ind_main",
       "target": "N-217",
       "road": "Independence Pkwy",
@@ -4181,32 +4141,6 @@
         "postals": [
           "903",
           "902"
-        ]
-      }
-    },
-    {
-      "source": "N-902",
-      "target": "N-905",
-      "road": "Iron Road",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "902",
-          "905"
-        ]
-      }
-    },
-    {
-      "source": "N-905",
-      "target": "N-902",
-      "road": "Iron Road",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "902",
-          "905"
         ]
       }
     },
@@ -5791,6 +5725,126 @@
     {
       "source": "N-704",
       "target": "N-410",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-216",
+      "target": "ind_durham",
+      "road": "Independence Parkway",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-410",
+      "target": "INT_FAIRFAX_ARBOR",
+      "road": "Dirt Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "INT_FAIRFAX_ARBOR",
+      "target": "INT_TOOL_STORE",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-406",
+      "target": "INT_TOOL_STORE",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "col_lower",
+      "target": "N-510",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-309",
+      "target": "N-510",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-301",
+      "target": "madison_main",
+      "road": "Madison Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-301",
+      "target": "madison_cross",
+      "road": "Madison Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "free_cross",
+      "target": "georgia_cross",
+      "road": "Cross Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-902",
+      "target": "iron_road_n",
+      "road": "Lakeview Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "iron_road_n",
+      "target": "N-905",
+      "road": "Lakeview Court",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-909",
+      "target": "N-601",
       "road": "Unnamed Road",
       "type": "local",
       "is_one_way": false,
