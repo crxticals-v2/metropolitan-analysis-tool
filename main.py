@@ -10,7 +10,7 @@ import discord
 from discord.ext import commands
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from config import MAP_JSON_PATH, MONGO_URI, TOKEN
+from config import MAP_JSON_PATH, MONGO_URI, TOKEN, WATCHLIST_CHANNEL_ID
 from graph import ERLCGraph
 from heatmap import CrimeHeatmap
 
@@ -23,6 +23,7 @@ class MetroBot(commands.Bot):
         intents         = discord.Intents.default()
         intents.members = True
         intents.guilds  = True
+        intents.message_content = True
 
         super().__init__(command_prefix="!", intents=intents)
 
@@ -36,20 +37,28 @@ class MetroBot(commands.Bot):
             tls=True,
             tlsCAFile=certifi.where(),
         )
-        db                 = self.mongo_client["erlc_database"]
-        self.suspect_logs  = db["suspect_logs"]
+        db                  = self.mongo_client["erlc_database"]
+        self.suspect_logs   = db["suspect_logs"]
+        self.bot_state      = db["bot_state"] # New collection for bot state
 
         # Cooldown tracking: {guild_id: timestamp}
         self.request_metro_cooldowns: dict = {}
 
     async def setup_hook(self):
         """Load all cogs and sync slash commands."""
+        self.watchlist_channel_id = WATCHLIST_CHANNEL_ID
         await self.load_extension("simon")
         await self.load_extension("operations")
         await self.tree.sync()
         print("✅ Slash commands synced.")
 
     async def on_ready(self):
+        if not hasattr(self, "_presence_set"):
+            await self.change_presence(
+                activity=discord.Game(name="🚨| MD – Spying for you |")
+            )
+            self._presence_set = True
+
         print(f"✅ Logged in as {self.user} ({self.user.id})")
 
 

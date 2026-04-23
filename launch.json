@@ -1,0 +1,122 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "🧪 Run All Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/",
+                "--tb=short",
+                "-v"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "DISCORD_TOKEN": "test_discord_token",
+                "MONGO_URI": "mongodb://localhost:27017",
+                "GEMINI_API_KEY": "test_gemini_key",
+                "WATCHLIST_CHANNEL_ID": "1234567890123456789"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "🗺️  Tests: Graph Engine",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_graph.py",
+                "--tb=short",
+                "-v"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "DISCORD_TOKEN": "test_discord_token",
+                "MONGO_URI": "mongodb://localhost:27017",
+                "GEMINI_API_KEY": "test_gemini_key",
+                "WATCHLIST_CHANNEL_ID": "1234567890123456789"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "🔧 Tests: Utilities & Heatmap",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_utils.py",
+                "--tb=short",
+                "-v"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "DISCORD_TOKEN": "test_discord_token",
+                "MONGO_URI": "mongodb://localhost:27017",
+                "GEMINI_API_KEY": "test_gemini_key",
+                "WATCHLIST_CHANNEL_ID": "1234567890123456789"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "🎨 Tests: Embed Construction",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_embeds.py",
+                "--tb=short",
+                "-v"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "DISCORD_TOKEN": "test_discord_token",
+                "MONGO_URI": "mongodb://localhost:27017",
+                "GEMINI_API_KEY": "test_gemini_key",
+                "WATCHLIST_CHANNEL_ID": "1234567890123456789"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "⚙️  Tests: Command Logic",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_commands.py",
+                "--tb=short",
+                "-v"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "DISCORD_TOKEN": "test_discord_token",
+                "MONGO_URI": "mongodb://localhost:27017",
+                "GEMINI_API_KEY": "test_gemini_key",
+                "WATCHLIST_CHANNEL_ID": "1234567890123456789"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "🐛 Debug Single Test (edit args)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "tests/test_commands.py::TestMetroPredict::test_valid_predict_sends_embed",
+                "--tb=long",
+                "-v",
+                "-s"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "DISCORD_TOKEN": "test_discord_token",
+                "MONGO_URI": "mongodb://localhost:27017",
+                "GEMINI_API_KEY": "test_gemini_key",
+                "WATCHLIST_CHANNEL_ID": "1234567890123456789"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}

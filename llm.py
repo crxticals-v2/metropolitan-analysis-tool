@@ -38,6 +38,8 @@ Return ONLY JSON in this exact format:
 You are NOT, and I repeat, NOT, allowed to modify the names of the schema fields.
 """
 
+# Pre-compile for micro-optimization during parsing
+JSON_BLOCK_RE = re.compile(r"```json|```")
 
 async def call_llm(prompt: str) -> dict | None:
     """
@@ -45,14 +47,19 @@ async def call_llm(prompt: str) -> dict | None:
     Retries up to 6 times with exponential back-off on 503 / network errors.
     Returns None on unrecoverable failure.
     """
+    full_prompt = f"{_SYSTEM_INSTRUCTION}\n\n{prompt}"
+    
     payload = {
         "contents": [
             {
                 "role": "user",
-                "parts": [{"text": _SYSTEM_INSTRUCTION + "\n\n" + prompt}],
+                "parts": [{"text": full_prompt}],
             }
         ],
-        "generationConfig": {"temperature": 0.2},
+        "generationConfig": {
+            "temperature": 0.2,
+            "response_mime_type": "application/json"
+        },
     }
 
     url     = f"{LLM_API_URL}?key={LLM_API_KEY}"
@@ -60,31 +67,20 @@ async def call_llm(prompt: str) -> dict | None:
     timeout = aiohttp.ClientTimeout(total=30)
     connector = aiohttp.TCPConnector(ssl=False)
 
-    for attempt in range(6):
-        try:
-            async with aiohttp.ClientSession(
-                timeout=timeout, connector=connector
-            ) as session:
+    # Create session ONCE outside the loop to utilize connection pooling
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+        for attempt in range(6):
+            try:
                 async with session.post(url, headers=headers, json=payload) as resp:
-
                     if resp.status == 200:
                         data = await resp.json()
-                        print("\n===== RAW LLM RESPONSE JSON =====")
-                        print(data)
-                        print("=================================\n")
-
                         text = data["candidates"][0]["content"]["parts"][0]["text"]
-                        print("\n===== RAW LLM TEXT OUTPUT =====")
-                        print(text)
-                        print("================================\n")
-
-                        text = re.sub(r"```json|```", "", text).strip()
-
+                        
+                        # Clean up only if necessary (Gemini usually omits this in JSON mode)
+                        if "```" in text:
+                            text = JSON_BLOCK_RE.sub("", text).strip()
+                        
                         parsed = json.loads(text)
-                        print("\n===== PARSED LLM JSON =====")
-                        print(parsed)
-                        print("===========================\n")
-
                         if not isinstance(parsed, dict) or "prediction" not in parsed:
                             print("[LLM ERROR] Invalid schema returned from model")
                             return None
@@ -100,12 +96,12 @@ async def call_llm(prompt: str) -> dict | None:
                         print(f"Gemini API Error: {resp.status} – {await resp.text()}")
                         return None
 
-        except Exception as e:
-            wait = min(2 ** attempt, 10)
-            print(
-                f"[LLM ERROR] {type(e).__name__}: {repr(e)} | "
-                f"Retrying in {wait}s"
-            )
-            await asyncio.sleep(wait)
+            except Exception as e:
+                wait = min(2 ** attempt, 10)
+                print(
+                    f"[LLM ERROR] {type(e).__name__}: {repr(e)} | "
+                    f"Retrying in {wait}s"
+                )
+                await asyncio.sleep(wait)
 
     return None

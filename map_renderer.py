@@ -11,6 +11,18 @@ from PIL import Image, ImageDraw
 
 from config import MAP_IMAGE_PATH
 
+# --- Global Image Cache ---
+_CACHED_BASE_MAP = None
+
+def get_base_map():
+    """Lazy-load and cache the base map image in RGBA format."""
+    global _CACHED_BASE_MAP
+    if _CACHED_BASE_MAP is None:
+        try:
+            _CACHED_BASE_MAP = Image.open(MAP_IMAGE_PATH).convert("RGBA")
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize map cache: {e}")
+    return _CACHED_BASE_MAP.copy()
 
 # ------------------------------------------------------------------
 # PATH OVERLAY
@@ -28,10 +40,9 @@ def draw_map_path(erlc_graph, paths_to_draw: list) -> io.BytesIO:
         PNG image as a BytesIO buffer, or raises RuntimeError on failure.
     """
     try:
-        img = Image.open(MAP_IMAGE_PATH).convert("RGBA")
+        img = get_base_map()
     except Exception as e:
-        raise RuntimeError(f"Map image failed to load: {e}")
-
+        raise RuntimeError(f"Failed to load base map for path drawing: {e}")
     draw = ImageDraw.Draw(img)
     print("[MAP DEBUG] Drawing map with", len(paths_to_draw), "paths")
 
@@ -97,9 +108,9 @@ def draw_heatmap_overlay(erlc_graph, heatmap_data: dict) -> io.BytesIO:
         PNG image as a BytesIO buffer, or raises RuntimeError on failure.
     """
     try:
-        img = Image.open(MAP_IMAGE_PATH).convert("RGBA")
+        img = get_base_map()
     except Exception as e:
-        raise RuntimeError(f"Map image failed to load: {e}")
+        raise RuntimeError(f"Failed to load base map for heatmap: {e}")
 
     if not heatmap_data:
         buffer = io.BytesIO()

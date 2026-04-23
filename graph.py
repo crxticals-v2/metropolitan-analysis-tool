@@ -9,6 +9,7 @@ class ERLCGraph:
         self.nodes_data   = {}
         self.postal_nodes = {}
         self.road_graph   = {}
+        self.poi_lookup   = {}  # New O(1) lookup for POIs
         self.road_geometry= {}
         self.config       = {}
         self._load_data(json_path)
@@ -38,9 +39,13 @@ class ERLCGraph:
                 y=info["y"],
                 label=info.get("label"),
                 poi=info.get("poi"),
-                robable=info.get("robable"),
+                robable=info.get("robable", False),
                 type=info.get("type"),
             )
+            
+            # Index POIs for O(1) resolution
+            if info.get("poi"):
+                self.poi_lookup[info["poi"].lower().strip()] = node_id
 
         # --- Edges (v2 compatible loader) ---
         for edge in data.get("edges", []):
@@ -72,6 +77,12 @@ class ERLCGraph:
             metadata      = edge.get("metadata") or {}
             postals       = metadata.get("postals") or []
             bidirectional = edge.get("bidirectional", True)
+
+            # Index Postals to Nodes
+            for p in postals:
+                p_str = str(p)
+                if p_str not in self.postal_nodes:
+                    self.postal_nodes[p_str] = s
 
             def add_edge(u, v):
                 self.graph.add_edge(
@@ -144,18 +155,14 @@ class ERLCGraph:
     def resolve_poi_to_node(self, poi_name: str):
         if not poi_name:
             return None
-
         poi_name   = poi_name.lower().strip()
-        best_match = None
+        
+        # Direct match check
+        if poi_name in self.poi_lookup:
+            return self.poi_lookup[poi_name]
 
-        for node_id, data in self.nodes_data.items():
-            poi = str(data.get("poi", "")).lower().strip()
-            if poi == poi_name:
-                return node_id
-            if poi_name in poi or poi in poi_name:
-                best_match = node_id
-
-        return best_match
+        # Fuzzy fallback (only if direct match fails)
+        return next((nid for poi, nid in self.poi_lookup.items() if poi_name in poi), None)
 
     def resolve_target(self, raw: str):
         """Universal resolver for nodes, postals, and POIs."""
@@ -215,19 +222,14 @@ class ERLCGraph:
         G_mod = self.graph.copy()
 
         for u, v, data in G_mod.edges(data=True):
+            # Combine postal check and weight calculation into one pass
             if data.get("type") == "postal":
                 G_mod[u][v]["weight"] = 999_999
-                continue
-
-            base_cost = data.get("base_cost") or data.get("weight") or 1.0
-            G_mod[u][v]["weight"] = self.compute_edge_cost(
-                base_cost, data.get("type", "local"), vehicle, unwl_units
-            )
-
-        # second pass – make sure postal edges stay non-routing
-        for u, v, data in G_mod.edges(data=True):
-            if data.get("type") == "postal":
-                G_mod[u][v]["weight"] = 999_999
+            else:
+                base_cost = data.get("base_cost") or data.get("weight") or 1.0
+                G_mod[u][v]["weight"] = self.compute_edge_cost(
+                    base_cost, data.get("type", "local"), vehicle, unwl_units
+                )
 
         return G_mod
 

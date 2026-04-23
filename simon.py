@@ -17,12 +17,97 @@ import math
 import aiohttp
 import discord
 import networkx as nx
+from discord.ext import tasks # Import tasks for hourly updates
 from discord import app_commands
 from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
+import json
 
 from llm import call_llm
 from map_renderer import draw_heatmap_overlay, draw_map_path
+
+# ==========================================
+# VEHICLE DATABASE
+# ==========================================
+
+def load_vehicle_db():
+    with open("erlc_vehicles.json", "r") as f:
+        data = json.load(f)
+    return data.get("vehicles", [])
+
+def vehicle_label(v: dict) -> str:
+    brand = v.get("brand", "")
+    model = v.get("model", "")
+    real = v.get("real_name", "")
+    return f"{brand} {model}/{real}"
+
+
+VEHICLE_DB = load_vehicle_db()
+# Pre-indexed for O(1) lookups
+VEHICLE_LOOKUP = {vehicle_label(v): v for v in VEHICLE_DB}
+
+def vehicle_speed_model(vehicle: dict, context: str = "mixed") -> float:
+    base = {
+        # The base speeds were significantly underestimated relative to the map's pixel distance.
+        # A scaling factor of approximately 337.33 (253 minutes / 0.75 minutes) is applied
+        # to align the calculated ETA with real-world expectations (30-60 seconds for short drives).
+        "highway": 105.0 * 337.33, # ~35419.65
+        "city":    45.0 * 337.33,  # ~15179.85
+        "mixed":   70.0 * 337.33   # ~23613.1
+    }.get(context, 70.0 * 337.33) # Default to scaled mixed speed
+
+    category = vehicle.get("bot_category", "car")
+
+    if category == "supercar":
+        base *= 1.25
+    elif category == "truck":
+        base *= 0.85
+    elif category == "jeep":
+        base *= 0.92
+
+    hp = vehicle.get("horsepower_normalized")
+    if hp is None:
+        hp_factor = 1.0
+    else:
+        hp_factor = 0.75 + (hp / 10.0) * 0.6
+
+    return base * hp_factor
+
+
+def compute_eta_minutes(distance_cost: float, vehicle: dict, context: str = "mixed") -> int:
+    speed = vehicle_speed_model(vehicle, context)
+    if speed <= 0:
+        return 0
+    return int((distance_cost / speed) * 60)
+
+
+def resolve_vehicle(vehicle_str: str):
+    return VEHICLE_LOOKUP.get(vehicle_str)
+
+# ==========================================
+# POSTAL NORMALIZATION HELPER
+# ==========================================
+def normalize_postal(postal: str) -> str:
+    postal = postal.strip().upper()
+
+    # Already correct format
+    if postal.startswith("N-"):
+        return postal
+
+    # Accept "P222" → convert to numeric
+    if postal.startswith("P"):
+        postal = postal[1:]
+
+    # Pure numeric input → convert to N-XXX
+    if postal.isdigit():
+        return f"N-{postal}"
+
+    # fallback: extract digits
+    digits = "".join(c for c in postal if c.isdigit())
+    if digits:
+        return f"N-{digits}"
+
+    return postal
 
 
 # ==========================================
@@ -105,13 +190,25 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
         font_count = ImageFont.load_default()
 
     async with aiohttp.ClientSession() as session:
+        # Optimization: Fetch all suspect metadata concurrently
+        tasks = [fetch_roblox_data(session, s["_id"]) for s in suspects[:6]]
+        roblox_results = await asyncio.gather(*tasks)
+        
+        # Map results back to suspects
+        metadata_map = {
+            suspects[i]["_id"]: roblox_results[i] 
+            for i in range(len(roblox_results))
+        }
+
         for idx, suspect in enumerate(suspects[:6]):
             col = idx % COLS
             row = idx // COLS
 
             cell_x = PADDING + col * (CELL_W + PADDING)
             cell_y = PADDING + row * (CELL_H + PADDING)
-
+            
+            _, _, avatar_url = metadata_map.get(suspect["_id"], (None, None, None))
+            
             # card background
             draw.rounded_rectangle(
                 [cell_x, cell_y, cell_x + CELL_W, cell_y + CELL_H],
@@ -122,8 +219,6 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
             # ── Avatar ───────────────────────────────────────────
             avatar_x = cell_x + (CELL_W - AVATAR_SZ) // 2
             avatar_y = cell_y + 8
-
-            _, _, avatar_url = await fetch_roblox_data(session, suspect["_id"])
 
             if avatar_url:
                 try:
@@ -158,7 +253,7 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
             # centre-align text manually (bbox)
             try:
                 name_bbox  = draw.textbbox((0, 0), display, font=font_name)
-                count_bbox = draw.textbbox((0, 0), f"{suspect['count']} logs", font=font_count)
+                count_bbox = draw.textbbox((0, 0), f"{suspect['count']} crimes commited.", font=font_count)
                 name_x  = cell_x + (CELL_W - (name_bbox[2]  - name_bbox[0]))  // 2
                 count_x = cell_x + (CELL_W - (count_bbox[2] - count_bbox[0])) // 2
             except Exception:
@@ -166,7 +261,7 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
                 count_x = cell_x + 10
 
             draw.text((name_x,  label_y_name),  display,                  fill=NAME_COLOR,  font=font_name)
-            draw.text((count_x, label_y_count), f"{suspect['count']} logs", fill=COUNT_COLOR, font=font_count)
+            draw.text((count_x, label_y_count), f"{suspect['count']} crimes commited.", fill=COUNT_COLOR, font=font_count)
 
     buf = io.BytesIO()
     grid.save(buf, format="PNG")
@@ -207,11 +302,11 @@ class MetroProfilerView(discord.ui.View):
 class WatchlistButton(discord.ui.Button):
     """Opens an ephemeral profiler panel for this suspect."""
     def __init__(self, cog, suspect_name: str, log_count: int, position: int):
-        label = f"{suspect_name.title()[:18]}  •  {log_count}"
+        label = f"Profile: {suspect_name.title()[:12]}"
         super().__init__(
             label=label,
-            style=discord.ButtonStyle.danger,
-            row=position // 3          # row 0 for first 3, row 1 for last 3
+            style=discord.ButtonStyle.secondary,
+            row=position // 2  # Aligns row 0 with Suspects 1&2, row 1 with 3&4, etc.
         )
         self.cog = cog
         self.suspect_name = suspect_name
@@ -261,6 +356,36 @@ class Simon(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.watchlist_channel_id = getattr(bot, "watchlist_channel_id", None)
+        if self.watchlist_channel_id is None:
+            print("[SIMON WARNING] watchlist_channel_id is not set on bot; watchlist loop will be disabled.")
+        self.last_watchlist_message_id = None # In-memory cache for the last message ID
+        # Cache valid nodes string for LLM extraction efficiency
+        self._nodes_prompt_cache = "\n".join(
+            f"{nid}: {info.get('poi', 'Unknown')}"
+            for nid, info in self.bot.erlc_graph.nodes_data.items()
+        )
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        # Ensure the bot is ready before starting the loop
+        if not self.update_hourly_watchlist.is_running():
+            self.update_hourly_watchlist.start()
+
+    async def vehicle_autocomplete(self, interaction: discord.Interaction, current: str):
+        current = current.lower()
+        results = []
+
+        for v in VEHICLE_DB:
+            label = vehicle_label(v)
+            if current in label.lower():
+                results.append(
+                    app_commands.Choice(name=label[:100], value=label)
+                )
+            if len(results) >= 25:
+                break
+
+        return results
 
     # ------------------------------------------------------------------ #
     # SHARED PROFILER BUILDER                                              #
@@ -362,17 +487,9 @@ class Simon(commands.Cog):
         return pages, map_file
 
 
-    # ------------------------------------------------------------------ #
-    # /metro_watchlist                                                     #
-    # ------------------------------------------------------------------ #
-    @app_commands.command(
-        name="metro_watchlist",
-        description="Display the 6 most logged suspects on the Metro watchlist."
-    )
-    async def metro_watchlist(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-
-        # ── 1. Aggregate top 6 from MongoDB ──────────────────────────
+    async def _generate_watchlist_content(self):
+        """Helper to generate the embed, file, and view for the watchlist."""
+        # 1. Aggregate top 6 from MongoDB
         pipeline = [
             {
                 "$group": {
@@ -391,37 +508,31 @@ class Simon(commands.Cog):
         top_suspects = await cursor.to_list(length=6)
 
         if not top_suspects:
-            await interaction.followup.send(
-                "❌ No suspect records found in the database.",
-                ephemeral=True
-            )
-            return
+            return None, None, None, None # Indicate no content
 
-        # ── 2. Build 2×3 headshot grid ────────────────────────────────
+        # 2. Build 2×3 headshot grid
         grid_buffer = await build_watchlist_grid(top_suspects)
 
-        # ── 3. Compose main embed ─────────────────────────────────────
+        # 3. Compose main embed
         embed = discord.Embed(
-            title="🚨  Metro Suspect Watchlist",
-            description=(
-                "Top **6** most-logged suspects ranked by incident frequency.\n"
-                "Select a name below to open their full **Metro Profiler** report."
-            ),
-            color=discord.Color.from_rgb(180, 30, 30)
+            description="### <:LAPD_Metropolitan:1495867271501975552> METROPOLITAN DIVISION | CRIME ANALYTICS\n## 🚨 ACTIVE WATCHLIST\nThe predictive engine has identified the following high-frequency offenders. Tactical profiling is available via the integrated components below.",
+            color=discord.Color.from_rgb(18, 20, 28)
         )
-
         for suspect in top_suspects:
             last_seen = suspect.get("last_seen", "—")
             if last_seen and last_seen != "—":
-                last_seen = last_seen[:10]
+                # Convert ISO timestamp to a clean date or Discord timestamp
+                try:
+                    last_seen = last_seen.split("T")[0]
+                except:
+                    pass
 
             embed.add_field(
-                name=f"👤  {suspect['_id'].title()}",
+                name=f"SUSPECT: {suspect['_id'].upper()}",
                 value=(
-                    f"**Logs:** {suspect['count']}\n"
-                    f"**Last Crime:** {suspect.get('last_crime', '—')[:40]}\n"
-                    f"**Last Location:** {suspect.get('last_location') or '—'}\n"
-                    f"**Last Seen:** {last_seen}"
+                    f" **Incidents:** `{suspect['count']}`\n"
+                    f"📍 **LKL:** `{suspect.get('last_location') or 'UNK'}`\n"
+                    f"🗓️ **Active:** `{last_seen}`"
                 ),
                 inline=True          
             )
@@ -430,15 +541,91 @@ class Simon(commands.Cog):
             embed.set_image(url="attachment://watchlist_grid.png")
 
         embed.set_footer(
-            text="Metro Predictive Policing Engine  •  Data sourced from suspect_logs",
-            icon_url=interaction.user.display_avatar.url if interaction.user.display_avatar else None
+            text="S.I.M.O.N. v2.1  •  Metropolitan Predictive Analysis",
         )
 
-        # ── 4. Attach view + file ─────────────────────────────────────
         view = WatchlistView(self, top_suspects)
         file = discord.File(fp=grid_buffer, filename="watchlist_grid.png") if grid_buffer else discord.utils.MISSING
+        
+        return embed, file, view, top_suspects
 
-        if grid_buffer:
+
+    @tasks.loop(hours=1.0)
+    async def update_hourly_watchlist(self):
+        await self.bot.wait_until_ready() # Ensure bot is fully ready
+
+        # Fetch the last watchlist message ID from the database
+        state = await self.bot.bot_state.find_one({"_id": "watchlist_state"})
+        self.last_watchlist_message_id = state.get("last_message_id") if state else None
+
+        channel = self.bot.get_channel(self.watchlist_channel_id)
+        if not channel:
+            print(f"[WATCHLIST] Error: Watchlist channel with ID {self.watchlist_channel_id} not found.")
+            return
+
+        # 1. Delete previous message if it exists
+        if self.last_watchlist_message_id:
+            try:
+                old_message = await channel.fetch_message(self.last_watchlist_message_id)
+                if old_message.author == self.bot.user: # Only delete our own messages
+                    await old_message.delete()
+                else:
+                    print(f"[WATCHLIST] Warning: Last watchlist message {self.last_watchlist_message_id} was not sent by the bot. Not deleting.")
+            except discord.NotFound:
+                print(f"[WATCHLIST] Info: Last watchlist message {self.last_watchlist_message_id} not found (already deleted?).")
+            except discord.Forbidden:
+                print(f"[WATCHLIST] Error: Missing permissions to delete message in {channel.name}.")
+            except Exception as e:
+                print(f"[WATCHLIST] Error deleting old message: {e}")
+            self.last_watchlist_message_id = None # Clear after attempt
+
+        # 2. Generate new watchlist content
+        embed, file, view, _ = await self._generate_watchlist_content()
+
+        if not embed:
+            print("[WATCHLIST] No suspect records found for hourly update.")
+            return
+
+        # 3. Send new watchlist
+        try:
+            if file:
+                new_message = await channel.send(embed=embed, file=file, view=view)
+            else:
+                new_message = await channel.send(embed=embed, view=view)
+            
+            self.last_watchlist_message_id = new_message.id
+            await self.bot.bot_state.update_one(
+                {"_id": "watchlist_state"},
+                {"$set": {"last_message_id": new_message.id}},
+                upsert=True
+            )
+            print(f"[WATCHLIST] Hourly watchlist updated in {channel.name}. New message ID: {new_message.id}")
+        except discord.Forbidden:
+            print(f"[WATCHLIST] Error: Missing permissions to send message in {channel.name}.")
+        except Exception as e:
+            print(f"[WATCHLIST] Error sending new watchlist: {e}")
+
+
+    # ------------------------------------------------------------------ #
+    # /metro_watchlist                                                     #
+    # ------------------------------------------------------------------ #
+    @app_commands.command(
+        name="metro_watchlist",
+        description="Display the 6 most logged suspects on the Metro watchlist."
+    )
+    async def metro_watchlist(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        embed, file, view, _ = await self._generate_watchlist_content()
+
+        if not embed:
+            await interaction.followup.send(
+                "❌ No suspect records found in the database.",
+                ephemeral=True
+            )
+            return
+
+        if file:
             await interaction.followup.send(embed=embed, file=file, view=view)
         else:
             await interaction.followup.send(embed=embed, view=view)
@@ -486,12 +673,9 @@ class Simon(commands.Cog):
         location: str,
         entry_type: str = "crime",
     ):
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
 
-        valid_nodes = "\n".join(
-            f"{nid}: {info.get('poi', 'Unknown')}"
-            for nid, info in self.bot.erlc_graph.nodes_data.items()
-        )
+        valid_nodes = self._nodes_prompt_cache
 
         extraction_prompt = f"""
 You are a strict JSON extractor.
@@ -535,17 +719,11 @@ Return ONLY JSON in this format:
 
         try:
             await self.bot.suspect_logs.insert_one(log_entry)
-            await interaction.followup.send(
-                f"✅ Logged suspect **{suspect_name}** with structured location data.",
-                ephemeral=True,
-            )
+            await interaction.followup.send(f"✅ Logged suspect **{suspect_name}** with structured location data.")
         except Exception:
             fallback = {**log_entry, "postal": None, "poi": None, "confidence": 0.0}
             await self.bot.suspect_logs.insert_one(fallback)
-            await interaction.followup.send(
-                "⚠️ Logged with fallback due to database or parsing issue.",
-                ephemeral=True,
-            )
+            await interaction.followup.send("⚠️ Logged with fallback due to database or parsing issue.")
 
             
     # ------------------------------------------------------------------ #
@@ -555,6 +733,7 @@ Return ONLY JSON in this format:
         name="metro_predict",
         description="Run a predictive policing algorithm on a suspect.",
     )
+    @app_commands.autocomplete(vehicle=vehicle_autocomplete)
     async def metro_predict(
         self,
         interaction: discord.Interaction,
@@ -566,6 +745,16 @@ Return ONLY JSON in this format:
         live_context: str = None,
     ):
         await interaction.response.defer()
+        postal = normalize_postal(postal)
+
+        vehicle_data = resolve_vehicle(vehicle)
+
+        if not vehicle_data:
+            await interaction.followup.send(
+                "❌ Invalid vehicle selection.",
+                ephemeral=True
+            )
+            return
 
         if (
             postal not in self.bot.erlc_graph.nodes_data
@@ -694,6 +883,13 @@ Return ONLY JSON in this format:
                 "interference_risk":    "High" if unwl_units > 0 else "None",
                 "failsafe_suggestion":  p.get("tactical_recommendation"),
             }
+        def get_destination_display(node_id: str):
+            if not node_id:
+                return "Unknown"
+            node_info = self.bot.erlc_graph.nodes_data.get(node_id)
+            if node_info and node_info.get("poi") and node_info["poi"] != "Unknown":
+                return f"{node_info['poi']} ({node_id})"
+            return node_id
 
         def resolve_node(n):
             if not n:
@@ -726,6 +922,36 @@ Return ONLY JSON in this format:
             except Exception:
                 pass
 
+        # ETA computation block
+        eta_window = "Unknown"
+
+        try:
+            if primary_target and resolved_postal:
+                path = nx.shortest_path(
+                    modified_graph,
+                    resolved_postal,
+                    primary_target,
+                    weight="weight"
+                )
+
+                total_cost = 0.0
+                for i in range(len(path) - 1):
+                    edge_data = modified_graph.get_edge_data(path[i], path[i + 1])
+                    if edge_data and "weight" in edge_data:
+                        total_cost += edge_data["weight"]
+
+                context = "mixed"
+                if total_cost > 120:
+                    context = "highway"
+                elif total_cost < 50:
+                    context = "city"
+
+                minutes = compute_eta_minutes(total_cost, vehicle_data, context)
+                eta_window = f"{minutes} min"
+
+        except Exception:
+            eta_window = "Unknown"
+
         loop             = asyncio.get_running_loop()
         map_image_buffer = await loop.run_in_executor(
             None, draw_map_path, self.bot.erlc_graph, paths_to_draw
@@ -752,34 +978,36 @@ Return ONLY JSON in this format:
             color=embed_color,
         )
         embed.add_field(
-            name="Predicted Destination",
-            value=f"**{prediction_data.get('primary_destination', 'Unknown')}**",
+            name="📈 Predicted Destination",
+            value=f"**{get_destination_display(prediction_data.get('primary_destination'))}**",
             inline=True,
         )
         embed.add_field(
-            name="Probability",
+            name="📊 Probability",
             value=prediction_data.get("probability", "N/A"),
             inline=True,
         )
         embed.add_field(
             name="ETA Window",
-            value=prediction_data.get("eta_window", "N/A"),
+            value=eta_window,
             inline=True,
         )
 
-        intercepts_str = ", ".join(prediction_data.get("intercept_postals", []))
+        secondary_dest_nodes = prediction_data.get("intercept_postals", [])
+        intercepts_display = [get_destination_display(node) for node in secondary_dest_nodes]
+        intercepts_str = ", ".join(intercepts_display)
         embed.add_field(
-            name="Secondary Predicted Destination",
+            name="🗺️ Secondary Predicted Destination",
             value=f"`{intercepts_str}`" if intercepts_str else "None viable",
             inline=False,
         )
         embed.add_field(
-            name="Tactical Analysis",
+            name="♟️ Tactical Analysis",
             value=prediction_data.get("tactical_analysis", "N/A"),
             inline=False,
         )
         embed.add_field(
-            name="Risk Level",
+            name="⚠️ Risk Level",
             value=prediction_data.get("risk_level", "Unknown"),
             inline=True,
         )
@@ -797,7 +1025,7 @@ Return ONLY JSON in this format:
         if map_image_buffer:
             embed.set_image(url="attachment://predictive_map.png")
         embed.set_footer(
-            text="PAPI – The Metropolitan Predictive Analysis Program Insight."
+            text="S.I.M.O.N v2.1 – Metropolitan Predictive Analysis"
         )
 
         if map_image_buffer:
@@ -814,7 +1042,7 @@ Return ONLY JSON in this format:
         description="Generate a visual heatmap of historical crime activity.",
     )
     async def metro_crime_heatmap(self, interaction: discord.Interaction):
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
 
         try:
             pipeline = [
@@ -845,7 +1073,7 @@ Return ONLY JSON in this format:
             embed.set_image(url="attachment://heatmap.png")
 
             await interaction.followup.send(
-                content="✅ Crime heatmap generated successfully.", ephemeral=True
+                content="✅ Crime heatmap generated successfully."
             )
             await interaction.channel.send(embed=embed, file=file)
 

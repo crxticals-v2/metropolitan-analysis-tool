@@ -350,8 +350,8 @@
     },
     "N-210": {
       "label": "INT_FAIRFAX_HILLVIEW",
-      "x": 481,
-      "y": 2241,
+      "x": 471,
+      "y": 2240,
       "poi": "Firehouse",
       "robable": false,
       "type": "government"
@@ -382,8 +382,8 @@
     },
     "N-216": {
       "label": "INT_SANDSTONE_IND",
-      "x": 679,
-      "y": 2001,
+      "x": 678,
+      "y": 1994,
       "poi": "Park",
       "robable": false,
       "type": "commercial"
@@ -854,8 +854,8 @@
     },
     "N-1112": {
       "label": "INT_OAK_VALLEY_S",
-      "x": 2458,
-      "y": 1425,
+      "x": 2450,
+      "y": 1313,
       "poi": "Oak Valley South",
       "robable": false,
       "type": "utility"
@@ -1127,6 +1127,14 @@
       "poi": "Tool Store",
       "type": "commercial",
       "robable": true
+    },
+    "N-1101": {
+      "x": 2452,
+      "y": 887,
+      "label": "Cedar Street",
+      "poi": "Cedar Street",
+      "type": "Utility",
+      "robable": false
     }
   },
   "edges": [
@@ -4271,32 +4279,6 @@
       }
     },
     {
-      "source": "N-1104",
-      "target": "N-1105",
-      "road": "Cedar Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1104",
-          "1105"
-        ]
-      }
-    },
-    {
-      "source": "N-1105",
-      "target": "N-1104",
-      "road": "Cedar Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1104",
-          "1105"
-        ]
-      }
-    },
-    {
       "source": "N-1105",
       "target": "N-1106",
       "road": "Terrace Drive",
@@ -5845,6 +5827,86 @@
     {
       "source": "N-909",
       "target": "N-601",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-210",
+      "target": "grand_fairfax",
+      "road": "Fairfax Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "free_sandstone",
+      "target": "N-200",
+      "road": "Freedom Avenue",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-202",
+      "target": "N-203",
+      "road": "Spawn",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-1104",
+      "target": "N-1101",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-1105",
+      "target": "N-1101",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-1101",
+      "target": "N-1108",
+      "road": "Oak Valley Drive",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-1110",
+      "target": "N-1112",
+      "road": "Grant Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-402",
+      "target": "N-216",
       "road": "Unnamed Road",
       "type": "local",
       "is_one_way": false,
