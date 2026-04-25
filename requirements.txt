@@ -1,0 +1,8 @@
+discord.py
+aiohttp
+networkx
+Pillow
+python-dotenv
+motor
+pytest
+pytest-asyncio
