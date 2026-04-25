@@ -22,15 +22,19 @@ from discord import app_commands
 import random
 from discord.ext import commands
 import asyncio
+from pathlib import Path
 
 OWNER_UID = 613698960133062687
+BASE_DIR = Path(__file__).parent.resolve()
 
 # ──────────────────────────────────────────────
 # VEHICLE DATABASE SYSTEM
 # ──────────────────────────────────────────────
 
-with open("erlc_vehicles.json", "r") as f:
-    VEHICLE_DB = json.load(f)["vehicles"]
+VEHICLE_DB_PATH = BASE_DIR / "erlc_vehicles.json"
+if VEHICLE_DB_PATH.exists():
+    with open(VEHICLE_DB_PATH, "r") as f:
+        VEHICLE_DB = json.load(f)["vehicles"]
 
 # Pre-calculate search blobs and labels for efficiency
 VEHICLE_LOOKUP = {}

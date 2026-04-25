@@ -14,6 +14,7 @@ import asyncio
 import io
 import math
 import os
+from pathlib import Path
 
 import aiohttp
 import discord
@@ -27,14 +28,16 @@ import json
 from llm import call_llm
 from map_renderer import draw_heatmap_overlay, draw_map_path
 
-ARREST_BG_PATH = "arrest_background.jpg"
+BASE_DIR = Path(__file__).parent.resolve()
+ARREST_BG_PATH = BASE_DIR / "arrest_background.jpg"
+VEHICLE_DB_PATH = BASE_DIR / "erlc_vehicles.json"
 
 # ==========================================
 # VEHICLE DATABASE
 # ==========================================
 
 def load_vehicle_db():
-    with open("erlc_vehicles.json", "r") as f:
+    with open(VEHICLE_DB_PATH, "r") as f:
         data = json.load(f)
     return data.get("vehicles", [])
 
@@ -122,10 +125,12 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
     Resolves a Roblox username → (user_id, display_name, avatar_url).
     Returns (None, None, None) on any failure — callers must handle gracefully.
     """
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SIMON/2.1"}
     try:
         async with session.post(
             "https://users.roblox.com/v1/usernames/users",
-            json={"usernames": [username], "excludeBannedUsers": False}
+            json={"usernames": [username], "excludeBannedUsers": False},
+            headers=headers
         ) as resp:
             data = await resp.json()
 
@@ -136,14 +141,18 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
         user_id = user["id"]
         display_name = user.get("displayName") or user.get("name") or username
 
-    except Exception:
+    except Exception as e:
+        print(f"[ROBLOX API] User Resolution Error for {username}: {e}")
         return None, None, None
 
     try:
         async with session.get(
             "https://thumbnails.roblox.com/v1/users/avatar-headshot",
-            params={"userIds": user_id, "size": "420x420", "format": "Png", "isCircular": "false"}
+            params={"userIds": user_id, "size": "420x420", "format": "Png", "isCircular": "false"},
+            headers=headers
         ) as resp:
+            if resp.status != 200:
+                print(f"[ROBLOX API] Avatar Fetch Status {resp.status} for {user_id}")
             thumb_data = await resp.json()
 
         avatar_url = None
@@ -291,7 +300,7 @@ async def build_gang_logo_grid(gang_shorthands: list) -> io.BytesIO | None:
 
     logos = []
     for shorthand in gang_shorthands:
-        logo_path = f"{shorthand.lower()}.png"
+        logo_path = BASE_DIR / f"{shorthand.lower()}.png"
         if os.path.exists(logo_path):
             try:
                 logo_img = Image.open(logo_path).convert("RGBA")
@@ -299,6 +308,8 @@ async def build_gang_logo_grid(gang_shorthands: list) -> io.BytesIO | None:
             except Exception as e:
                 print(f"[GANG LOGO] Error loading {logo_path}: {e}")
                 continue
+        else:
+            print(f"[GANG LOGO] File missing: {logo_path}")
     
     if not logos:
         return None
@@ -651,7 +662,7 @@ class Simon(commands.Cog):
         
         # Load Gang Logo File
         logo_file = None
-        logo_path = f"{gang_shorthand.lower()}.png"
+        logo_path = BASE_DIR / f"{gang_shorthand.lower()}.png"
         if os.path.exists(logo_path):
             logo_file = discord.File(logo_path, filename="gang_logo.png")
 
