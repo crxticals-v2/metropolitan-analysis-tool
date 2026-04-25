@@ -125,13 +125,19 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
     Resolves a Roblox username → (user_id, display_name, avatar_url).
     Returns (None, None, None) on any failure — callers must handle gracefully.
     """
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SIMON/2.1"}
+    # Use a standard browser User-Agent to reduce Cloud IP flagging
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
     try:
         async with session.post(
             "https://users.roblox.com/v1/usernames/users",
             json={"usernames": [username], "excludeBannedUsers": False},
             headers=headers
         ) as resp:
+            if resp.status != 200:
+                print(f"[ROBLOX API] User Resolution Status {resp.status} for {username}")
+                return None, None, None
             data = await resp.json()
 
         if not data.get("data"):
@@ -142,7 +148,7 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
         display_name = user.get("displayName") or user.get("name") or username
 
     except Exception as e:
-        print(f"[ROBLOX API] User Resolution Error for {username}: {e}")
+        print(f"[ROBLOX API] Error resolving username '{username}': {e}")
         return None, None, None
 
     try:
@@ -152,14 +158,17 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
             headers=headers
         ) as resp:
             if resp.status != 200:
-                print(f"[ROBLOX API] Avatar Fetch Status {resp.status} for {user_id}")
+                error_text = await resp.text()
+                print(f"[ROBLOX API] Avatar Status {resp.status} for {user_id}: {error_text[:100]}")
+                return None, None, None
             thumb_data = await resp.json()
 
         avatar_url = None
         if thumb_data and thumb_data.get("data"):
             avatar_url = thumb_data["data"][0].get("imageUrl")
 
-    except Exception:
+    except Exception as e:
+        print(f"[ROBLOX API] Exception during avatar fetch for {username}: {e}")
         avatar_url = None
 
     return user_id, display_name, avatar_url
@@ -239,6 +248,8 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
             if avatar_url:
                 try:
                     async with session.get(avatar_url) as resp:
+                        if resp.status != 200:
+                            print(f"[WATCHLIST] Failed to download avatar image: HTTP {resp.status}")
                         raw = await resp.read()
                     avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ), Image.LANCZOS)
                     
@@ -248,7 +259,8 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
                     composite.paste(avatar_img, (0, 0), avatar_img)
                     grid.paste(composite.convert("RGB"), (avatar_x, avatar_y))
                         
-                except Exception:
+                except Exception as e:
+                    print(f"[WATCHLIST] Error processing image for {suspect['_id']}: {e}")
                     # grey placeholder if download fails
                     draw.rectangle(
                         [avatar_x, avatar_y, avatar_x + AVATAR_SZ, avatar_y + AVATAR_SZ],
@@ -300,16 +312,24 @@ async def build_gang_logo_grid(gang_shorthands: list) -> io.BytesIO | None:
 
     logos = []
     for shorthand in gang_shorthands:
-        logo_path = BASE_DIR / f"{shorthand.lower()}.png"
-        if os.path.exists(logo_path):
+        # Linux is case-sensitive. Check multiple variants to be safe.
+        potential_paths = [
+            BASE_DIR / f"{shorthand.lower()}.png",
+            BASE_DIR / f"{shorthand.upper()}.png",
+            BASE_DIR / f"{shorthand}.png"
+        ]
+        
+        target_path = next((p for p in potential_paths if p.exists()), None)
+
+        if target_path:
             try:
-                logo_img = Image.open(logo_path).convert("RGBA")
+                logo_img = Image.open(target_path).convert("RGBA")
                 logos.append(logo_img)
             except Exception as e:
-                print(f"[GANG LOGO] Error loading {logo_path}: {e}")
+                print(f"[GANG LOGO] Error loading {target_path}: {e}")
                 continue
         else:
-            print(f"[GANG LOGO] File missing: {logo_path}")
+            print(f"[GANG LOGO] File missing: {shorthand}. Checked variations in {BASE_DIR}")
     
     if not logos:
         return None
@@ -554,18 +574,23 @@ class Simon(commands.Cog):
             # ── Process Avatar with Background (Reusing outer session) ───
             avatar_file = None
             if image_url:
-                async with session.get(image_url) as resp:
-                    raw = await resp.read()
+                try:
+                    async with session.get(image_url) as resp:
+                        if resp.status != 200:
+                            print(f"[PROFILER] Failed to download avatar image: HTTP {resp.status}")
+                        raw = await resp.read()
 
-                avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
-                with Image.open(ARREST_BG_PATH) as bg:
-                    composite = bg.convert("RGBA").resize((420, 420))
-                    composite.paste(avatar_img, (0, 0), avatar_img)
+                    avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
+                    with Image.open(ARREST_BG_PATH) as bg:
+                        composite = bg.convert("RGBA").resize((420, 420))
+                        composite.paste(avatar_img, (0, 0), avatar_img)
 
-                    buf = io.BytesIO()
-                    composite.convert("RGB").save(buf, format="PNG", optimize=True)
-                    buf.seek(0)
-                    avatar_file = discord.File(fp=buf, filename="profile_avatar.png")
+                        buf = io.BytesIO()
+                        composite.convert("RGB").save(buf, format="PNG", optimize=True)
+                        buf.seek(0)
+                        avatar_file = discord.File(fp=buf, filename="profile_avatar.png")
+                except Exception as e:
+                    print(f"[PROFILER] Error processing avatar for {roblox_username}: {e}")
 
             # ── Paginate (5 crimes per page) ─────────────────────────────
             pages = []
@@ -662,9 +687,14 @@ class Simon(commands.Cog):
         
         # Load Gang Logo File
         logo_file = None
-        logo_path = BASE_DIR / f"{gang_shorthand.lower()}.png"
-        if os.path.exists(logo_path):
-            logo_file = discord.File(logo_path, filename="gang_logo.png")
+        potential_paths = [
+            BASE_DIR / f"{gang_shorthand.lower()}.png",
+            BASE_DIR / f"{gang_shorthand.upper()}.png",
+            BASE_DIR / f"{gang_shorthand}.png"
+        ]
+        target_path = next((p for p in potential_paths if p.exists()), None)
+        if target_path:
+            logo_file = discord.File(target_path, filename="gang_logo.png")
 
         mo_text = gang_config.get("mo", "No operational data on file.") if gang_config else "No data."
         vehicles = gang_config.get("vehicles", "Unknown") if gang_config else "Unknown"
