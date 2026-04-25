@@ -381,12 +381,12 @@
       "type": "commercial"
     },
     "N-216": {
-      "label": "INT_SANDSTONE_IND",
+      "label": "INT_SANDSTONE_MAIN",
       "x": 678,
       "y": 1994,
       "poi": "Park",
       "robable": false,
-      "type": "commercial"
+      "type": "recreational"
     },
     "N-217": {
       "label": "INT_THREE_GUYS",

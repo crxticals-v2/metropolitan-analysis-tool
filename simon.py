@@ -13,6 +13,7 @@ Covers:
 import asyncio
 import io
 import math
+import os
 
 import aiohttp
 import discord
@@ -25,6 +26,8 @@ import json
 
 from llm import call_llm
 from map_renderer import draw_heatmap_overlay, draw_map_path
+
+ARREST_BG_PATH = "/Users/discombobulation/Documents/Code/Python/AI Suspect/arrest_background.jpg"
 
 # ==========================================
 # VEHICLE DATABASE
@@ -164,11 +167,11 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
         count (int)  – number of log entries
     Returns a PNG BytesIO buffer or None on failure.
     """
-    COLS       = 2
-    CELL_W     = 180
-    CELL_H     = 220      # 160 avatar + 60 label area
+    COLS       = 3
+    CELL_W     = 220
+    CELL_H     = 245      # 160 avatar + 85 label area
     AVATAR_SZ  = 160
-    PADDING    = 10
+    PADDING    = 20
     BG_COLOR   = (18, 20, 28)       # dark navy
     CARD_COLOR = (30, 33, 46)       # slightly lighter card
     NAME_COLOR = (230, 230, 230)
@@ -181,13 +184,17 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
     grid = Image.new("RGB", (grid_w, grid_h), BG_COLOR)
     draw = ImageDraw.Draw(grid)
 
-    # ── Font: try to load a small TTF; fall back gracefully ──────
+    # ── Font: try to load a small TTF; fall back gracefully ────── 
     try:
         font_name  = ImageFont.load_default(size=14)
         font_count = ImageFont.load_default(size=12)
     except Exception:
         font_name  = ImageFont.load_default()
         font_count = ImageFont.load_default()
+
+    # Pre-load background to avoid repeated disk I/O in the loop
+    with Image.open(ARREST_BG_PATH) as bg_file:
+        bg_template = bg_file.convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ))
 
     async with aiohttp.ClientSession() as session:
         # Optimization: Fetch all suspect metadata concurrently
@@ -218,18 +225,20 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
 
             # ── Avatar ───────────────────────────────────────────
             avatar_x = cell_x + (CELL_W - AVATAR_SZ) // 2
-            avatar_y = cell_y + 8
+            avatar_y = cell_y + 12
 
             if avatar_url:
                 try:
                     async with session.get(avatar_url) as resp:
                         raw = await resp.read()
-                    avatar_img = (
-                        Image.open(io.BytesIO(raw))
-                        .convert("RGB")
-                        .resize((AVATAR_SZ, AVATAR_SZ), Image.LANCZOS)
-                    )
-                    grid.paste(avatar_img, (avatar_x, avatar_y))
+                    avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ), Image.LANCZOS)
+                    
+                    # Create composite using pre-loaded template
+                    composite = bg_template.copy()
+                    # Composite transparent avatar onto the arrest background
+                    composite.paste(avatar_img, (0, 0), avatar_img)
+                    grid.paste(composite.convert("RGB"), (avatar_x, avatar_y))
+                        
                 except Exception:
                     # grey placeholder if download fails
                     draw.rectangle(
@@ -243,17 +252,17 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
                 )
 
             # ── Labels ───────────────────────────────────────────
-            label_y_name  = cell_y + AVATAR_SZ + 14
-            label_y_count = label_y_name + 18
+            label_y_name  = cell_y + AVATAR_SZ + 22
+            label_y_count = label_y_name + 20
 
             display = suspect["_id"].title()
-            if len(display) > 18:
-                display = display[:16] + "…"
+            if len(display) > 20:
+                display = display[:18] + "…"
 
             # centre-align text manually (bbox)
             try:
                 name_bbox  = draw.textbbox((0, 0), display, font=font_name)
-                count_bbox = draw.textbbox((0, 0), f"{suspect['count']} crimes commited.", font=font_count)
+                count_bbox = draw.textbbox((0, 0), f"{suspect['count']} crimes committed.", font=font_count)
                 name_x  = cell_x + (CELL_W - (name_bbox[2]  - name_bbox[0]))  // 2
                 count_x = cell_x + (CELL_W - (count_bbox[2] - count_bbox[0])) // 2
             except Exception:
@@ -261,7 +270,58 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
                 count_x = cell_x + 10
 
             draw.text((name_x,  label_y_name),  display,                  fill=NAME_COLOR,  font=font_name)
-            draw.text((count_x, label_y_count), f"{suspect['count']} crimes commited.", fill=COUNT_COLOR, font=font_count)
+            draw.text((count_x, label_y_count), f"{suspect['count']} crimes committed.", fill=COUNT_COLOR, font=font_count)
+
+    buf = io.BytesIO()
+    grid.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+
+# ==========================================
+# GANG LOGO COMPOSITE IMAGE BUILDER
+# ==========================================
+async def build_gang_logo_grid(gang_shorthands: list) -> io.BytesIO | None:
+    """
+    Composites gang logos into a single image.
+    Returns a PNG BytesIO buffer or None on failure.
+    """
+    if not gang_shorthands:
+        return None
+
+    logos = []
+    for shorthand in gang_shorthands:
+        logo_path = f"/Users/discombobulation/Documents/Code/Python/AI Suspect/{shorthand.lower()}.png"
+        if os.path.exists(logo_path):
+            try:
+                logo_img = Image.open(logo_path).convert("RGBA")
+                logos.append(logo_img)
+            except Exception as e:
+                print(f"[GANG LOGO] Error loading {logo_path}: {e}")
+                continue
+    
+    if not logos:
+        return None
+
+    # Determine grid dimensions (e.g., single row)
+    # Assuming all logos are roughly square, let's resize them to a standard size
+    LOGO_SIZE = 128 # pixels
+    PADDING = 10
+
+    resized_logos = []
+    for logo in logos:
+        resized_logos.append(logo.resize((LOGO_SIZE, LOGO_SIZE), Image.LANCZOS))
+
+    grid_width = (LOGO_SIZE * len(resized_logos)) + (PADDING * (len(resized_logos) + 1))
+    grid_height = LOGO_SIZE + (PADDING * 2) # Top and bottom padding
+
+    # Background matches the individual watchlist grid (18, 20, 28)
+    grid = Image.new("RGB", (grid_width, grid_height), (18, 20, 28))
+
+    x_offset = PADDING
+    for logo in resized_logos:
+        grid.paste(logo, (x_offset, PADDING), logo)
+        x_offset += LOGO_SIZE + PADDING
 
     buf = io.BytesIO()
     grid.save(buf, format="PNG")
@@ -298,15 +358,36 @@ class MetroProfilerView(discord.ui.View):
         self.update_buttons()
         await interaction.response.edit_message(embed=self.embeds[self.index], view=self)
 
+class GangIntelButton(discord.ui.Button):
+    """Opens a tactical briefing on a specific gang."""
+    def __init__(self, cog, label: str, shorthand: str):
+        super().__init__(
+            label=f"Intel: {label}",
+            style=discord.ButtonStyle.danger,
+            row=0
+        )
+        self.cog = cog
+        self.shorthand = shorthand
 
-class WatchlistButton(discord.ui.Button):
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        pages, files = await self.cog.build_gang_profiler(self.shorthand)
+        if not pages:
+            await interaction.followup.send("No intelligence found for this gang.", ephemeral=True)
+            return
+        
+        # Using a simple view for gang intel since it's usually a single detailed page
+        await interaction.followup.send(embed=pages[0], files=files, ephemeral=True)
+
+
+class WatchlistButton(discord.ui.Button): 
     """Opens an ephemeral profiler panel for this suspect."""
     def __init__(self, cog, suspect_name: str, log_count: int, position: int):
-        label = f"Profile: {suspect_name.title()[:12]}"
+        label = f"No.{position + 1}: {suspect_name.title()[:15]}"
         super().__init__(
             label=label,
             style=discord.ButtonStyle.secondary,
-            row=position // 2  # Aligns row 0 with Suspects 1&2, row 1 with 3&4, etc.
+            row=position // 3  # Aligns with the 3-column visual grid (Row 0: 1-3, Row 1: 4-6)
         )
         self.cog = cog
         self.suspect_name = suspect_name
@@ -315,7 +396,8 @@ class WatchlistButton(discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
 
         # Call the shared builder on the cog
-        pages, map_file = await self.cog.build_profiler_result(self.suspect_name)
+        pages, files_tuple = await self.cog.build_profiler_result(self.suspect_name)
+        map_file, avatar_file = files_tuple
 
         if not pages:
             await interaction.followup.send(
@@ -325,14 +407,15 @@ class WatchlistButton(discord.ui.Button):
             return
 
         view = MetroProfilerView(pages)
+        
+        files = []
+        if map_file: files.append(map_file)
+        if avatar_file: files.append(avatar_file)
 
-        if map_file:
-            await interaction.followup.send(embed=pages[0], view=view, file=map_file, ephemeral=True)
-        else:
-            await interaction.followup.send(embed=pages[0], view=view, ephemeral=True)
+        await interaction.followup.send(embed=pages[0], view=view, files=files, ephemeral=True)
 
 
-class WatchlistView(discord.ui.View):
+class SuspectWatchlistView(discord.ui.View):
     def __init__(self, cog, suspects: list):
         super().__init__(timeout=300)   # buttons live for 5 minutes
         self.cog = cog
@@ -346,6 +429,21 @@ class WatchlistView(discord.ui.View):
                 )
             )
 
+class GangWatchlistView(discord.ui.View):
+    def __init__(self, cog):
+        super().__init__(timeout=300)
+        self.cog = cog
+        
+        gangs = [
+            ("77th Saints", "77th"),
+            ("West Coast Cartel", "WCC"),
+            ("Noche Silente", "NSH")
+        ]
+        
+        for name, shorthand in gangs:
+            self.add_item(
+                GangIntelButton(cog=self.cog, label=name, shorthand=shorthand)
+            )
 
 # ==========================================
 # COG
@@ -356,10 +454,9 @@ class Simon(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.watchlist_channel_id = getattr(bot, "watchlist_channel_id", None)
-        if self.watchlist_channel_id is None:
-            print("[SIMON WARNING] watchlist_channel_id is not set on bot; watchlist loop will be disabled.")
-        self.last_watchlist_message_id = None # In-memory cache for the last message ID
+        self.gang_logos_cache = None
+        self._roblox_cache = {}  # Cache for (user_id, display_name, avatar_url)
+        self.settings = self.bot.mongo_client["erlc_database"]["settings"]
         # Cache valid nodes string for LLM extraction efficiency
         self._nodes_prompt_cache = "\n".join(
             f"{nid}: {info.get('poi', 'Unknown')}"
@@ -369,12 +466,38 @@ class Simon(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         # Ensure the bot is ready before starting the loop
+        
+        # Pre-render and cache the gang logos composite image for performance
+        if self.gang_logos_cache is None:
+            print("[SIMON] Caching gang logo composite image...")
+            gangs = ["77th", "WCC", "NSH"]
+            self.gang_logos_cache = await build_gang_logo_grid(gangs)
+            print("[SIMON] Gang logo cache initialized.")
+
         if not self.update_hourly_watchlist.is_running():
             self.update_hourly_watchlist.start()
+
+    async def get_watchlist_channel_id(self):
+        """Fetch current watchlist channel for AUTO-SEND from dynamic settings."""
+        data = await self.settings.find_one({"_id": "guild_config"})
+        if data and "channels" in data:
+            return data["channels"].get("watchlist_auto")
+        return getattr(self.bot, "watchlist_channel_id", None)
+
+    async def get_intel_command_channel_id(self):
+        """Fetch channel where intelligence commands are public (non-ephemeral)."""
+        data = await self.settings.find_one({"_id": "guild_config"})
+        if data and "channels" in data:
+            return data["channels"].get("intelligence_command")
+        return None
 
     async def vehicle_autocomplete(self, interaction: discord.Interaction, current: str):
         current = current.lower()
         results = []
+        
+        # Optimization: Early exit for empty strings if you want to save processing
+        if not current:
+            return [app_commands.Choice(name=vehicle_label(v)[:100], value=vehicle_label(v)) for v in VEHICLE_DB[:25]]
 
         for v in VEHICLE_DB:
             label = vehicle_label(v)
@@ -396,126 +519,311 @@ class Simon(commands.Cog):
         Returns:
             pages       : list[discord.Embed]  — paginated crime log embeds
             map_file    : discord.File | None  — map overlay attachment
+            avatar_file : discord.File | None  — composited profile picture
         """
         async with aiohttp.ClientSession() as session:
-            _, display_name, image_url = await fetch_roblox_data(session, roblox_username)
+            # Use cache if available
+            if roblox_username.lower() in self._roblox_cache:
+                _, display_name, image_url = self._roblox_cache[roblox_username.lower()]
+            else:
+                _, display_name, image_url = await fetch_roblox_data(session, roblox_username)
 
-        # ── Crime history ────────────────────────────────────────────
-        logs_cursor = (
-            self.bot.suspect_logs
-            .find({"suspect_name": roblox_username.lower()})
-            .sort("timestamp", -1)
-            .limit(20)
-        )
-        logs = await logs_cursor.to_list(length=20)
+            # ── Crime history ────────────────────────────────────────────
+            logs_cursor = (
+                self.bot.suspect_logs
+                .find({"suspect_name": roblox_username.lower()})
+                .sort("timestamp", -1)
+                .limit(20)
+            )
+            logs = await logs_cursor.to_list(length=20)
 
-        if not logs:
-            return [], None
+            if not logs:
+                return [], (None, None)
 
-        # ── Paginate (5 crimes per page) ─────────────────────────────
-        pages = []
-        for i in range(0, len(logs), 5):
-            chunk = logs[i:i + 5]
-            desc = f"## 👤 Metro Profiler: {roblox_username}\n**━━━━━━━━━━━━━━━━━━━━**\n"
-
-            for log in chunk:
-                desc += (
-                    f"\n**Crime:** {log.get('crimes', 'Unknown')}\n"
-                    f"**Location:** {log.get('poi') or log.get('postal') or 'Unknown'}\n"
-                    "━━━━━━━━━━━━━━━━━━━━\n"
-                )
-
-            embed = discord.Embed(description=desc, color=discord.Color.dark_red())
+            # ── Process Avatar with Background (Reusing outer session) ───
+            avatar_file = None
             if image_url:
-                embed.set_thumbnail(url=image_url)
-            pages.append(embed)
+                async with session.get(image_url) as resp:
+                    raw = await resp.read()
 
-        # ── POI frequency → map overlay ──────────────────────────────
-        poi_counts = {}
-        for log in logs:
-            poi = log.get("poi") or log.get("postal")
-            if poi:
-                poi_counts[poi] = poi_counts.get(poi, 0) + 1
+                avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
+                with Image.open(ARREST_BG_PATH) as bg:
+                    composite = bg.convert("RGBA").resize((420, 420))
+                    composite.paste(avatar_img, (0, 0), avatar_img)
 
-        top_pois = sorted(poi_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-        nodes = []
-        for poi, _ in top_pois:
-            resolved = self.bot.erlc_graph.resolve_target(poi)
-            if resolved:
-                nodes.append(resolved)
+                    buf = io.BytesIO()
+                    composite.convert("RGB").save(buf, format="PNG", optimize=True)
+                    buf.seek(0)
+                    avatar_file = discord.File(fp=buf, filename="profile_avatar.png")
 
-        paths_to_draw = []
-        for i in range(len(nodes) - 1):
-            try:
-                path = nx.shortest_path(
-                    self.bot.erlc_graph.graph, nodes[i], nodes[i + 1], weight="weight"
-                )
-                paths_to_draw.append(path)
-            except Exception:
-                continue
+            # ── Paginate (5 crimes per page) ─────────────────────────────
+            pages = []
+            for i in range(0, len(logs), 5):
+                chunk = logs[i:i + 5]
+                desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Intelligence Profile: {roblox_username}\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
 
-        loop = asyncio.get_running_loop()
-        map_buffer = await loop.run_in_executor(
-            None, draw_map_path, self.bot.erlc_graph, paths_to_draw
-        )
+                for log in chunk:
+                    desc += (
+                        f"\n**Crime:** {log.get('crimes', 'Unknown')}\n"
+                    f"**Location:** {log.get('poi') or log.get('postal') or log.get('location_raw') or 'Unknown'}\n"
+                        "**━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+                    )
 
-        if pages and map_buffer:
-            pages[0].set_image(url="attachment://profile_map.png")
+                embed = discord.Embed(description=desc, color=discord.Color.dark_red())
+                if avatar_file:
+                    embed.set_thumbnail(url="attachment://profile_avatar.png")
+                pages.append(embed)
 
-        map_file = discord.File(fp=map_buffer, filename="profile_map.png") if map_buffer else None
+            # ── POI frequency → map overlay ──────────────────────────────
+            poi_counts = {}
+            for log in logs:
+                poi = log.get("poi") or log.get("postal")
+                if poi:
+                    poi_counts[poi] = poi_counts.get(poi, 0) + 1
 
-        # ── LLM behavioural analysis (first page only) ───────────────
-        prompt = f"""
-    You are analysing a suspect profile.
-    Username: {roblox_username}
-    Recent crimes: {[l.get('crimes') for l in logs[:10]]}
-    Frequent locations: {list(poi_counts.keys())}
-    Provide behavioural robbery pattern analysis.
-    """
-        llm_result = await call_llm(prompt)
-        analysis = "Unavailable"
-        if llm_result and isinstance(llm_result, dict):
-            analysis = (
-                llm_result.get("prediction", {}).get("reasoning")
-                or llm_result.get("analysis")
-                or "No analysis generated."
+            top_pois = sorted(poi_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+            nodes = []
+            for poi, _ in top_pois:
+                resolved = self.bot.erlc_graph.resolve_target(poi)
+                if resolved:
+                    nodes.append(resolved)
+
+            paths_to_draw = []
+            for i in range(len(nodes) - 1):
+                try:
+                    path = nx.shortest_path(
+                        self.bot.erlc_graph.graph, nodes[i], nodes[i + 1], weight="weight"
+                    )
+                    paths_to_draw.append(path)
+                except Exception:
+                    continue
+
+            loop = asyncio.get_running_loop()
+            map_buffer = await loop.run_in_executor(
+                None, draw_map_path, self.bot.erlc_graph, paths_to_draw
             )
 
-        if pages:
-            pages[0].add_field(name="Behavioural Pattern", value=analysis[:1024], inline=False)
+            if pages and map_buffer:
+                pages[0].set_image(url="attachment://profile_map.png")
 
-        return pages, map_file
+            map_file = discord.File(fp=map_buffer, filename="profile_map.png") if map_buffer else None
+
+            # ── LLM behavioural analysis (first page only) ───────────────
+            prompt = f"""
+    Analyze the suspect's spatial behavior and geographical footprint.
+    Username: {roblox_username}
+    Recent History (Crime + Location): {[{'crime': l.get('crimes'), 'loc': l.get('location_raw')} for l in logs[:10]]}
+    Frequented POIs: {list(poi_counts.keys())}
+
+    TASK: Identify physical location patterns. Determine which areas they treat as "start points" versus "targets." 
+    Focus on where they typically rob and their habitual origin points (where they come from). 
+    Avoid categorizing by robbery "value" or "tier"; prioritize their movement logic and POI clusters.
+    Provide ONLY the analysis text. Do NOT include preambles or postambles.
+    """
+            llm_result = await call_llm(prompt)
+            analysis = "Unavailable"
+            if llm_result and isinstance(llm_result, dict):
+                analysis = (
+                    llm_result.get("prediction", {}).get("reasoning")
+                    or llm_result.get("analysis")
+                    or "No analysis generated."
+                )
+
+            if pages:
+                pages[0].add_field(name="🧠 S.I.M.O.N. Behavioural Analysis", value=f"> {analysis[:1000]}", inline=False)
+
+            return pages, (map_file, avatar_file)
 
 
-    async def _generate_watchlist_content(self):
-        """Helper to generate the embed, file, and view for the watchlist."""
-        # 1. Aggregate top 6 from MongoDB
+    async def build_gang_profiler(self, gang_shorthand: str):
+        """Generates a profile for a specific gang based on logs and manual MO."""
+        gang_config = await self.settings.find_one({"_id": f"gang_{gang_shorthand}"})
+        
+        # Aggregation for top members
         pipeline = [
+            {"$match": {"gang": gang_shorthand}},
+            {"$group": {"_id": "$suspect_name", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 5}
+        ]
+        cursor = self.bot.suspect_logs.aggregate(pipeline)
+        top_members = await cursor.to_list(length=5)
+        
+        # Load Gang Logo File
+        logo_file = None
+        logo_path = f"/Users/discombobulation/Documents/Code/Python/AI Suspect/{gang_shorthand.lower()}.png"
+        if os.path.exists(logo_path):
+            logo_file = discord.File(logo_path, filename="gang_logo.png")
+
+        mo_text = gang_config.get("mo", "No operational data on file.") if gang_config else "No data."
+        vehicles = gang_config.get("vehicles", "Unknown") if gang_config else "Unknown"
+        clothing = gang_config.get("clothing", "Unknown") if gang_config else "Unknown"
+
+        # Load Gang Logo File
+        # Fetch picture of top rep
+        avatar_file = None
+        top_rep_name = "Unknown"
+        if top_members:
+            top_rep_name = top_members[0]["_id"]
+            async with aiohttp.ClientSession() as session:
+                _, _, avatar_url = await fetch_roblox_data(session, top_rep_name)
+                if avatar_url:
+                    async with session.get(avatar_url) as resp:
+                        raw = await resp.read()
+                    avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
+                    with Image.open(ARREST_BG_PATH) as bg:
+                        composite = bg.convert("RGBA").resize((420, 420))
+                        composite.paste(avatar_img, (0, 0), avatar_img)
+                        buf = io.BytesIO()
+                        composite.convert("RGB").save(buf, format="PNG")
+                        buf.seek(0)
+                        avatar_file = discord.File(fp=buf, filename="gang_top_rep.png")
+
+        # LLM Synthesis of the manual MO
+        prompt = f"Summarize this gang MO intelligence for a tactical briefing. Focus on patterns and threats: {mo_text}. Do NOT include any preambles or postambles."
+        summary = await call_llm(prompt)
+        analysis = summary.get("prediction", {}).get("reasoning") or summary.get("analysis") or mo_text
+
+        desc = (
+            f"## ️ TACTICAL INTELLIGENCE BRIEFING\n"
+            f"**Faction:** `{gang_shorthand}`\n"
+            f"**Status:** `ACTIVE / UNDER SURVEILLANCE`\n"
+            f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            f"### 📋 Operational Analysis (M.O.)\n"
+            f"> {analysis}\n\n"
+            f"🚘 **Tactical Vehicles:** {vehicles}\n"
+            f"👕 **Uniform/Identifiers:** {clothing}\n\n"
+            f"### 👥 High-Value Targets (Affiliates)\n"
+        )
+        
+        for i, m in enumerate(top_members):
+            prefix = "👑" if i == 0 else "🔹"
+            desc += f"{prefix} **{m['_id'].title()}** — `{m['count']}` documented incidents\n"
+
+        embed = discord.Embed(description=desc, color=discord.Color.gold())
+        
+        # Set Gang Logo as the primary Faction ID (Thumbnail)
+        if logo_file:
+            embed.set_thumbnail(url="attachment://gang_logo.png")
+            
+        # Set Top Suspect as the Priority Affiliate (Author Icon)
+        if avatar_file:
+            embed.set_author(name=f"Priority Affiliate: {top_rep_name.title()}", icon_url="attachment://gang_top_rep.png")
+        
+        embed.set_footer(text="SIMON v2.1 • Gang Intelligence Module • DO NOT DISCLOSE", icon_url="https://i.imgur.com/qdvbBqe.png") # This icon_url is hardcoded, should it be dynamic?
+        
+        files = [f for f in [avatar_file, logo_file] if f]
+        return [embed], files
+
+
+    async def _generate_gang_watchlist_content(self):
+        """Aggregates crime data by gang and identifies the top representative for each."""
+        gangs = ["77th", "WCC", "NSH"]
+        gang_stats = []
+        
+        for g in gangs:
+            # Total crimes for the gang
+            total = await self.bot.suspect_logs.count_documents({"gang": g})
+            
+            # Top suspect in this gang
+            pipeline = [
+                {"$match": {"gang": g}},
+                {"$group": {"_id": "$suspect_name", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}},
+                {"$limit": 1}
+            ]
+            res = await self.bot.suspect_logs.aggregate(pipeline).to_list(1)
+            top_sus = res[0] if res else {"_id": "Unknown", "count": 0}
+            
+            gang_stats.append({
+                "gang": g,
+                "total": total,
+                "top_rep": top_sus["_id"],
+                "rep_count": top_sus["count"]
+            })
+
+        # Use cached gang logo image
+        gang_logo_file = discord.utils.MISSING
+        if self.gang_logos_cache:
+            # Reset pointer before reading from cache
+            self.gang_logos_cache.seek(0)
+            # We pass a copy of the BytesIO object to avoid issues with concurrent reads
+            gang_logo_file = discord.File(fp=self.gang_logos_cache, filename="gang_logos.png")
+
+        embed = discord.Embed(
+            title="<:LAPD_Metropolitan:1495867271501975552> Metropolitan Division | Organised Crime Analytics",
+            description="## 🏙️ GANG ACTIVITY MONITOR\nTracking the activity of known criminal factions within the city.\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**",
+            color=discord.Color.dark_grey()
+        )
+
+        for stat in gang_stats:
+            embed.add_field(
+                name=f"Organised Crime Group: {stat['gang']}",
+                value=(
+                    # Removed the text placeholder as the image will be at the bottom
+                    f" **Total Crimes:** `{stat['total']}`\n"
+                    f"👑 **Most Active:** `{stat['top_rep'].title()}`\n"
+                    f"📈 **Individual Share:** `{stat['rep_count']}` logs"
+                ),
+                inline=True
+            )
+        
+        if gang_logo_file:
+            embed.set_image(url="attachment://gang_logos.png")
+        embed.set_footer(text="SIMON v2.1 • Gang Intelligence Module")
+        view = GangWatchlistView(self)
+        return embed, gang_logo_file, view
+
+
+    async def _generate_suspect_watchlist_content(self):
+        """Helper to generate the embed, file, and view for the watchlist."""
+        # 1. Aggregate top 6 suspects by total crime count
+        top_suspects_pipeline = [
             {
                 "$group": {
                     "_id": "$suspect_name",
                     "count": {"$sum": 1},
                     "last_crime":    {"$last": "$crimes"},
-                    "last_location": {"$last": "$poi"},
                     "last_seen":     {"$last": "$timestamp"}
                 }
             },
             {"$sort":  {"count": -1}},
             {"$limit": 6}
         ]
-
-        cursor = self.bot.suspect_logs.aggregate(pipeline)
+        cursor = self.bot.suspect_logs.aggregate(top_suspects_pipeline)
         top_suspects = await cursor.to_list(length=6)
 
         if not top_suspects:
-            return None, None, None, None # Indicate no content
+            return None, None, None # Indicate no content
+
+        # 2. Batch resolve most frequent locations for all top suspects (Reduces 6 queries to 1)
+        names = [s["_id"] for s in top_suspects]
+        freq_pipeline = [
+            {"$match": {"suspect_name": {"$in": names}, "postal": {"$ne": None}}},
+            {"$group": {"_id": {"name": "$suspect_name", "postal": "$postal"}, "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$group": {"_id": "$_id.name", "top_postal": {"$first": "$_id.postal"}}}
+        ]
+        freq_results = await self.bot.suspect_logs.aggregate(freq_pipeline).to_list(length=6)
+        freq_map = {r["_id"]: r["top_postal"] for r in freq_results}
+
+        for suspect in top_suspects:
+            postal_id = freq_map.get(suspect["_id"])
+            if postal_id:
+                node_info = self.bot.erlc_graph.nodes_data.get(postal_id)
+                suspect["most_frequent_location"] = node_info.get("poi") if node_info else postal_id
+            else:
+                suspect["most_frequent_location"] = "UNK"
 
         # 2. Build 2×3 headshot grid
         grid_buffer = await build_watchlist_grid(top_suspects)
+        if not grid_buffer:
+            return None, None, None
 
         # 3. Compose main embed
         embed = discord.Embed(
-            description="### <:LAPD_Metropolitan:1495867271501975552> METROPOLITAN DIVISION | CRIME ANALYTICS\n## 🚨 ACTIVE WATCHLIST\nThe predictive engine has identified the following high-frequency offenders. Tactical profiling is available via the integrated components below.",
+            title="<:LAPD_Metropolitan:1495867271501975552> Metropolitan Division | Crime Analytics",
+            description="## 🚨 ACTIVE WATCHLIST\nThe predictive engine has identified the following high-frequency offenders. Tactical profiling is available via the components below.\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**",
             color=discord.Color.from_rgb(18, 20, 28)
         )
         for suspect in top_suspects:
@@ -528,10 +836,10 @@ class Simon(commands.Cog):
                     pass
 
             embed.add_field(
-                name=f"SUSPECT: {suspect['_id'].upper()}",
+                name=f"{suspect['_id']}",
                 value=(
                     f" **Incidents:** `{suspect['count']}`\n"
-                    f"📍 **LKL:** `{suspect.get('last_location') or 'UNK'}`\n"
+                    f"📍 **Most Freq:** `{suspect.get('most_frequent_location') or 'UNK'}`\n"
                     f"🗓️ **Active:** `{last_seen}`"
                 ),
                 inline=True          
@@ -544,10 +852,9 @@ class Simon(commands.Cog):
             text="S.I.M.O.N. v2.1  •  Metropolitan Predictive Analysis",
         )
 
-        view = WatchlistView(self, top_suspects)
+        view = SuspectWatchlistView(self, top_suspects)
         file = discord.File(fp=grid_buffer, filename="watchlist_grid.png") if grid_buffer else discord.utils.MISSING
-        
-        return embed, file, view, top_suspects
+        return embed, file, view
 
 
     @tasks.loop(hours=1.0)
@@ -556,50 +863,60 @@ class Simon(commands.Cog):
 
         # Fetch the last watchlist message ID from the database
         state = await self.bot.bot_state.find_one({"_id": "watchlist_state"})
-        self.last_watchlist_message_id = state.get("last_message_id") if state else None
+        state = state or {}
+        last_suspect_id = state.get("last_suspect_msg_id")
+        last_gang_id = state.get("last_gang_msg_id")
 
-        channel = self.bot.get_channel(self.watchlist_channel_id)
+        channel_id = await self.get_watchlist_channel_id()
+        if not channel_id:
+            print("[WATCHLIST] Error: No channel configured in settings or config.py")
+            return
+            
+        channel = self.bot.get_channel(channel_id)
         if not channel:
-            print(f"[WATCHLIST] Error: Watchlist channel with ID {self.watchlist_channel_id} not found.")
+            print(f"[WATCHLIST] Error: Watchlist channel with ID {channel_id} not found.")
             return
 
-        # 1. Delete previous message if it exists
-        if self.last_watchlist_message_id:
-            try:
-                old_message = await channel.fetch_message(self.last_watchlist_message_id)
-                if old_message.author == self.bot.user: # Only delete our own messages
+        # 1. Delete previous messages
+        for msg_id in [last_suspect_id, last_gang_id]:
+            if msg_id:
+                try:
+                    old_message = await channel.fetch_message(msg_id)
                     await old_message.delete()
-                else:
-                    print(f"[WATCHLIST] Warning: Last watchlist message {self.last_watchlist_message_id} was not sent by the bot. Not deleting.")
-            except discord.NotFound:
-                print(f"[WATCHLIST] Info: Last watchlist message {self.last_watchlist_message_id} not found (already deleted?).")
-            except discord.Forbidden:
-                print(f"[WATCHLIST] Error: Missing permissions to delete message in {channel.name}.")
-            except Exception as e:
-                print(f"[WATCHLIST] Error deleting old message: {e}")
-            self.last_watchlist_message_id = None # Clear after attempt
+                except Exception:
+                    pass
 
-        # 2. Generate new watchlist content
-        embed, file, view, _ = await self._generate_watchlist_content()
-
-        if not embed:
+        # 2. Generate and Send Suspect Watchlist
+        s_embed, s_file, s_view = await self._generate_suspect_watchlist_content()
+        if not s_embed:
             print("[WATCHLIST] No suspect records found for hourly update.")
             return
+        
+        # 3. Generate and Send Gang Watchlist (now returns file too)
+        g_embed, g_file, g_view = await self._generate_gang_watchlist_content()
 
-        # 3. Send new watchlist
         try:
-            if file:
-                new_message = await channel.send(embed=embed, file=file, view=view)
+            if s_file:
+                new_suspect_msg = await channel.send(embed=s_embed, file=s_file, view=s_view)
             else:
-                new_message = await channel.send(embed=embed, view=view)
+                new_suspect_msg = await channel.send(embed=s_embed, view=s_view)
             
-            self.last_watchlist_message_id = new_message.id
+            if g_file:
+                new_gang_msg = await channel.send(embed=g_embed, file=g_file, view=g_view)
+            else:
+                new_gang_msg = await channel.send(embed=g_embed, view=g_view)
+            
+            # 4. Update State
             await self.bot.bot_state.update_one(
                 {"_id": "watchlist_state"},
-                {"$set": {"last_message_id": new_message.id}},
+                {"$set": {
+                    "last_suspect_msg_id": new_suspect_msg.id,
+                    "last_gang_msg_id": new_gang_msg.id
+                }},
                 upsert=True
             )
-            print(f"[WATCHLIST] Hourly watchlist updated in {channel.name}. New message ID: {new_message.id}")
+            print(f"[WATCHLIST] Hourly updates posted in {channel.name}.")
+            
         except discord.Forbidden:
             print(f"[WATCHLIST] Error: Missing permissions to send message in {channel.name}.")
         except Exception as e:
@@ -614,22 +931,31 @@ class Simon(commands.Cog):
         description="Display the 6 most logged suspects on the Metro watchlist."
     )
     async def metro_watchlist(self, interaction: discord.Interaction):
-        await interaction.response.defer()
+        cmd_channel_id = await self.get_intel_command_channel_id()
+        is_ephemeral = (interaction.channel_id != cmd_channel_id)
+        await interaction.response.defer(ephemeral=is_ephemeral)
 
-        embed, file, view, _ = await self._generate_watchlist_content()
+        s_embed, s_file, s_view = await self._generate_suspect_watchlist_content()
 
-        if not embed:
+        if not s_embed:
             await interaction.followup.send(
                 "❌ No suspect records found in the database.",
                 ephemeral=True
             )
             return
 
-        if file:
-            await interaction.followup.send(embed=embed, file=file, view=view)
-        else:
-            await interaction.followup.send(embed=embed, view=view)
+        g_embed, g_file, g_view = await self._generate_gang_watchlist_content()
 
+        if s_file:
+            await interaction.followup.send(embed=s_embed, file=s_file, view=s_view, ephemeral=is_ephemeral)
+        else:
+            await interaction.followup.send(embed=s_embed, view=s_view, ephemeral=is_ephemeral)
+        
+        # Follow up with the Gang Monitor as a second message
+        if g_file:
+            await interaction.followup.send(embed=g_embed, file=g_file, view=g_view, ephemeral=is_ephemeral)
+        else:
+            await interaction.followup.send(embed=g_embed, view=g_view, ephemeral=is_ephemeral)
 
     # ------------------------------------------------------------------ #
     # /metro_profiler                                                      #
@@ -639,9 +965,12 @@ class Simon(commands.Cog):
         description="Open a detailed suspect profiler from Roblox username."
     )
     async def metro_profiler(self, interaction: discord.Interaction, roblox_username: str):
-        await interaction.response.defer()
+        cmd_channel_id = await self.get_intel_command_channel_id()
+        is_ephemeral = (interaction.channel_id != cmd_channel_id)
+        await interaction.response.defer(ephemeral=is_ephemeral)
 
-        pages, map_file = await self.build_profiler_result(roblox_username)
+        pages, files_tuple = await self.build_profiler_result(roblox_username)
+        map_file, avatar_file = files_tuple
 
         if not pages:
             await interaction.followup.send(
@@ -651,11 +980,12 @@ class Simon(commands.Cog):
             return
 
         view = MetroProfilerView(pages)
+        
+        files = []
+        if map_file: files.append(map_file)
+        if avatar_file: files.append(avatar_file)
 
-        if map_file:
-            await interaction.followup.send(embed=pages[0], view=view, file=map_file)
-        else:
-            await interaction.followup.send(embed=pages[0], view=view)
+        await interaction.followup.send(embed=pages[0], view=view, files=files, ephemeral=is_ephemeral)
 
             
     # ------------------------------------------------------------------ #
@@ -665,24 +995,33 @@ class Simon(commands.Cog):
         name="metro_suspect_log",
         description="Log a suspect's crime history for future predictive training.",
     )
+    @app_commands.choices(gang=[
+        app_commands.Choice(name="None", value="none"),
+        app_commands.Choice(name="77th Saints Gang (77th)", value="77th"),
+        app_commands.Choice(name="West Coast Cartel (WCC)", value="WCC"),
+        app_commands.Choice(name="Noche Silente Hermanos Gang (NSH)", value="NSH")
+    ])
     async def metro_suspect_log(
         self,
         interaction: discord.Interaction,
         suspect_name: str,
+        gang: app_commands.Choice[str],
         crimes_committed: str,
         location: str,
         entry_type: str = "crime",
     ):
+        now = interaction.created_at # This is already a datetime object
         await interaction.response.defer(ephemeral=True)
+        suspect_key = suspect_name.lower()
 
         valid_nodes = self._nodes_prompt_cache
 
         extraction_prompt = f"""
 You are a strict JSON extractor.
-Map the provided location description to the closest valid node in the graph.
+Map the provided location description to the closest valid node ID (e.g., N-205) in the graph.
 You MUST only choose from the provided nodes.
 
-VALID NODES:
+VALID NODES (NodeID: POI):
 {valid_nodes}
 
 USER LOCATION INPUT:
@@ -690,8 +1029,8 @@ USER LOCATION INPUT:
 
 Return ONLY JSON in this format:
 {{
-  "postal": "PXXX or closest match",
-  "poi": "string",
+  "node_id": "The N-XXX ID from the list",
+  "poi": "The corresponding POI name",
   "confidence": 0.0
 }}
 """
@@ -700,26 +1039,44 @@ Return ONLY JSON in this format:
         if not isinstance(location_data, dict):
             location_data = {}
 
-        extracted_postal = location_data.get("postal")
+        # Use graph resolver to normalize and validate the node ID
+        raw_node = location_data.get("node_id") or location_data.get("postal")
+        extracted_node = self.bot.erlc_graph.resolve_target(raw_node)
 
-        if extracted_postal not in self.bot.erlc_graph.nodes_data:
-            location_data    = {"postal": None, "poi": None, "confidence": 0.0}
-            extracted_postal = None
+        if extracted_node not in self.bot.erlc_graph.nodes_data:
+            extracted_node = None
 
         log_entry = {
-            "suspect_name": suspect_name.lower(),
+            "suspect_name": suspect_key,
+            "gang":         gang.value if gang.value != "none" else None,
+            "officer_id":   interaction.user.id,
             "crimes":       crimes_committed,
             "location_raw": location,
-            "postal":       extracted_postal,
+            "postal":       extracted_node,
             "poi":          location_data.get("poi"),
             "confidence":   location_data.get("confidence", 0.0),
             "entry_type":   entry_type.lower(),
-            "timestamp":    interaction.created_at.isoformat(),
+            "timestamp":    now,
         }
 
         try:
             await self.bot.suspect_logs.insert_one(log_entry)
-            await interaction.followup.send(f"✅ Logged suspect **{suspect_name}** with structured location data.")
+            
+            # Intel Point Logic
+            points = 1 # Default for Crime/Sighting
+            reason = "Suspect Log"
+            
+            # Repeat Offender Bonus (Every 5th log for this suspect)
+            suspect_count = await self.bot.suspect_logs.count_documents({"suspect_name": suspect_key})
+            if suspect_count % 5 == 0:
+                points += 1
+                reason = f"Repeat Offender Tracking ({suspect_count} logs)"
+
+            ops_cog = self.bot.get_cog("Operations")
+            if ops_cog:
+                await ops_cog._award_intel_points(interaction.user.id, points, reason)
+
+            await interaction.followup.send(f"✅ Logged suspect **{suspect_name}**. (+{points} Intel Points)")
         except Exception:
             fallback = {**log_entry, "postal": None, "poi": None, "confidence": 0.0}
             await self.bot.suspect_logs.insert_one(fallback)
@@ -851,7 +1208,10 @@ Return ONLY JSON in this format:
 
     {dest_summary}
 
-    Based on this data, provide the predictive analysis.
+    TASK: Provide predictive analysis focusing on spatial POI patterns. 
+    Prioritize the suspect's historical movement corridors and origin points over the specific type of crime. 
+    Analyze if the current LKL suggests a sequence progression from a known origin or a return to a specific territory.
+    Output strictly follows the system instruction schema with no conversational filler.
     """
 
         prediction_data = await call_llm(llm_prompt)
@@ -973,10 +1333,12 @@ Return ONLY JSON in this format:
         )
 
         embed = discord.Embed(
-            title="<:LAPD_Metropolitan:1495867271501975552> Metro Predictive Engine",
-            description=f"**Target Analysis:** LKL `{postal}` | Vehicle: `{vehicle}`",
+            title="<:LAPD_Metropolitan:1495867271501975552> S.I.M.O.N. Predictive Engine",
+            description=f"**Target Analysis:** LKL `{postal}` | Vehicle: `{vehicle}`\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**",
+            
             color=embed_color,
         )
+        embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
         embed.add_field(
             name="📈 Predicted Destination",
             value=f"**{get_destination_display(prediction_data.get('primary_destination'))}**",
@@ -1050,13 +1412,13 @@ Return ONLY JSON in this format:
                 {"$group": {"_id": "$postal", "count": {"$sum": 1}}},
             ]
             cursor  = self.bot.suspect_logs.aggregate(pipeline)
-            results = await cursor.to_list(length=None)
+            results = await cursor.to_list(length=1000)
 
             heatmap_data = {r["_id"]: r["count"] for r in results}
 
             if not heatmap_data:
                 await interaction.followup.send(
-                    "No historical crime data found to generate a heatmap."
+                    "❌ No historical crime data with valid coordinates found to generate a heatmap.", ephemeral=True
                 )
                 return
 
@@ -1068,14 +1430,13 @@ Return ONLY JSON in this format:
             file  = discord.File(fp=buffer, filename="heatmap.png")
             embed = discord.Embed(
                 title="<:LAPD_Metropolitan:1495867271501975552> Metropolitan Crime Heatmap",
+                description="Visual representation of spatial criminal density based on historical intelligence logs.",
                 color=discord.Color.red(),
             )
             embed.set_image(url="attachment://heatmap.png")
+            embed.set_footer(text="S.I.M.O.N. v2.1 • Spatial Intelligence")
 
-            await interaction.followup.send(
-                content="✅ Crime heatmap generated successfully."
-            )
-            await interaction.channel.send(embed=embed, file=file)
+            await interaction.followup.send(embed=embed, file=file)
 
         except Exception as e:
             print(f"[HEATMAP ERROR] {e}")

@@ -1,97 +1,114 @@
-## Metropolitan Services — Simon Predictive System
+# Metropolitan Division Services (S.I.M.O.N.)
 
-A high-performance Discord bot designed for ER:LC Metropolitan Division operations, combining graph theory, behavioural modelling, and LLM-based prediction into a single operational tool.
+A high-performance, AI-driven tactical and administrative suite designed for ER:LC Metropolitan Division operations. This project integrates graph theory, behavioral modeling, and Large Language Models (LLMs) to provide real-time predictive policing and division management.
 
-## Overview
+## 🧠 The S.I.M.O.N. Predictive System
 
-Metropolitan Services integrates three core systems:
+S.I.M.O.N. (**S**ystemic **I**ntelligence for **M**etropolitan **O**perational **N**etworks) is the core engine of this bot. It doesn't just track the history of a suspect, it anticipates future movements using:
 
-* Graph Engine (NetworkX) → Computes optimal routes across ER:LC road networks
-* Behavioural Layer → Adjusts predictions based on suspect history and crime patterns
-* LLM Integration (Gemini API) → Produces structured, tactical predictions
+*   **Graph Engine (NetworkX):** A full digital twin of the ER:LC road network, utilizing Dijkstra's algorithm with dynamic weights based on road hierarchy (Highways, Local, Industrial).
+*   **Behavioral Modeling:** Adjusts route costs based on historical suspect data, frequency of crimes at specific Points of Interest (POIs), and "Panic Factors" caused by unwhitelisted unit pressure.
+*   **AI Synthesis (Gemini API):** Processes raw incident data to generate structured tactical predictions, primary/secondary target identification, and risk assessments.
 
-The result is a system that doesn’t just track suspects — it anticipates them.
+### Key Intelligence Features
+*   **Predictive Routing:** Generates visual map overlays with optimal intercept paths.
+*   **Crime Heatmapping:** Aggregates MongoDB logs to render spatial intensity maps of recent criminal activity.
+*   **Suspect Profiling:** Automates the extraction of vague location descriptions into structured data and builds long-term behavioral dossiers.
+*   **Active Watchlist:** An automated, hourly-updating intelligence board highlighting high-frequency offenders.
 
-## Core Features
+## 🛡️ Operational Command Tools
 
-Predictive Policing Engine
+Beyond intelligence, the bot serves as the central administrative hub for the Metropolitan Division:
+*   **Case Management:** Integrated forum-based case tracking for Major Crimes (MCS), allowing detectives to log evidence, suspect descriptions, and vehicle data to specific Case IDs.
+*   **Automated Roster/Openings:** Real-time tracking of rank quotas and current officer assignments.
+*   **Administrative Logging:** Standardized systems for promotions, infractions, and training evaluations.
+*   **Personal File Linking:** Officers can link their reporting threads (AARs, K9 logs) to their Discord profile for automated report routing.
 
-* Uses Dijkstra-based routing with dynamic weights
-* Factors in:
-    * Vehicle type
-    * Road hierarchy
-    * unWL unit pressure (chaos factor)
-* Outputs:
-    * Primary & secondary targets
-    * Tactical recommendations
-    * Risk levels
-    * Visual route overlays
+## 🕹️ Command Reference
 
-## Crime Heatmap
+### Intelligence (SIMON) Commands
+| Command | Description |
+| :--- | :--- |
+| `/metro_predict` | Runs the full predictive engine (LKL, Vehicle, Context). |
+| `/metro_suspect_log`| Logs criminal activity; uses AI to resolve vague locations. |
+| `/metro_profiler` | Generates a 20-log history and behavioral analysis for a suspect. |
+| `/metro_crime_heatmap`| Renders a visual map of historical activity. |
+| `/metro_watchlist` | Displays the top 6 most active suspects with quick-profile buttons. |
 
-* Aggregates MongoDB crime logs
-* Generates real-time spatial intensity maps
-* Highlights high-risk zones based on historical activity
+### Operations & Admin Commands
+| Command | Description |
+| :--- | :--- |
+| `/metro_start_case` | Initializes a major crimes case thread in the division forum. |
+| `/metro_case_log` | Appends evidence, photos, and notes to an active Case ID. |
+| `/metro_after_action`| Standardized AAR; routes to personal threads if linked. |
+| `/k9_deploy` | Logs K9 deployments with evidence attachments. |
+| `/metro_openings` | Displays current rank availability and member list. |
+| `/metro_link` | Links/Unlinks personal reporting threads for AAR/K9 routing. |
+| `/metro_log_training`| Opens a score-entry modal for evaluating trainees. |
+| `/host_metro_training`| Announces and handles reactions for a training session. |
+| `/metro_mass_shift` | Division-wide mobilization alert. |
+| `/metro_promote` | Formally logs and pings an officer promotion. |
+| `/metro_infract` | Formally logs and pings a disciplinary action. |
+| `/request_metro` | Cross-division request for Metro/SWAT backup. |
 
-## Suspect Logging System
+## 🛠️ Technical Architecture
 
-* Stores structured crime data
-* Uses LLM extraction to map vague inputs → valid nodes
-* Builds long-term behavioural profiles
+```mermaid
+graph TD
+    A[Discord Interaction] --> B[Command Handler]
+    B --> C[SIMON Intelligence]
+    B --> D[Operations/Admin]
+    
+    C --> E[NetworkX Graph Engine]
+    C --> F[Crime Heatmap Logic]
+    C --> G[Gemini LLM API]
+    
+    D --> H[MongoDB Atlas]
+    D --> I[Forum Thread/Case Management]
+    
+    E & F & G --> J[Pillow Map Renderer]
+    J --> K[Visual Output Embed]
+```
 
-## Metropolitan Operational Command Tools
+### Tech Stack
+*   **Language:** Python 3.11+
+*   **Framework:** `discord.py` (App Commands)
+*   **Database:** MongoDB Atlas (via `Motor` for async I/O)
+*   **Mathematics:** `NetworkX` for graph computation
+*   **Imaging:** `Pillow` (PIL) for real-time map generation
+*   **AI:** Google Gemini 1.5 Flash (for structured JSON extraction and analysis)
 
-Includes operational Discord commands:
+## 🚀 Setup & Installation
 
-* /metro_predict → Run full predictive analysis
-* /metro_suspect_log → Log suspect activity
-* /metro_crime_heatmap → Visual intelligence overlay
-* /metro_promote → Promotion system
-* /metro_infract → Discipline system
-* /metro_mass_shift → Division-wide mobilisation
-* /metro_openings → Rank availability tracker
-* /metro_log_training → Training evaluation system
+### 1. Prerequisites
+*   A MongoDB Atlas Cluster.
+*   A Google AI Studio (Gemini) API Key.
+*   A Discord Bot Token with `Members` and `Message Content` intents enabled.
 
-## System Architecture
+### 2. Configuration
+Create a `.env` file in the root directory:
+```env
+DISCORD_TOKEN=your_token_here
+MONGO_URI=your_mongodb_connection_string
+GEMINI_API_KEY=your_gemini_api_key
+WATCHLIST_CHANNEL_ID=your_discord_channel_id
+```
 
-User Input (Discord)
-        ↓
-Command Handler (discord.py)
-        ↓
-Graph Engine (NetworkX)
-        ↓
-Behaviour Layer (Heatmap + History)
-        ↓
-LLM (Gemini API)
-        ↓
-Prediction Output + Map Rendering (PIL)
+### 3. Installation
+```bash
+# Clone the repository
+git clone https://github.com/your-repo/ai-suspect.git
+cd ai-suspect
 
-## Tech Stack
-
-* Python 3.11
-* discord.py (app_commands)
-* NetworkX — graph computation
-* MongoDB Atlas (Motor) — async database
-* Pillow (PIL) — map rendering
-* aiohttp — API requests
-* Gemini API — structured AI prediction
-
-## Setup
-
-1. Clone & Install
-
-git clone <repo>
-cd AI-Suspect
+# Install dependencies
 pip install -r requirements.txt
 
-2. Environment Variables (.env)
-
-DISCORD_TOKEN=your_token
-MONGO_URI=your_mongo_uri
-GEMINI_API_KEY=your_api_key
-
-
-
-3. Run
-
+# Run the bot
 python main.py
+```
+
+## 🧪 Testing
+The project includes a robust suite of over 100 tests covering graph loading, routing accuracy, ETA calculations, and embed construction.
+```bash
+pytest tests/ --tb=short -v
+```

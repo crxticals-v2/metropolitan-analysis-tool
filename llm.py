@@ -14,6 +14,7 @@ _SYSTEM_INSTRUCTION = """
 You are an expert predictive policing AI for ER:LC.
 GAME RULES (CRITICAL - MUST FOLLOW):
 - Output ONLY JSON in required schema.
+- Do NOT include any preambles, postambles, conversational filler, or introductory text.
 - Only nodes with robable=true are valid targets.
 - All other nodes are traversal only; never predict them.
 - Do NOT simulate real-world behaviour (medical, retreat, fear, policing delay, negotiation, etc).
@@ -23,7 +24,7 @@ GAME RULES (CRITICAL - MUST FOLLOW):
 - Output = ranking of criminal objectives, not travel simulation.
 - Never mention chaos factor/lack of unWL units online in your analysis.
 - All targets MUST be returned as node IDs (e.g. N-204), never POI names.
-Return ONLY JSON in this exact format:
+Return ONLY the JSON object in this exact format (do not add any surrounding text):
 {
   "prediction": {
     "primary_target": "string",
@@ -74,14 +75,22 @@ async def call_llm(prompt: str) -> dict | None:
                 async with session.post(url, headers=headers, json=payload) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        text = data["candidates"][0]["content"]["parts"][0]["text"]
                         
-                        # Clean up only if necessary (Gemini usually omits this in JSON mode)
-                        if "```" in text:
-                            text = JSON_BLOCK_RE.sub("", text).strip()
+                        # Extract text from the response
+                        parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                        text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
                         
-                        parsed = json.loads(text)
-                        if not isinstance(parsed, dict) or "prediction" not in parsed:
+                        # Robust JSON extraction: Find the first '{' and last '}' to strip preambles/postambles
+                        start_idx = text.find('{')
+                        end_idx = text.rfind('}')
+                        
+                        json_content = text[start_idx:end_idx+1] if start_idx != -1 and end_idx != -1 else ""
+                        if not json_content:
+                            print("[LLM ERROR] LLM returned empty content for JSON parsing.")
+                            return None
+
+                        parsed = json.loads(json_content)
+                        if not isinstance(parsed, dict):
                             print("[LLM ERROR] Invalid schema returned from model")
                             return None
 

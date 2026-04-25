@@ -38,6 +38,10 @@ class TestMetroSuspectLog:
     @pytest.mark.asyncio
     async def test_logs_entry_to_mongodb(self, simon_cog):
         """Valid log should insert one document and confirm with ✅."""
+        gang_choice = MagicMock()
+        gang_choice.name = "77th Saints Gang (77th)"
+        gang_choice.value = "77th"
+
         interaction = make_interaction()
 
         mock_llm_response = {
@@ -55,6 +59,7 @@ class TestMetroSuspectLog:
                 simon_cog,
                 interaction,
                 suspect_name="TestCriminal",
+                gang=gang_choice,
                 crimes_committed="Armed Robbery",
                 location="Near the bank on Main Street",
                 entry_type="crime",
@@ -65,11 +70,16 @@ class TestMetroSuspectLog:
         assert inserted["suspect_name"] == "testcriminal"
         assert "Armed Robbery"           in inserted["crimes"]
         assert "crime"                   == inserted["entry_type"]
+        assert inserted["gang"]          == "77th"
 
     @pytest.mark.asyncio
     async def test_suspect_name_lowercased(self, simon_cog):
         interaction = make_interaction()
         location_response = {"postal": None, "poi": None, "confidence": 0.0}
+        
+        gang_choice = MagicMock()
+        gang_choice.name = "None"
+        gang_choice.value = "none"
 
         with patch("simon.call_llm", new=AsyncMock(return_value=location_response)):
             await simon_cog.metro_suspect_log.callback(
@@ -77,6 +87,7 @@ class TestMetroSuspectLog:
                 interaction,
                 suspect_name="UPPERCASE_NAME",
                 crimes_committed="Theft",
+                gang=gang_choice,
                 location="Downtown",
                 entry_type="crime",
             )
@@ -87,11 +98,15 @@ class TestMetroSuspectLog:
     @pytest.mark.asyncio
     async def test_sends_confirmation_message(self, simon_cog):
         interaction = make_interaction()
+        gang_choice = MagicMock()
+        gang_choice.value = "none"
 
         with patch("simon.call_llm", new=AsyncMock(return_value={"postal": None, "poi": None})):
             await simon_cog.metro_suspect_log.callback(
                 simon_cog, interaction,
-                suspect_name="Alpha", crimes_committed="Assault",
+                suspect_name="Alpha", 
+                gang=gang_choice,
+                crimes_committed="Assault",
                 location="Park", entry_type="crime",
             )
 
@@ -103,6 +118,8 @@ class TestMetroSuspectLog:
     async def test_fallback_on_invalid_postal(self, simon_cog):
         """When LLM returns a postal not in the graph, the entry still saves."""
         interaction = make_interaction()
+        gang_choice = MagicMock()
+        gang_choice.value = "none"
 
         # Return an unknown postal that isn't in nodes_data
         location_response = {"postal": "N-9999", "poi": "Unknown", "confidence": 0.1}
@@ -111,6 +128,7 @@ class TestMetroSuspectLog:
             await simon_cog.metro_suspect_log.callback(
                 simon_cog, interaction,
                 suspect_name="suspect",
+                gang=gang_choice,
                 crimes_committed="Robbery",
                 location="Somewhere",
                 entry_type="crime",

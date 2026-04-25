@@ -8,6 +8,7 @@ has zero dependency on the bot object and stays easily testable.
 import io
 
 from PIL import Image, ImageDraw
+from typing import List, Dict
 
 from config import MAP_IMAGE_PATH
 
@@ -28,7 +29,7 @@ def get_base_map():
 # PATH OVERLAY
 # ------------------------------------------------------------------
 
-def draw_map_path(erlc_graph, paths_to_draw: list) -> io.BytesIO:
+def draw_map_path(erlc_graph, paths_to_draw: List[List[str]]) -> io.BytesIO:
     """
     Draw predicted suspect routes on the ER:LC map image.
 
@@ -96,7 +97,7 @@ def draw_map_path(erlc_graph, paths_to_draw: list) -> io.BytesIO:
 # HEATMAP OVERLAY
 # ------------------------------------------------------------------
 
-def draw_heatmap_overlay(erlc_graph, heatmap_data: dict) -> io.BytesIO:
+def draw_heatmap_overlay(erlc_graph, heatmap_data: Dict[str, int]) -> io.BytesIO:
     """
     Draw a crime-frequency heatmap on the ER:LC map image.
 

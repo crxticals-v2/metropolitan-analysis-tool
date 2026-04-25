@@ -269,6 +269,32 @@ class TestOperationsEmbeds:
         assert "Armed robbery"   in embed.description
 
     @pytest.mark.asyncio
+    async def test_gang_profiler_embed_content(self, simon_cog):
+        """Verifies the Gang Tactical Briefing embed structure."""
+        gang_config = {
+            "_id": "gang_WCC",
+            "mo": "Operates primarily in the industrial sector.",
+            "vehicles": "Black SUVs",
+            "clothing": "Blue Bandanas"
+        }
+        top_members = [{"_id": "leader_x", "count": 50}]
+        
+        simon_cog.settings.find_one = AsyncMock(return_value=gang_config)
+        simon_cog.bot.suspect_logs.aggregate.return_value.to_list = AsyncMock(return_value=top_members)
+
+        with patch("simon.fetch_roblox_data", new=AsyncMock(return_value=(None, None, None))), \
+             patch("simon.call_llm", new=AsyncMock(return_value={"analysis": "Summarized MO."})):
+            
+            pages, files = await simon_cog.build_gang_profiler("WCC")
+        
+        embed = pages[0]
+        assert "TACTICAL INTELLIGENCE BRIEFING" in embed.description
+        assert "Summarized MO." in embed.description
+        assert "Black SUVs" in embed.description
+        assert "leader_x" in embed.description.lower()
+        assert embed.color == discord.Color.gold()
+
+    @pytest.mark.asyncio
     async def test_metro_case_log_invalid_case_id(self, operations_cog):
         """When case ID is not found, the command should send an error."""
         interaction = make_interaction()
@@ -450,7 +476,31 @@ class TestSimonEmbeds:
         assert any("12" in f.value for f in embed.fields)
 
     @pytest.mark.asyncio
-    async def test_metro_watchlist_no_data_returns_none(self, simon_cog):
+    async def test_metro_gang_watchlist_embed_structure(self, simon_cog):
+        """Verifies the Gang Activity Monitor embed structure and image attachment."""
+        gangs = ["77th", "WCC", "NSH"]
+        gang_stats = [
+            {"gang": "77th", "total": 10, "top_rep": "Alpha", "rep_count": 5},
+            {"gang": "WCC", "total": 15, "top_rep": "Bravo", "rep_count": 7},
+            {"gang": "NSH", "total": 20, "top_rep": "Charlie", "rep_count": 9},
+        ]
+        simon_cog.bot.suspect_logs.count_documents = AsyncMock(side_effect=[s["total"] for s in gang_stats])
+        simon_cog.bot.suspect_logs.aggregate.return_value.to_list = AsyncMock(side_effect=[[{"_id": s["top_rep"], "count": s["rep_count"]}] for s in gang_stats])
+
+        # Mock the new gang logo grid builder
+        import io
+        dummy_image = io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+        with patch("simon.build_gang_logo_grid", new=AsyncMock(return_value=dummy_image)):
+            embed, file, view = await simon_cog._generate_gang_watchlist_content()
+
+        assert embed is not None
+        assert file is not discord.utils.MISSING
+        assert "GANG ACTIVITY MONITOR" in embed.description.upper()
+        assert embed.image.url == "attachment://gang_logos.png"
+        assert any("Total Crimes: `10`" in f.value for f in embed.fields)
+
+    @pytest.mark.asyncio
+    async def test_metro_suspect_watchlist_no_data_returns_none(self, simon_cog):
         simon_cog.bot.suspect_logs.aggregate.return_value.to_list = AsyncMock(
             return_value=[]
         )

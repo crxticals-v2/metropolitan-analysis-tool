@@ -10,6 +10,7 @@ class ERLCGraph:
         self.postal_nodes = {}
         self.road_graph   = {}
         self.poi_lookup   = {}  # New O(1) lookup for POIs
+        self.label_lookup = {}  # New O(1) lookup for Labels
         self.road_geometry= {}
         self.config       = {}
         self._load_data(json_path)
@@ -46,6 +47,11 @@ class ERLCGraph:
             # Index POIs for O(1) resolution
             if info.get("poi"):
                 self.poi_lookup[info["poi"].lower().strip()] = node_id
+            
+            # Index Labels for O(1) resolution
+            label = info.get("label")
+            if label:
+                self.label_lookup[str(label).lower().strip()] = node_id
 
         # --- Edges (v2 compatible loader) ---
         for edge in data.get("edges", []):
@@ -179,11 +185,11 @@ class ERLCGraph:
         if poi_resolved:
             return poi_resolved
 
-        # fallback: label match
-        for node_id, data in self.nodes_data.items():
-            if str(data.get("label", "")).lower() == str(raw).lower():
-                return node_id
-
+        # fallback: indexed label match (O(1) instead of O(N))
+        label_key = str(raw).lower().strip()
+        if label_key in self.label_lookup:
+            return self.label_lookup[label_key]
+            
         return None
 
     # ------------------------------------------------------------------
