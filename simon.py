@@ -27,7 +27,7 @@ import json
 from llm import call_llm
 from map_renderer import draw_heatmap_overlay, draw_map_path
 
-ARREST_BG_PATH = "/Users/discombobulation/Documents/Code/Python/AI Suspect/arrest_background.jpg"
+ARREST_BG_PATH = "arrest_background.jpg"
 
 # ==========================================
 # VEHICLE DATABASE
@@ -291,7 +291,7 @@ async def build_gang_logo_grid(gang_shorthands: list) -> io.BytesIO | None:
 
     logos = []
     for shorthand in gang_shorthands:
-        logo_path = f"/Users/discombobulation/Documents/Code/Python/AI Suspect/{shorthand.lower()}.png"
+        logo_path = f"{shorthand.lower()}.png"
         if os.path.exists(logo_path):
             try:
                 logo_img = Image.open(logo_path).convert("RGBA")
@@ -651,7 +651,7 @@ class Simon(commands.Cog):
         
         # Load Gang Logo File
         logo_file = None
-        logo_path = f"/Users/discombobulation/Documents/Code/Python/AI Suspect/{gang_shorthand.lower()}.png"
+        logo_path = f"{gang_shorthand.lower()}.png"
         if os.path.exists(logo_path):
             logo_file = discord.File(logo_path, filename="gang_logo.png")
 
