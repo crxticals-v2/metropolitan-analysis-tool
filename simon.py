@@ -15,6 +15,7 @@ import io
 import math
 import os
 from pathlib import Path
+import socket
 
 import aiohttp
 import discord
@@ -189,7 +190,7 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
 # WATCHLIST: COMPOSITE IMAGE BUILDER
 # ==========================================
 
-async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
+async def build_watchlist_grid(session: aiohttp.ClientSession, suspects: list) -> io.BytesIO | None:
     """
     suspects: list of dicts with keys:
         _id   (str)  – suspect name (lowercase)
@@ -225,81 +226,81 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
     with Image.open(ARREST_BG_PATH) as bg_file:
         bg_template = bg_file.convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ))
 
-    async with aiohttp.ClientSession() as session:
-        # Optimization: Fetch all suspect metadata concurrently
-        tasks = [fetch_roblox_data(session, s["_id"]) for s in suspects[:6]]
-        roblox_results = await asyncio.gather(*tasks)
+    # session is now passed as an argument
+    # Optimization: Fetch all suspect metadata concurrently
+    tasks = [fetch_roblox_data(session, s["_id"]) for s in suspects[:6]]
+    roblox_results = await asyncio.gather(*tasks)
+    
+    # Map results back to suspects
+    metadata_map = {
+        suspects[i]["_id"]: roblox_results[i] 
+        for i in range(len(roblox_results))
+    }
+
+    for idx, suspect in enumerate(suspects[:6]):
+        col = idx % COLS
+        row = idx // COLS
+
+        cell_x = PADDING + col * (CELL_W + PADDING)
+        cell_y = PADDING + row * (CELL_H + PADDING)
         
-        # Map results back to suspects
-        metadata_map = {
-            suspects[i]["_id"]: roblox_results[i] 
-            for i in range(len(roblox_results))
-        }
+        _, _, avatar_url = metadata_map.get(suspect["_id"], (None, None, None))
+        
+        # card background
+        draw.rounded_rectangle(
+            [cell_x, cell_y, cell_x + CELL_W, cell_y + CELL_H],
+            radius=10,
+            fill=CARD_COLOR
+        )
 
-        for idx, suspect in enumerate(suspects[:6]):
-            col = idx % COLS
-            row = idx // COLS
+        # ── Avatar ───────────────────────────────────────────
+        avatar_x = cell_x + (CELL_W - AVATAR_SZ) // 2
+        avatar_y = cell_y + 12
 
-            cell_x = PADDING + col * (CELL_W + PADDING)
-            cell_y = PADDING + row * (CELL_H + PADDING)
-            
-            _, _, avatar_url = metadata_map.get(suspect["_id"], (None, None, None))
-            
-            # card background
-            draw.rounded_rectangle(
-                [cell_x, cell_y, cell_x + CELL_W, cell_y + CELL_H],
-                radius=10,
-                fill=CARD_COLOR
-            )
-
-            # ── Avatar ───────────────────────────────────────────
-            avatar_x = cell_x + (CELL_W - AVATAR_SZ) // 2
-            avatar_y = cell_y + 12
-
-            if avatar_url:
-                try:
-                    async with session.get(avatar_url) as resp:
-                        raw = await resp.read()
-                    avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ), Image.LANCZOS)
+        if avatar_url:
+            try:
+                async with session.get(avatar_url) as resp:
+                    raw = await resp.read()
+                avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ), Image.LANCZOS)
+                
+                # Create composite using pre-loaded template
+                composite = bg_template.copy()
+                # Composite transparent avatar onto the arrest background
+                composite.paste(avatar_img, (0, 0), avatar_img)
+                grid.paste(composite.convert("RGB"), (avatar_x, avatar_y))
                     
-                    # Create composite using pre-loaded template
-                    composite = bg_template.copy()
-                    # Composite transparent avatar onto the arrest background
-                    composite.paste(avatar_img, (0, 0), avatar_img)
-                    grid.paste(composite.convert("RGB"), (avatar_x, avatar_y))
-                        
-                except Exception:
-                    # grey placeholder if download fails
-                    draw.rectangle(
-                        [avatar_x, avatar_y, avatar_x + AVATAR_SZ, avatar_y + AVATAR_SZ],
-                        fill=(60, 60, 70)
-                    )
-            else:
+            except Exception:
+                # grey placeholder if download fails
                 draw.rectangle(
                     [avatar_x, avatar_y, avatar_x + AVATAR_SZ, avatar_y + AVATAR_SZ],
                     fill=(60, 60, 70)
                 )
+        else:
+            draw.rectangle(
+                [avatar_x, avatar_y, avatar_x + AVATAR_SZ, avatar_y + AVATAR_SZ],
+                fill=(60, 60, 70)
+            )
 
-            # ── Labels ───────────────────────────────────────────
-            label_y_name  = cell_y + AVATAR_SZ + 22
-            label_y_count = label_y_name + 20
+        # ── Labels ───────────────────────────────────────────
+        label_y_name  = cell_y + AVATAR_SZ + 22
+        label_y_count = label_y_name + 20
 
-            display = suspect["_id"].title()
-            if len(display) > 20:
-                display = display[:18] + "…"
+        display = suspect["_id"].title()
+        if len(display) > 20:
+            display = display[:18] + "…"
 
-            # centre-align text manually (bbox)
-            try:
-                name_bbox  = draw.textbbox((0, 0), display, font=font_name)
-                count_bbox = draw.textbbox((0, 0), f"{suspect['count']} crimes committed.", font=font_count)
-                name_x  = cell_x + (CELL_W - (name_bbox[2]  - name_bbox[0]))  // 2
-                count_x = cell_x + (CELL_W - (count_bbox[2] - count_bbox[0])) // 2
-            except Exception:
-                name_x  = cell_x + 10
-                count_x = cell_x + 10
+        # centre-align text manually (bbox)
+        try:
+            name_bbox  = draw.textbbox((0, 0), display, font=font_name)
+            count_bbox = draw.textbbox((0, 0), f"{suspect['count']} crimes committed.", font=font_count)
+            name_x  = cell_x + (CELL_W - (name_bbox[2]  - name_bbox[0]))  // 2
+            count_x = cell_x + (CELL_W - (count_bbox[2] - count_bbox[0])) // 2
+        except Exception:
+            name_x  = cell_x + 10
+            count_x = cell_x + 10
 
-            draw.text((name_x,  label_y_name),  display,                  fill=NAME_COLOR,  font=font_name)
-            draw.text((count_x, label_y_count), f"{suspect['count']} crimes committed.", fill=COUNT_COLOR, font=font_count)
+        draw.text((name_x,  label_y_name),  display,                  fill=NAME_COLOR,  font=font_name)
+        draw.text((count_x, label_y_count), f"{suspect['count']} crimes committed.", fill=COUNT_COLOR, font=font_count)
 
     buf = io.BytesIO()
     grid.save(buf, format="PNG")
@@ -494,6 +495,7 @@ class Simon(commands.Cog):
         self._roblox_cache = {}  # Cache for (user_id, display_name, avatar_url)
         self.settings = self.bot.mongo_client["erlc_database"]["settings"]
         # Cache valid nodes string for LLM extraction efficiency
+        self.http = None
         self._nodes_prompt_cache = "\n".join(
             f"{nid}: {info.get('poi', 'Unknown')}"
             for nid, info in self.bot.erlc_graph.nodes_data.items()
@@ -502,7 +504,11 @@ class Simon(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         # Ensure the bot is ready before starting the loop
-        
+        if self.http is None:
+            timeout = aiohttp.ClientTimeout(total=20, connect=5, sock_connect=10)
+            connector = aiohttp.TCPConnector(limit=50, family=socket.AF_INET)
+            self.http = aiohttp.ClientSession(timeout=timeout, connector=connector)
+            print("[SIMON] HTTP session initialized with custom timeout and connector settings.")
         # Pre-render and cache the gang logos composite image for performance
         if self.gang_logos_cache is None:
             print("[SIMON] Caching gang logo composite image...")
@@ -557,118 +563,118 @@ class Simon(commands.Cog):
             map_file    : discord.File | None  — map overlay attachment
             avatar_file : discord.File | None  — composited profile picture
         """
-        async with aiohttp.ClientSession() as session:
-            # Use cache if available
-            if roblox_username.lower() in self._roblox_cache:
-                _, display_name, image_url = self._roblox_cache[roblox_username.lower()]
-            else:
-                _, display_name, image_url = await fetch_roblox_data(session, roblox_username)
+        session = self.http
+        # Use cache if available
+        if roblox_username.lower() in self._roblox_cache:
+            _, display_name, image_url = self._roblox_cache[roblox_username.lower()]
+        else:
+            _, display_name, image_url = await fetch_roblox_data(session, roblox_username)
 
-            # ── Crime history ────────────────────────────────────────────
-            logs_cursor = (
-                self.bot.suspect_logs
-                .find({"suspect_name": roblox_username.lower()})
-                .sort("timestamp", -1)
-                .limit(20)
-            )
-            logs = await logs_cursor.to_list(length=20)
+        # ── Crime history ────────────────────────────────────────────
+        logs_cursor = (
+            self.bot.suspect_logs
+            .find({"suspect_name": roblox_username.lower()})
+            .sort("timestamp", -1)
+            .limit(20)
+        )
+        logs = await logs_cursor.to_list(length=20)
 
-            if not logs:
-                return [], (None, None)
+        if not logs:
+            return [], (None, None)
 
-            # ── Process Avatar with Background (Reusing outer session) ───
-            avatar_file = None
-            if image_url:
-                async with session.get(image_url) as resp:
-                    raw = await resp.read()
+        # ── Process Avatar with Background (Reusing outer session) ───
+        avatar_file = None
+        if image_url:
+            async with session.get(image_url) as resp:
+                raw = await resp.read()
 
-                avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
-                with Image.open(ARREST_BG_PATH) as bg:
-                    composite = bg.convert("RGBA").resize((420, 420))
-                    composite.paste(avatar_img, (0, 0), avatar_img)
+            avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
+            with Image.open(ARREST_BG_PATH) as bg:
+                composite = bg.convert("RGBA").resize((420, 420))
+                composite.paste(avatar_img, (0, 0), avatar_img)
 
-                    buf = io.BytesIO()
-                    composite.convert("RGB").save(buf, format="PNG", optimize=True)
-                    buf.seek(0)
-                    avatar_file = discord.File(fp=buf, filename="profile_avatar.png")
+                buf = io.BytesIO()
+                composite.convert("RGB").save(buf, format="PNG", optimize=True)
+                buf.seek(0)
+                avatar_file = discord.File(fp=buf, filename="profile_avatar.png")
 
-            # ── Paginate (5 crimes per page) ─────────────────────────────
-            pages = []
-            for i in range(0, len(logs), 5):
-                chunk = logs[i:i + 5]
-                desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Intelligence Profile: {roblox_username}\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+        # ── Paginate (5 crimes per page) ─────────────────────────────
+        pages = []
+        for i in range(0, len(logs), 5):
+            chunk = logs[i:i + 5]
+            desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Intelligence Profile: {roblox_username}\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
 
-                for log in chunk:
-                    desc += (
-                        f"\n**Crime:** {log.get('crimes', 'Unknown')}\n"
-                    f"**Location:** {log.get('poi') or log.get('postal') or log.get('location_raw') or 'Unknown'}\n"
-                        "**━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
-                    )
-
-                embed = discord.Embed(description=desc, color=discord.Color.dark_red())
-                if avatar_file:
-                    embed.set_thumbnail(url="attachment://profile_avatar.png")
-                pages.append(embed)
-
-            # ── POI frequency → map overlay ──────────────────────────────
-            poi_counts = {}
-            for log in logs:
-                poi = log.get("poi") or log.get("postal")
-                if poi:
-                    poi_counts[poi] = poi_counts.get(poi, 0) + 1
-
-            top_pois = sorted(poi_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-            nodes = []
-            for poi, _ in top_pois:
-                resolved = self.bot.erlc_graph.resolve_target(poi)
-                if resolved:
-                    nodes.append(resolved)
-
-            paths_to_draw = []
-            for i in range(len(nodes) - 1):
-                try:
-                    path = nx.shortest_path(
-                        self.bot.erlc_graph.graph, nodes[i], nodes[i + 1], weight="weight"
-                    )
-                    paths_to_draw.append(path)
-                except Exception:
-                    continue
-
-            loop = asyncio.get_running_loop()
-            map_buffer = await loop.run_in_executor(
-                None, draw_map_path, self.bot.erlc_graph, paths_to_draw
-            )
-
-            if pages and map_buffer:
-                pages[0].set_image(url="attachment://profile_map.png")
-
-            map_file = discord.File(fp=map_buffer, filename="profile_map.png") if map_buffer else None
-
-            # ── LLM behavioural analysis (first page only) ───────────────
-            prompt = f"""
-    Analyze the suspect's spatial behavior and geographical footprint.
-    Username: {roblox_username}
-    Recent History (Crime + Location): {[{'crime': l.get('crimes'), 'loc': l.get('location_raw')} for l in logs[:10]]}
-    Frequented POIs: {list(poi_counts.keys())}
-
-    TASK: Identify physical location patterns. Determine which areas they treat as "start points" versus "targets." 
-    Focus on where they typically rob and their habitual origin points (where they come from). 
-    Avoid categorizing by robbery "value" or "tier"; prioritize their movement logic and POI clusters.
-    Provide ONLY the analysis text. Do NOT include preambles or postambles.
-    """
-            llm_result = await call_llm(prompt)
-            analysis = "Unavailable"
-            if llm_result and isinstance(llm_result, dict):
-                analysis = (
-                    llm_result.get("prediction", {}).get("reasoning")
-                    or llm_result.get("analysis")
-                    or "No analysis generated."
+            for log in chunk:
+                desc += (
+                    f"\n**Crime:** {log.get('crimes', 'Unknown')}\n"
+                f"**Location:** {log.get('poi') or log.get('postal') or log.get('location_raw') or 'Unknown'}\n"
+                    "**━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
                 )
 
-            if pages:
-                pages[0].add_field(name="🧠 S.I.M.O.N. Behavioural Analysis", value=f"> {analysis[:1000]}", inline=False)
+            embed = discord.Embed(description=desc, color=discord.Color.dark_red())
+            if avatar_file:
+                embed.set_thumbnail(url="attachment://profile_avatar.png")
+            pages.append(embed)
 
-            return pages, (map_file, avatar_file)
+        # ── POI frequency → map overlay ──────────────────────────────
+        poi_counts = {}
+        for log in logs:
+            poi = log.get("poi") or log.get("postal")
+            if poi:
+                poi_counts[poi] = poi_counts.get(poi, 0) + 1
+
+        top_pois = sorted(poi_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        nodes = []
+        for poi, _ in top_pois:
+            resolved = self.bot.erlc_graph.resolve_target(poi)
+            if resolved:
+                nodes.append(resolved)
+
+        paths_to_draw = []
+        for i in range(len(nodes) - 1):
+            try:
+                path = nx.shortest_path(
+                    self.bot.erlc_graph.graph, nodes[i], nodes[i + 1], weight="weight"
+                )
+                paths_to_draw.append(path)
+            except Exception:
+                continue
+
+        loop = asyncio.get_running_loop()
+        map_buffer = await loop.run_in_executor(
+            None, draw_map_path, self.bot.erlc_graph, paths_to_draw
+        )
+
+        if pages and map_buffer:
+            pages[0].set_image(url="attachment://profile_map.png")
+
+        map_file = discord.File(fp=map_buffer, filename="profile_map.png") if map_buffer else None
+
+        # ── LLM behavioural analysis (first page only) ───────────────
+        prompt = f"""
+Analyze the suspect's spatial behavior and geographical footprint.
+Username: {roblox_username}
+Recent History (Crime + Location): {[{'crime': l.get('crimes'), 'loc': l.get('location_raw')} for l in logs[:10]]}
+Frequented POIs: {list(poi_counts.keys())}
+
+TASK: Identify physical location patterns. Determine which areas they treat as "start points" versus "targets." 
+Focus on where they typically rob and their habitual origin points (where they come from). 
+Avoid categorizing by robbery "value" or "tier"; prioritize their movement logic and POI clusters.
+Provide ONLY the analysis text. Do NOT include preambles or postambles.
+"""
+        llm_result = await call_llm(prompt)
+        analysis = "Unavailable"
+        if llm_result and isinstance(llm_result, dict):
+            analysis = (
+                llm_result.get("prediction", {}).get("reasoning")
+                or llm_result.get("analysis")
+                or "No analysis generated."
+            )
+
+        if pages:
+            pages[0].add_field(name="🧠 S.I.M.O.N. Behavioural Analysis", value=f"> {analysis[:1000]}", inline=False)
+
+        return pages, (map_file, avatar_file)
 
 
     async def build_gang_profiler(self, gang_shorthand: str):
@@ -706,19 +712,19 @@ class Simon(commands.Cog):
         top_rep_name = "Unknown"
         if top_members:
             top_rep_name = top_members[0]["_id"]
-            async with aiohttp.ClientSession() as session:
-                _, _, avatar_url = await fetch_roblox_data(session, top_rep_name)
-                if avatar_url:
-                    async with session.get(avatar_url) as resp:
-                        raw = await resp.read()
-                    avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
-                    with Image.open(ARREST_BG_PATH) as bg:
-                        composite = bg.convert("RGBA").resize((420, 420))
-                        composite.paste(avatar_img, (0, 0), avatar_img)
-                        buf = io.BytesIO()
-                        composite.convert("RGB").save(buf, format="PNG")
-                        buf.seek(0)
-                        avatar_file = discord.File(fp=buf, filename="gang_top_rep.png")
+            session = self.http
+            _, _, avatar_url = await fetch_roblox_data(session, top_rep_name)
+            if avatar_url:
+                async with session.get(avatar_url) as resp:
+                    raw = await resp.read()
+                avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
+                with Image.open(ARREST_BG_PATH) as bg:
+                    composite = bg.convert("RGBA").resize((420, 420))
+                    composite.paste(avatar_img, (0, 0), avatar_img)
+                    buf = io.BytesIO()
+                    composite.convert("RGB").save(buf, format="PNG")
+                    buf.seek(0)
+                    avatar_file = discord.File(fp=buf, filename="gang_top_rep.png")
 
         # LLM Synthesis of the manual MO
         prompt = f"Summarize this gang MO intelligence for a tactical briefing. Focus on patterns and threats: {mo_text}. Do NOT include any preambles or postambles."
@@ -857,7 +863,7 @@ class Simon(commands.Cog):
                 suspect["most_frequent_location"] = "UNK"
 
         # 2. Build 2×3 headshot grid
-        grid_buffer = await build_watchlist_grid(top_suspects)
+        grid_buffer = await build_watchlist_grid(self.http, top_suspects)
         if not grid_buffer:
             return None, None, None
 
