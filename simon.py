@@ -125,14 +125,24 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
     Resolves a Roblox username → (user_id, display_name, avatar_url).
     Returns (None, None, None) on any failure — callers must handle gracefully.
     """
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) SIMON/2.1"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     try:
         async with session.post(
             "https://users.roblox.com/v1/usernames/users",
             json={"usernames": [username], "excludeBannedUsers": False},
             headers=headers
         ) as resp:
-            data = await resp.json()
+            print(f"[ROBLOX API] Username resolution HTTP status: {resp.status}")
+            try:
+                raw_text = await resp.text()
+                print(f"[ROBLOX API] Username resolution raw response: {raw_text}")
+                data = await resp.json()
+            except Exception as e:
+                print(f"[ROBLOX API] Username resolution JSON parse error: {type(e).__name__}: {e}")
+                return None, None, None
+
+            if resp.status != 200:
+                print(f"[ROBLOX API] Username resolution failed with status {resp.status}")
 
         if not data.get("data"):
             return None, None, None
@@ -142,7 +152,7 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
         display_name = user.get("displayName") or user.get("name") or username
 
     except Exception as e:
-        print(f"[ROBLOX API] User Resolution Error for {username}: {e}")
+        print(f"[ROBLOX API] User Resolution Exception: {type(e).__name__}: {e}")
         return None, None, None
 
     try:
@@ -151,15 +161,25 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
             params={"userIds": user_id, "size": "420x420", "format": "Png", "isCircular": "false"},
             headers=headers
         ) as resp:
+            print(f"[ROBLOX API] Avatar fetch HTTP status: {resp.status} for user_id={user_id}")
+
+            try:
+                raw_thumb_text = await resp.text()
+                print(f"[ROBLOX API] Avatar raw response: {raw_thumb_text}")
+                thumb_data = await resp.json()
+            except Exception as e:
+                print(f"[ROBLOX API] Avatar JSON parse error: {type(e).__name__}: {e}")
+                thumb_data = None
+
             if resp.status != 200:
-                print(f"[ROBLOX API] Avatar Fetch Status {resp.status} for {user_id}")
-            thumb_data = await resp.json()
+                print(f"[ROBLOX API] Avatar fetch failed with status {resp.status} for user_id={user_id}")
 
         avatar_url = None
         if thumb_data and thumb_data.get("data"):
             avatar_url = thumb_data["data"][0].get("imageUrl")
 
-    except Exception:
+    except Exception as e:
+        print(f"[ROBLOX API] Avatar fetch exception: {type(e).__name__}: {e}")
         avatar_url = None
 
     return user_id, display_name, avatar_url
@@ -300,19 +320,24 @@ async def build_gang_logo_grid(gang_shorthands: list) -> io.BytesIO | None:
 
     logos = []
     for shorthand in gang_shorthands:
-        logo_path = BASE_DIR / f"{shorthand.lower()}.png"
-        if os.path.exists(logo_path):
+        # Linux is case-sensitive. Check multiple variants to be safe.
+        potential_paths = [
+            BASE_DIR / f"{shorthand.lower()}.png",
+            BASE_DIR / f"{shorthand.upper()}.png",
+            BASE_DIR / f"{shorthand}.png"
+        ]
+        
+        target_path = next((p for p in potential_paths if p.exists()), None)
+
+        if target_path:
             try:
-                logo_img = Image.open(logo_path).convert("RGBA")
+                logo_img = Image.open(target_path).convert("RGBA")
                 logos.append(logo_img)
             except Exception as e:
-                print(f"[GANG LOGO] Error loading {logo_path}: {e}")
+                print(f"[GANG LOGO] Error loading {target_path}: {e}")
                 continue
         else:
-            print(f"[GANG LOGO] File missing: {logo_path}")
-    
-    if not logos:
-        return None
+            print(f"[GANG LOGO] File missing: {shorthand}. Checked variations in {BASE_DIR}")
 
     # Determine grid dimensions (e.g., single row)
     # Assuming all logos are roughly square, let's resize them to a standard size
@@ -662,9 +687,14 @@ class Simon(commands.Cog):
         
         # Load Gang Logo File
         logo_file = None
-        logo_path = BASE_DIR / f"{gang_shorthand.lower()}.png"
-        if os.path.exists(logo_path):
-            logo_file = discord.File(logo_path, filename="gang_logo.png")
+        potential_paths = [
+            BASE_DIR / f"{gang_shorthand.lower()}.png",
+            BASE_DIR / f"{gang_shorthand.upper()}.png",
+            BASE_DIR / f"{gang_shorthand}.png"
+        ]
+        target_path = next((p for p in potential_paths if p.exists()), None)
+        if target_path:
+            logo_file = discord.File(target_path, filename="gang_logo.png")
 
         mo_text = gang_config.get("mo", "No operational data on file.") if gang_config else "No data."
         vehicles = gang_config.get("vehicles", "Unknown") if gang_config else "Unknown"
