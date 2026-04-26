@@ -162,19 +162,36 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
         print(f"[ROBLOX API] FINAL POST FAILURE: {repr(last_err)}")
         return None
 
-    async def safe_get_text(url, retries=4):
+    async def safe_get_headshot(user_id: int, retries=4) -> str | None:
+        """
+        Fetches a headshot URL via the Roblox Thumbnails API.
+        Returns the direct CDN image URL, or None on failure.
+
+        Uses thumbnails.roblox.com instead of the legacy web redirect
+        (www.roblox.com/headshot-thumbnail/image) which is blocked by
+        Cloudflare on Google Cloud egress IPs.
+        """
+        url = (
+            f"https://thumbnails.roblox.com/v1/users/avatar-headshot"
+            f"?userIds={user_id}&size=420x420&format=Png&isCircular=false"
+        )
         last_err = None
 
         for attempt in range(retries):
             try:
-                async with session.get(url, timeout=timeout) as resp:
+                async with session.get(url, headers=headers, timeout=timeout) as resp:
                     if resp.status != 200:
                         text = await resp.text()
                         print(f"[ROBLOX API] HEADSHOT HTTP {resp.status}: {text[:200]}")
                         last_err = Exception(f"HTTP {resp.status}")
                     else:
-                        # Roblox returns redirect; aiohttp resolves final URL
-                        return str(resp.url)
+                        data = await resp.json()
+                        entries = data.get("data") or []
+                        if entries and entries[0].get("state") == "Completed":
+                            return entries[0].get("imageUrl")
+                        # State may be "Pending" on first call — treat as soft failure
+                        print(f"[ROBLOX API] HEADSHOT state not Completed: {entries}")
+                        last_err = Exception("Thumbnail not ready")
 
             except (asyncio.TimeoutError, aiohttp.ClientError, OSError) as e:
                 last_err = e
@@ -203,9 +220,7 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
         user_id = user.get("id")
         display_name = user.get("name") or user.get("requestedUsername") or username
 
-        avatar_url = await safe_get_text(
-            f"https://www.roblox.com/headshot-thumbnail/image?userId={user_id}&width=420&height=420&format=png"
-        )
+        avatar_url = await safe_get_headshot(user_id)
 
         return user_id, display_name, avatar_url
 
