@@ -681,6 +681,7 @@ class Operations(commands.Cog):
         You are a highly detailed Metropolitan Intelligence Clerk.
         Extract and EXPAND on the After Action Report (AAR) data from this unstructured text into a professional, detailed tactical summary.
         If the officer is being inappropriate, or the situation is obviously not a valid police/crime scenario, flag it as invalid and do NOT attempt to fabricate details. Even if there are details that seems like police action was taken, it is highly possible it is a troller, trolling.
+        If it is indeed a troller, you will flag the content as invalid, and your response will be used to ping Senior High Command for review. Do NOT attempt to fabricate any details and do NOT attempt to send the AAR report. You will just flag is at wrong and code logic will deal with them.
         Officer: {message.author.display_name}
         Text: "{text}"
 
