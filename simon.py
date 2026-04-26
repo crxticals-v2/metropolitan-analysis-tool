@@ -134,21 +134,13 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
     }
 
     timeout = aiohttp.ClientTimeout(total=30, connect=15)
-    connector = aiohttp.TCPConnector(
-        family=socket.AF_INET,
-        ttl_dns_cache=300,
-        limit=10,
-        limit_per_host=5,
-        enable_cleanup_closed=True,
-        force_close=True
-    )
 
-    async def safe_get_json(session, url, **kwargs):
+    async def safe_post_json(url, payload, retries=4):
         last_err = None
 
-        for attempt in range(5):
+        for attempt in range(retries):
             try:
-                async with session.get(url, **kwargs) as resp:
+                async with session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
                     if resp.status == 404:
                         text = await resp.text()
                         print(f"[ROBLOX API] 404: {text[:200]}")
@@ -163,55 +155,59 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
 
             except (asyncio.TimeoutError, aiohttp.ClientError, OSError) as e:
                 last_err = e
-                print(f"[ROBLOX API] attempt {attempt+1} failed: {repr(e)}")
+                print(f"[ROBLOX API] POST attempt {attempt + 1} failed: {repr(e)}")
 
-            await asyncio.sleep(min(8, 0.5 * (2 ** attempt)))
+            await asyncio.sleep(min(6, 0.5 * (2 ** attempt)))
 
-        print(f"[ROBLOX API] FINAL FAILURE: {repr(last_err)}")
+        print(f"[ROBLOX API] FINAL POST FAILURE: {repr(last_err)}")
+        return None
+
+    async def safe_get_text(url, retries=4):
+        last_err = None
+
+        for attempt in range(retries):
+            try:
+                async with session.get(url, timeout=timeout) as resp:
+                    if resp.status != 200:
+                        text = await resp.text()
+                        print(f"[ROBLOX API] HEADSHOT HTTP {resp.status}: {text[:200]}")
+                        last_err = Exception(f"HTTP {resp.status}")
+                    else:
+                        # Roblox returns redirect; aiohttp resolves final URL
+                        return str(resp.url)
+
+            except (asyncio.TimeoutError, aiohttp.ClientError, OSError) as e:
+                last_err = e
+                print(f"[ROBLOX API] HEADSHOT attempt {attempt + 1} failed: {repr(e)}")
+
+            await asyncio.sleep(min(6, 0.5 * (2 ** attempt)))
+
+        print(f"[ROBLOX API] FINAL HEADSHOT FAILURE: {repr(last_err)}")
         return None
 
     try:
-        async with aiohttp.ClientSession(
-            headers=headers,
-            timeout=timeout,
-            connector=connector,
-            trust_env=True
-        ) as local_session:
+        print(f"[ROBLOX] Resolving username: {username}")
 
-            print(f"[ROBLOX] Resolving username: {username}")
+        data = await safe_post_json(
+            "https://users.roblox.com/v1/usernames/users",
+            {
+                "usernames": [username],
+                "excludeBannedUsers": True
+            }
+        )
 
-            data = await safe_get_json(
-                local_session,
-                "https://users.roblox.com/v1/usernames/users",
-                json={
-                    "usernames": [username],
-                    "excludeBannedUsers": False
-                }
-            )
+        if not data or not data.get("data"):
+            return None, None, None
 
-            if not data or not data.get("data"):
-                return None, None, None
+        user = data["data"][0]
+        user_id = user.get("id")
+        display_name = user.get("name") or user.get("requestedUsername") or username
 
-            user = data["data"][0]
-            user_id = user["id"]
-            display_name = user.get("displayName") or username
+        avatar_url = await safe_get_text(
+            f"https://www.roblox.com/headshot-thumbnail/image?userId={user_id}&width=420&height=420&format=png"
+        )
 
-            thumb_data = await safe_get_json(
-                local_session,
-                "https://thumbnails.roblox.com/v1/users/avatar",
-                params={
-                    "userIds": str(user_id),
-                    "size": "420x420",
-                    "format": "Png",
-                    "isCircular": "false"
-                }
-            )
-
-            avatar_url = None
-            if thumb_data and thumb_data.get("data"):
-                avatar_url = thumb_data["data"][0].get("imageUrl")
-
-            return user_id, display_name, avatar_url
+        return user_id, display_name, avatar_url
 
     except asyncio.TimeoutError:
         print(f"[ROBLOX API] FINAL TIMEOUT for {username}")
