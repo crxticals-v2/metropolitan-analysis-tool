@@ -39,7 +39,11 @@ class MetroBot(commands.Bot):
         )
         db                  = self.mongo_client["erlc_database"]
         self.suspect_logs   = db["suspect_logs"]
-        self.bot_state      = db["bot_state"] # New collection for bot state
+        self.bot_state      = db["bot_state"]
+        # Caches resolved Roblox username → user_id so GCP never has to hit
+        # users.roblox.com directly (Cloudflare blocks datacenter IPs).
+        # Populated automatically whenever the bot runs locally.
+        self.roblox_id_cache = db["roblox_id_cache"]
 
         # Cooldown tracking: {guild_id: timestamp}
         self.request_metro_cooldowns: dict = {}

@@ -122,10 +122,26 @@ def normalize_postal(postal: str) -> str:
 # ROBLOX HELPER
 # ==========================================
 
-async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
+async def fetch_roblox_data(
+    session: aiohttp.ClientSession,
+    username: str,
+    id_cache=None          # Pass bot.roblox_id_cache to enable Mongo caching
+):
     """
     Resolves a Roblox username → (user_id, display_name, avatar_url).
     Returns (None, None, None) on any failure — callers must handle gracefully.
+
+    Cache strategy (required for GCP deployments):
+    ──────────────────────────────────────────────
+    users.roblox.com is behind Cloudflare and times out from datacenter IPs
+    (GCP, AWS, etc.).  To work around this, resolved IDs are stored in the
+    `roblox_id_cache` MongoDB collection.
+
+    • Local runs:  cache miss → live lookup → result stored → avatar fetched.
+    • GCP runs:    cache hit  → live lookup skipped → avatar fetched directly.
+
+    New suspects will show up without an avatar on GCP until the bot is run
+    locally at least once after they are added (which populates the cache).
     """
     headers = {
         "x-api-key": ROBLOX_API_KEY,
@@ -135,30 +151,25 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
 
     timeout = aiohttp.ClientTimeout(total=30, connect=15)
 
+    # ── Inner helpers ──────────────────────────────────────────────────────
+
     async def safe_post_json(url, payload, retries=4):
         last_err = None
-
         for attempt in range(retries):
             try:
                 async with session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
                     if resp.status == 404:
-                        text = await resp.text()
-                        print(f"[ROBLOX API] 404: {text[:200]}")
+                        print(f"[ROBLOX API] 404: {(await resp.text())[:200]}")
                         return None
-
                     if resp.status != 200:
-                        text = await resp.text()
-                        print(f"[ROBLOX API] HTTP {resp.status}: {text[:200]}")
+                        print(f"[ROBLOX API] HTTP {resp.status}: {(await resp.text())[:200]}")
                         last_err = Exception(f"HTTP {resp.status}")
                     else:
                         return await resp.json()
-
             except (asyncio.TimeoutError, aiohttp.ClientError, OSError) as e:
                 last_err = e
                 print(f"[ROBLOX API] POST attempt {attempt + 1} failed: {repr(e)}")
-
             await asyncio.sleep(min(6, 0.5 * (2 ** attempt)))
-
         print(f"[ROBLOX API] FINAL POST FAILURE: {repr(last_err)}")
         return None
 
@@ -176,53 +187,82 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
             f"?userIds={user_id}&size=420x420&format=Png&isCircular=false"
         )
         last_err = None
-
         for attempt in range(retries):
             try:
                 async with session.get(url, headers=headers, timeout=timeout) as resp:
                     if resp.status != 200:
-                        text = await resp.text()
-                        print(f"[ROBLOX API] HEADSHOT HTTP {resp.status}: {text[:200]}")
+                        print(f"[ROBLOX API] HEADSHOT HTTP {resp.status}: {(await resp.text())[:200]}")
                         last_err = Exception(f"HTTP {resp.status}")
                     else:
                         data = await resp.json()
                         entries = data.get("data") or []
                         if entries and entries[0].get("state") == "Completed":
                             return entries[0].get("imageUrl")
-                        # State may be "Pending" on first call — treat as soft failure
                         print(f"[ROBLOX API] HEADSHOT state not Completed: {entries}")
                         last_err = Exception("Thumbnail not ready")
-
             except (asyncio.TimeoutError, aiohttp.ClientError, OSError) as e:
                 last_err = e
                 print(f"[ROBLOX API] HEADSHOT attempt {attempt + 1} failed: {repr(e)}")
-
             await asyncio.sleep(min(6, 0.5 * (2 ** attempt)))
-
         print(f"[ROBLOX API] FINAL HEADSHOT FAILURE: {repr(last_err)}")
         return None
 
+    # ── 1. Check MongoDB cache ─────────────────────────────────────────────
+    # If we already resolved this username before, skip the Cloudflare-blocked
+    # users.roblox.com entirely and go straight to the thumbnail.
+    if id_cache is not None:
+        try:
+            cached = await id_cache.find_one({"username": username.lower()})
+            if cached:
+                user_id      = cached["user_id"]
+                display_name = cached.get("display_name", username)
+                print(f"[ROBLOX] Cache hit for '{username}' → user_id={user_id}")
+                avatar_url = await safe_get_headshot(user_id)
+                return user_id, display_name, avatar_url
+        except Exception as e:
+            print(f"[ROBLOX] Cache read error: {repr(e)}")
+
+    # ── 2. Live lookup via users.roblox.com ───────────────────────────────
+    # Works when running locally.  Times out on GCP (Cloudflare blocks
+    # datacenter IPs) — the timeout is caught silently and we return None.
     try:
-        print(f"[ROBLOX] Resolving username: {username}")
+        print(f"[ROBLOX] Resolving username (live): {username}")
 
         data = await safe_post_json(
             "https://users.roblox.com/v1/usernames/users",
-            {
-                "usernames": [username],
-                "excludeBannedUsers": True
-            }
+            {"usernames": [username], "excludeBannedUsers": True}
         )
 
         if not data or not data.get("data"):
             return None, None, None
 
-        user = data["data"][0]
-        user_id = user.get("id")
+        user         = data["data"][0]
+        user_id      = user.get("id")
         display_name = user.get("name") or user.get("requestedUsername") or username
 
-        avatar_url = await safe_get_headshot(user_id)
+        # ── 3. Populate cache so GCP can use it next time ─────────────────
+        if id_cache is not None and user_id:
+            try:
+                await id_cache.update_one(
+                    {"username": username.lower()},
+                    {"$set": {"user_id": user_id, "display_name": display_name}},
+                    upsert=True
+                )
+                print(f"[ROBLOX] Cached user_id={user_id} for '{username}'")
+            except Exception as e:
+                print(f"[ROBLOX] Cache write error: {repr(e)}")
 
+        avatar_url = await safe_get_headshot(user_id)
         return user_id, display_name, avatar_url
+
+    except asyncio.TimeoutError:
+        # Expected on GCP — Cloudflare silently drops the connection.
+        # Cache was empty (step 1 missed), so we can't show an avatar.
+        print(f"[ROBLOX] Timeout for '{username}' — likely GCP/Cloudflare block. No avatar.")
+        return None, None, None
+    except Exception as e:
+        print(f"[ROBLOX API] Exception resolving '{username}': {repr(e)}")
+        return None, None, None
 
     except asyncio.TimeoutError:
         print(f"[ROBLOX API] FINAL TIMEOUT for {username}")
@@ -236,7 +276,7 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
 # WATCHLIST: COMPOSITE IMAGE BUILDER
 # ==========================================
 
-async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
+async def build_watchlist_grid(suspects: list, id_cache=None) -> io.BytesIO | None:
     """
     suspects: list of dicts with keys:
         _id   (str)  – suspect name (lowercase)
@@ -294,7 +334,7 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
             cell_y = PADDING + row * (CELL_H + PADDING)
             
             # Fetch Roblox metadata individually to avoid concurrent burst timeouts
-            _, _, avatar_url = await fetch_roblox_data(session, suspect["_id"])
+            _, _, avatar_url = await fetch_roblox_data(session, suspect["_id"], id_cache)
             
             # Small sleep to stabilize connection on GCP VM
             await asyncio.sleep(0.2)
@@ -629,7 +669,7 @@ class Simon(commands.Cog):
             if roblox_username.lower() in self._roblox_cache:
                 _, display_name, image_url = self._roblox_cache[roblox_username.lower()]
             else:
-                _, display_name, image_url = await fetch_roblox_data(session, roblox_username)
+                _, display_name, image_url = await fetch_roblox_data(session, roblox_username, self.bot.roblox_id_cache)
 
             # ── Crime history ────────────────────────────────────────────
             logs_cursor = (
@@ -785,7 +825,7 @@ class Simon(commands.Cog):
                 connector=connector, 
                 trust_env=True
             ) as session:
-                _, _, avatar_url = await fetch_roblox_data(session, top_rep_name)
+                _, _, avatar_url = await fetch_roblox_data(session, top_rep_name, self.bot.roblox_id_cache)
                 if avatar_url:
                     async with session.get(avatar_url) as resp:
                         raw = await resp.read()
@@ -944,7 +984,7 @@ class Simon(commands.Cog):
         print("[WATCHLIST] Locations resolved. Starting grid generation...")
         # 2. Build 2×3 headshot grid
         print(f"[WATCHLIST] Building visual grid for {len(top_suspects)} suspects...")
-        grid_buffer = await build_watchlist_grid(top_suspects)
+        grid_buffer = await build_watchlist_grid(top_suspects, self.bot.roblox_id_cache)
         if not grid_buffer:
             print("[WATCHLIST] Warning: build_watchlist_grid returned None.")
             # We continue even if the image fails, though the generator might return None later
