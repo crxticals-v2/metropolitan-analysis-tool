@@ -229,16 +229,22 @@ async def fetch_roblox_data(
         print(f"[ROBLOX] Resolving username (live): {username}")
 
         data = await safe_post_json(
-            "https://users.roblox.com/v1/usernames/users",
-            {"usernames": [username], "excludeBannedUsers": True}
+            "https://apis.roblox.com/cloud/v2/users:batchGet",
+            {
+                "usernames": [username]
+            }
         )
 
-        if not data or not data.get("data"):
+        if not data:
             return None, None, None
 
-        user         = data["data"][0]
-        user_id      = user.get("id")
-        display_name = user.get("name") or user.get("requestedUsername") or username
+        users = data.get("users") or data.get("data") or []
+        if not users:
+            return None, None, None
+
+        user = users[0]
+        user_id = user.get("id") or user.get("userId")
+        display_name = user.get("displayName") or user.get("name") or username
 
         # ── 3. Populate cache so GCP can use it next time ─────────────────
         if id_cache is not None and user_id:
