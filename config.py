@@ -6,6 +6,7 @@ load_dotenv()
 TOKEN        = os.getenv("DISCORD_TOKEN")
 MONGO_URI    = os.getenv("MONGO_URI")
 LLM_API_KEY  = os.getenv("GEMINI_API_KEY")
+ROBLOX_API_KEY = os.getenv("ROBLOX_API_KEY")
 LLM_API_URL  = (
     "https://generativelanguage.googleapis.com/v1beta"
     "/models/gemini-3.1-flash-lite-preview:generateContent"

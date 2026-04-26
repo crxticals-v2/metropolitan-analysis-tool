@@ -25,6 +25,7 @@ from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 import json
 
+from config import ROBLOX_API_KEY
 from llm import call_llm
 from map_renderer import draw_heatmap_overlay, draw_map_path
 
@@ -125,50 +126,56 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
     Resolves a Roblox username → (user_id, display_name, avatar_url).
     Returns (None, None, None) on any failure — callers must handle gracefully.
     """
-    # Use a standard browser User-Agent to reduce Cloud IP flagging
+    if not ARREST_BG_PATH.exists():
+        print(f"[SYSTEM] Warning: Background image not found at {ARREST_BG_PATH}")
+    if not VEHICLE_DB_PATH.exists():
+        print(f"[SYSTEM] Warning: Vehicle DB not found at {VEHICLE_DB_PATH}")
+
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "x-api-key": ROBLOX_API_KEY,
+        "Content-Type": "application/json"
     }
+
     try:
-        async with session.post(
-            "https://users.roblox.com/v1/usernames/users",
-            json={"usernames": [username], "excludeBannedUsers": False},
+        # Open Cloud v2: Resolve Username to User ID
+        async with session.get(
+            "https://apis.roblox.com/cloud/v2/users",
+            params={"filter": f'username == "{username}"'},
             headers=headers
         ) as resp:
             if resp.status != 200:
-                print(f"[ROBLOX API] User Resolution Status {resp.status} for {username}")
+                print(f"[ROBLOX OPEN CLOUD] User Lookup Status {resp.status} for {username}")
                 return None, None, None
             data = await resp.json()
 
-        if not data.get("data"):
+        if not data.get("users"):
             return None, None, None
 
-        user = data["data"][0]
+        user = data["users"][0]
         user_id = user["id"]
-        display_name = user.get("displayName") or user.get("name") or username
+        display_name = user.get("displayName") or username
 
     except Exception as e:
-        print(f"[ROBLOX API] Error resolving username '{username}': {e}")
+        print(f"[ROBLOX API] Exception resolving username '{username}': {repr(e)}")
         return None, None, None
 
     try:
+        # Open Cloud v2: Fetch Headshot Thumbnail
         async with session.get(
-            "https://thumbnails.roblox.com/v1/users/avatar-headshot",
-            params={"userIds": user_id, "size": "420x420", "format": "Png", "isCircular": "false"},
+            f"https://apis.roblox.com/cloud/v2/users/{user_id}/thumbnail",
+            params={"size": "Size420x420", "format": "Png"},
             headers=headers
         ) as resp:
             if resp.status != 200:
                 error_text = await resp.text()
-                print(f"[ROBLOX API] Avatar Status {resp.status} for {user_id}: {error_text[:100]}")
+                print(f"[ROBLOX OPEN CLOUD] Avatar Status {resp.status} for {user_id}: {error_text[:100]}")
                 return None, None, None
             thumb_data = await resp.json()
 
-        avatar_url = None
-        if thumb_data and thumb_data.get("data"):
-            avatar_url = thumb_data["data"][0].get("imageUrl")
+        avatar_url = thumb_data.get("thumbnailUrl")
 
     except Exception as e:
-        print(f"[ROBLOX API] Exception during avatar fetch for {username}: {e}")
+        print(f"[ROBLOX API] Exception during avatar fetch for {username}: {repr(e)}")
         avatar_url = None
 
     return user_id, display_name, avatar_url
@@ -202,14 +209,19 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
     grid = Image.new("RGB", (grid_w, grid_h), BG_COLOR)
     draw = ImageDraw.Draw(grid)
 
+    print(f"[WATCHLIST] Starting grid build for {len(suspects)} suspects...")
+
     # ── Font: try to load a small TTF; fall back gracefully ────── 
     try:
         font_name  = ImageFont.load_default(size=14)
         font_count = ImageFont.load_default(size=12)
-    except Exception:
+    except Exception as e:
+        print(f"[WATCHLIST] Font loading warning: {e}")
         font_name  = ImageFont.load_default()
         font_count = ImageFont.load_default()
 
+    if not ARREST_BG_PATH.exists():
+        print(f"[WATCHLIST] CRITICAL: Background {ARREST_BG_PATH} missing.")
     # Pre-load background to avoid repeated disk I/O in the loop
     with Image.open(ARREST_BG_PATH) as bg_file:
         bg_template = bg_file.convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ))
@@ -260,7 +272,7 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
                     grid.paste(composite.convert("RGB"), (avatar_x, avatar_y))
                         
                 except Exception as e:
-                    print(f"[WATCHLIST] Error processing image for {suspect['_id']}: {e}")
+                    print(f"[WATCHLIST] Exception processing image for {suspect['_id']}: {repr(e)}")
                     # grey placeholder if download fails
                     draw.rectangle(
                         [avatar_x, avatar_y, avatar_x + AVATAR_SZ, avatar_y + AVATAR_SZ],
@@ -293,6 +305,7 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
             draw.text((name_x,  label_y_name),  display,                  fill=NAME_COLOR,  font=font_name)
             draw.text((count_x, label_y_count), f"{suspect['count']} crimes committed.", fill=COUNT_COLOR, font=font_count)
 
+    print("[WATCHLIST] Grid build complete.")
     buf = io.BytesIO()
     grid.save(buf, format="PNG")
     buf.seek(0)
@@ -499,6 +512,7 @@ class Simon(commands.Cog):
         # Ensure the bot is ready before starting the loop
         
         # Pre-render and cache the gang logos composite image for performance
+        print(f"[SIMON] Running in directory: {os.getcwd()}")
         if self.gang_logos_cache is None:
             print("[SIMON] Caching gang logo composite image...")
             gangs = ["77th", "WCC", "NSH"]
@@ -506,6 +520,7 @@ class Simon(commands.Cog):
             print("[SIMON] Gang logo cache initialized.")
 
         if not self.update_hourly_watchlist.is_running():
+            print("[WATCHLIST] Starting hourly update loop...")
             self.update_hourly_watchlist.start()
 
     async def get_watchlist_channel_id(self):
@@ -572,6 +587,7 @@ class Simon(commands.Cog):
                 return [], (None, None)
 
             # ── Process Avatar with Background (Reusing outer session) ───
+            print(f"[PROFILER] Downloading avatar for {roblox_username}...")
             avatar_file = None
             if image_url:
                 try:
@@ -590,7 +606,7 @@ class Simon(commands.Cog):
                         buf.seek(0)
                         avatar_file = discord.File(fp=buf, filename="profile_avatar.png")
                 except Exception as e:
-                    print(f"[PROFILER] Error processing avatar for {roblox_username}: {e}")
+                    print(f"[PROFILER] Exception processing avatar for {roblox_username}: {repr(e)}")
 
             # ── Paginate (5 crimes per page) ─────────────────────────────
             pages = []
@@ -674,6 +690,7 @@ class Simon(commands.Cog):
     async def build_gang_profiler(self, gang_shorthand: str):
         """Generates a profile for a specific gang based on logs and manual MO."""
         gang_config = await self.settings.find_one({"_id": f"gang_{gang_shorthand}"})
+        gang_config = gang_config or {}
         
         # Aggregation for top members
         pipeline = [
@@ -759,6 +776,7 @@ class Simon(commands.Cog):
 
     async def _generate_gang_watchlist_content(self):
         """Aggregates crime data by gang and identifies the top representative for each."""
+        print("[WATCHLIST] Compiling gang analytics...")
         gangs = ["77th", "WCC", "NSH"]
         gang_stats = []
         
@@ -782,6 +800,7 @@ class Simon(commands.Cog):
                 "top_rep": top_sus["_id"],
                 "rep_count": top_sus["count"]
             })
+        print(f"[WATCHLIST] Gang stats compiled for: {[g['gang'] for g in gang_stats]}")
 
         # Use cached gang logo image
         gang_logo_file = discord.utils.MISSING
@@ -818,26 +837,31 @@ class Simon(commands.Cog):
 
     async def _generate_suspect_watchlist_content(self):
         """Helper to generate the embed, file, and view for the watchlist."""
+        print("[WATCHLIST] Fetching top suspect data from MongoDB...")
         # 1. Aggregate top 6 suspects by total crime count
         top_suspects_pipeline = [
             {
                 "$group": {
                     "_id": "$suspect_name",
                     "count": {"$sum": 1},
-                    "last_crime":    {"$last": "$crimes"},
                     "last_seen":     {"$last": "$timestamp"}
                 }
             },
             {"$sort":  {"count": -1}},
             {"$limit": 6}
         ]
-        cursor = self.bot.suspect_logs.aggregate(top_suspects_pipeline)
-        top_suspects = await cursor.to_list(length=6)
-
+        try:
+            cursor = self.bot.suspect_logs.aggregate(top_suspects_pipeline)
+            top_suspects = await cursor.to_list(length=6)
+        except Exception as e:
+            print(f"[WATCHLIST] MongoDB Aggregation Error: {e}")
+            return None, None, None
+            
+        print(f"[WATCHLIST] Found {len(top_suspects)} top suspects.")
         if not top_suspects:
-            return None, None, None # Indicate no content
+            print("[WATCHLIST] Aggregation returned 0 results. Check if suspect_logs collection is empty.")
+            return None, None, None
 
-        # 2. Batch resolve most frequent locations for all top suspects (Reduces 6 queries to 1)
         names = [s["_id"] for s in top_suspects]
         freq_pipeline = [
             {"$match": {"suspect_name": {"$in": names}, "postal": {"$ne": None}}},
@@ -856,10 +880,13 @@ class Simon(commands.Cog):
             else:
                 suspect["most_frequent_location"] = "UNK"
 
+        print("[WATCHLIST] Locations resolved. Starting grid generation...")
         # 2. Build 2×3 headshot grid
+        print(f"[WATCHLIST] Building visual grid for {len(top_suspects)} suspects...")
         grid_buffer = await build_watchlist_grid(top_suspects)
         if not grid_buffer:
-            return None, None, None
+            print("[WATCHLIST] Warning: build_watchlist_grid returned None.")
+            # We continue even if the image fails, though the generator might return None later
 
         # 3. Compose main embed
         embed = discord.Embed(
@@ -901,12 +928,14 @@ class Simon(commands.Cog):
     @tasks.loop(hours=1.0)
     async def update_hourly_watchlist(self):
         await self.bot.wait_until_ready() # Ensure bot is fully ready
+        print("[WATCHLIST] Triggering hourly update cycle...")
 
         # Fetch the last watchlist message ID from the database
         state = await self.bot.bot_state.find_one({"_id": "watchlist_state"})
         state = state or {}
         last_suspect_id = state.get("last_suspect_msg_id")
         last_gang_id = state.get("last_gang_msg_id")
+        print(f"[WATCHLIST] Clean-up: Previous message IDs identified as {last_suspect_id}, {last_gang_id}")
 
         channel_id = await self.get_watchlist_channel_id()
         if not channel_id:
@@ -916,6 +945,7 @@ class Simon(commands.Cog):
         channel = self.bot.get_channel(channel_id)
         if not channel:
             print(f"[WATCHLIST] Error: Watchlist channel with ID {channel_id} not found.")
+            print(f"[WATCHLIST] Available channels: {[c.id for c in self.bot.get_all_channels() if isinstance(c, discord.TextChannel)]}")
             return
 
         # 1. Delete previous messages
@@ -926,15 +956,20 @@ class Simon(commands.Cog):
                     await old_message.delete()
                 except Exception:
                     pass
+        print("[WATCHLIST] Previous messages cleared (if any).")
 
         # 2. Generate and Send Suspect Watchlist
+        print("[WATCHLIST] Generating suspect watchlist content...")
         s_embed, s_file, s_view = await self._generate_suspect_watchlist_content()
         if not s_embed:
-            print("[WATCHLIST] No suspect records found for hourly update.")
+            print("[WATCHLIST] Early exit: Generator returned no content (s_embed is None).")
             return
+        print("[WATCHLIST] Suspect content generated successfully.")
         
         # 3. Generate and Send Gang Watchlist (now returns file too)
+        print("[WATCHLIST] Generating gang watchlist content...")
         g_embed, g_file, g_view = await self._generate_gang_watchlist_content()
+        print("[WATCHLIST] Gang content generated successfully.")
 
         try:
             if s_file:
@@ -961,7 +996,8 @@ class Simon(commands.Cog):
         except discord.Forbidden:
             print(f"[WATCHLIST] Error: Missing permissions to send message in {channel.name}.")
         except Exception as e:
-            print(f"[WATCHLIST] Error sending new watchlist: {e}")
+            print(f"[WATCHLIST] Exception sending new watchlist: {repr(e)}")
+            import traceback; traceback.print_exc()
 
 
     # ------------------------------------------------------------------ #
