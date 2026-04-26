@@ -6,3 +6,4 @@ python-dotenv
 motor
 pytest
 pytest-asyncio
+curl_cffi

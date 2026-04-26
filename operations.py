@@ -700,6 +700,7 @@ class Operations(commands.Cog):
         - direction_of_travel: (string, e.g. "Northbound", "Towards Bank")
         - node_id: (The N-XXX ID from the provided node list that best matches the patrol_area)
         - gang_affiliation: (string, identify if they belong to 77th, WCC, or NSH)
+        - is_valid_incident: (boolean, set to false if the input is inappropriate, offensive, nonsense, or has absolutely no relation to a police/crime scenario)
 
         Return ONLY JSON (strictly no preambles or postambles) in this format:
         {{
@@ -725,6 +726,30 @@ class Operations(commands.Cog):
 
         data = response["prediction"]
         
+        # Screening for inappropriate or irrelevant content
+        if not data.get("is_valid_incident", True):
+            # Resolve Senior High Command roles for the ping
+            shr_ranks = self.SENIOR_HIGH_COMMAND_RANKS
+            pings = [
+                role.mention for role in message.guild.roles 
+                if any(rank in role.name for rank in shr_ranks)
+            ]
+            
+            alert_embed = discord.Embed(
+                title="⚠️ Insubordination Alert | Rapid AAR Screening",
+                description=(
+                    f"**Officer:** {message.author.mention} ({message.author.id})\n"
+                    f"**Channel:** {message.channel.mention}\n"
+                    f"**Timestamp:** <t:{int(time.time())}:F>\n\n"
+                    f"**Flagged Content:**\n> {text[:1800]}"
+                ),
+                color=discord.Color.red()
+            )
+            
+            log_channel = await self._resolve_output_channel(None, "metro_infract")
+            await log_channel.send(content=" ".join(pings), embed=alert_embed)
+            return False
+
         # Vehicle Matching
         extracted_veh = data.get("vehicle", "Unknown")
         final_vehicle = "Unknown Vehicle"
