@@ -133,15 +133,20 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
 
     headers = {
         "x-api-key": ROBLOX_API_KEY,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "User-Agent": "Metropolitan-SIMON/2.1 (Google-Cloud-VM)"
     }
+    
+    # Explicit timeout to prevent hanging on IPv6/DNS resolution
+    timeout = aiohttp.ClientTimeout(total=15, connect=5)
 
     try:
         # Open Cloud v2: Resolve Username to User ID
         async with session.get(
             "https://apis.roblox.com/cloud/v2/users",
             params={"filter": f'username == "{username}"'},
-            headers=headers
+            headers=headers,
+            timeout=timeout
         ) as resp:
             if resp.status != 200:
                 print(f"[ROBLOX OPEN CLOUD] User Lookup Status {resp.status} for {username}")
@@ -163,8 +168,9 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
         # Open Cloud v2: Fetch Headshot Thumbnail
         async with session.get(
             f"https://apis.roblox.com/cloud/v2/users/{user_id}/thumbnail",
-            params={"size": "Size420x420", "format": "Png"},
-            headers=headers
+            params={"size": "Size420x420", "format": "Png", "isCircular": "false"},
+            headers=headers,
+            timeout=timeout
         ) as resp:
             if resp.status != 200:
                 error_text = await resp.text()
@@ -226,7 +232,10 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
     with Image.open(ARREST_BG_PATH) as bg_file:
         bg_template = bg_file.convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ))
 
-    async with aiohttp.ClientSession() as session:
+    # Use a standard timeout for the whole session on the VM
+    timeout = aiohttp.ClientTimeout(total=30)
+    
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         # Optimization: Fetch all suspect metadata concurrently
         tasks = [fetch_roblox_data(session, s["_id"]) for s in suspects[:6]]
         roblox_results = await asyncio.gather(*tasks)
