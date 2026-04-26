@@ -610,8 +610,8 @@ class WeeklyResetView(discord.ui.View):
 class Operations(commands.Cog):
     """Metropolitan Unit administrative commands."""
 
-    HIGH_COMMAND_RANKS = {"Chief Inspector", "Detective Chief Inspector", "Deputy Commanding Officer", "Commanding Officer"}
-    SENIOR_HIGH_COMMAND_RANKS = {"Deputy Commanding Officer", "Commanding Officer"}
+    HIGH_COMMAND_RANKS = {"[𝐌𝐄𝐓] Chief Inspector", "[𝐌𝐄𝐓] Detective Chief Inspector", "[𝐌𝐄𝐓] Deputy Commanding Officer", "[𝐌𝐄𝐓] Commanding Officer"}
+    SENIOR_HIGH_COMMAND_RANKS = {"[𝐌𝐄𝐓] Deputy Commanding Officer", "[𝐌𝐄𝐓] Commanding Officer"}
 
     def __init__(self, bot):
         self.bot = bot
@@ -730,11 +730,11 @@ class Operations(commands.Cog):
         
         # Screening for inappropriate or irrelevant content
         if not data.get("is_valid_incident", True):
-            # Resolve Senior High Command roles for the ping
-            shr_ranks = self.SENIOR_HIGH_COMMAND_RANKS
+            # Resolve High Command roles for the ping (CO, DCO, CI, DCI)
+            hc_ranks = self.HIGH_COMMAND_RANKS
             pings = [
                 role.mention for role in message.guild.roles 
-                if any(rank in role.name for rank in shr_ranks)
+                if any(rank in role.name for rank in hc_ranks)
             ]
             
             alert_embed = discord.Embed(
