@@ -205,6 +205,7 @@ class PermissionView(discord.ui.View):
             discord.SelectOption(label="/metro_infract", value="metro_infract"),
             discord.SelectOption(label="/metro_mass_shift", value="metro_mass_shift"),
             discord.SelectOption(label="/request_metro", value="request_metro"),
+            discord.SelectOption(label="-metroAA (Rapid AAR)", value="metro_rapid_aar"),
         ]
     )
     async def command_select(self, interaction: discord.Interaction, select: discord.ui.Select):
@@ -645,11 +646,11 @@ class Operations(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Listens for the -metroAA prefix for rapid AAR generation."""
-        if message.author.bot or not message.content.startswith("-metroAA"):
+        if message.author.bot or not message.guild or not message.content.startswith("-metroAA"):
             return
 
-        # Basic permission check: Must have a Metro role
-        if not any("[𝐌𝐄𝐓]" in role.name for role in message.author.roles):
+        # Permission check using the dashboard configuration
+        if not self._check_member_permission(message.author, "metro_rapid_aar"):
             return
 
         raw_text = message.content[len("-metroAA"):].strip()
@@ -857,13 +858,23 @@ class Operations(commands.Cog):
         return interaction.channel
 
     def _check_permission(self, interaction: discord.Interaction, cmd_name: str):
-        if interaction.user.id == OWNER_UID:
+        return self._check_member_permission(interaction.user, cmd_name)
+
+    def _check_member_permission(self, member: discord.Member, cmd_name: str):
+        """Reusable permission check for both interactions and messages."""
+        if member.id == OWNER_UID:
             return True
+
         perms = self.config_cache.get("permissions", {})
         allowed_roles = perms.get(cmd_name, [])
+
         if not allowed_roles:
-            return True # Default to open if not configured, or change to False for whitelist
-        return any(role.id in allowed_roles for role in interaction.user.roles)
+            # Default behavior for Rapid AAR: require MET role if no specific roles set in dashboard
+            if cmd_name == "metro_rapid_aar":
+                return any("[𝐌𝐄𝐓]" in role.name for role in member.roles)
+            return True
+
+        return any(role.id in allowed_roles for role in member.roles)
 
     async def _get_target_channel(self, user_id: int, link_key: str, fallback: discord.abc.Messageable):
         """Resolves a linked thread for a user from MongoDB, or returns fallback."""
