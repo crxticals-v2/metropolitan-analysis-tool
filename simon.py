@@ -127,68 +127,72 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
     Resolves a Roblox username → (user_id, display_name, avatar_url).
     Returns (None, None, None) on any failure — callers must handle gracefully.
     """
-    if not ARREST_BG_PATH.exists():
-        print(f"[SYSTEM] Warning: Background image not found at {ARREST_BG_PATH}")
-    if not VEHICLE_DB_PATH.exists():
-        print(f"[SYSTEM] Warning: Vehicle DB not found at {VEHICLE_DB_PATH}")
-
     headers = {
         "x-api-key": ROBLOX_API_KEY,
         "Content-Type": "application/json",
         "User-Agent": "Metropolitan-SIMON/2.1 (Google-Cloud-VM)"
     }
-    
-    # Explicit timeout to prevent hanging on IPv6/DNS resolution
-    timeout = aiohttp.ClientTimeout(total=20, connect=10)
+
+    timeout = aiohttp.ClientTimeout(total=30, connect=15)
+    connector = aiohttp.TCPConnector(family=socket.AF_INET, force_close=True)
+
+    async def safe_get_json(session, url, **kwargs):
+        for attempt in range(3):
+            try:
+                async with session.get(url, **kwargs) as resp:
+                    if resp.status != 200:
+                        text = await resp.text()
+                        print(f"[ROBLOX API] HTTP {resp.status}: {text[:100]}")
+                        return None
+                    return await resp.json()
+            except asyncio.TimeoutError:
+                print(f"[ROBLOX API] Timeout attempt {attempt+1} for {url}")
+                if attempt == 2:
+                    raise
+                await asyncio.sleep(1.5 * (attempt + 1))
 
     try:
-        # Open Cloud v2: Resolve Username to User ID
-        async with session.get(
-            "https://apis.roblox.com/cloud/v2/users",
-            params={"filter": f"username == '{username}'"},
+        async with aiohttp.ClientSession(
             headers=headers,
-            timeout=timeout
-        ) as resp:
-            if resp.status != 200:
-                print(f"[ROBLOX OPEN CLOUD] User Lookup Status {resp.status} for {username}")
+            timeout=timeout,
+            connector=connector,
+            trust_env=True
+        ) as local_session:
+
+            print(f"[ROBLOX] Resolving username: {username}")
+
+            data = await safe_get_json(
+                local_session,
+                "https://apis.roblox.com/cloud/v2/users",
+                params={"filter": f"username == '{username}'"}
+            )
+
+            if not data or not data.get("users"):
                 return None, None, None
-            data = await resp.json()
 
-        if not data.get("users"):
-            return None, None, None
+            user = data["users"][0]
+            user_id = user["id"]
+            display_name = user.get("displayName") or username
 
-        user = data["users"][0]
-        user_id = user["id"]
-        display_name = user.get("displayName") or username
+            thumb_data = await safe_get_json(
+                local_session,
+                f"https://apis.roblox.com/cloud/v2/users/{user_id}/thumbnail",
+                params={"size": "Size420x420", "format": "Png", "isCircular": "false"}
+            )
 
+            if not thumb_data:
+                return None, None, None
+
+            avatar_url = thumb_data.get("imageUri")
+
+            return user_id, display_name, avatar_url
+
+    except asyncio.TimeoutError:
+        print(f"[ROBLOX API] FINAL TIMEOUT for {username}")
+        return None, None, None
     except Exception as e:
         print(f"[ROBLOX API] Exception resolving username '{username}': {repr(e)}")
         return None, None, None
-
-    try:
-        # Open Cloud v2: Fetch Headshot Thumbnail
-        async with session.get(
-            f"https://apis.roblox.com/cloud/v2/users/{user_id}/thumbnail",
-            params={"size": "Size420x420", "format": "Png", "isCircular": "false"},
-            headers=headers,
-            timeout=timeout
-        ) as resp:
-            if resp.status != 200:
-                error_text = await resp.text()
-                print(f"[ROBLOX OPEN CLOUD] Avatar Status {resp.status} for {user_id}: {error_text[:100]}")
-                return None, None, None
-            thumb_data = await resp.json()
-
-        # The Open Cloud v2 key is 'imageUri'
-        avatar_url = thumb_data.get("imageUri")
-        if not avatar_url:
-            print(f"[ROBLOX OPEN CLOUD] Warning: 'imageUri' missing in response for {user_id}")
-
-    except Exception as e:
-        print(f"[ROBLOX API] Exception during avatar fetch for {username}: {repr(e)}")
-        avatar_url = None
-
-    return user_id, display_name, avatar_url
 
 
 # ==========================================
