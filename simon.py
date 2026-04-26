@@ -14,6 +14,7 @@ import asyncio
 import io
 import math
 import os
+import socket
 from pathlib import Path
 
 import aiohttp
@@ -138,13 +139,13 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
     }
     
     # Explicit timeout to prevent hanging on IPv6/DNS resolution
-    timeout = aiohttp.ClientTimeout(total=15, connect=5)
+    timeout = aiohttp.ClientTimeout(total=20, connect=10)
 
     try:
         # Open Cloud v2: Resolve Username to User ID
         async with session.get(
             "https://apis.roblox.com/cloud/v2/users",
-            params={"filter": f'username == "{username}"'},
+            params={"filter": f"username == '{username}'"},
             headers=headers,
             timeout=timeout
         ) as resp:
@@ -178,7 +179,10 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
                 return None, None, None
             thumb_data = await resp.json()
 
-        avatar_url = thumb_data.get("thumbnailUrl")
+        # The Open Cloud v2 key is 'imageUri'
+        avatar_url = thumb_data.get("imageUri")
+        if not avatar_url:
+            print(f"[ROBLOX OPEN CLOUD] Warning: 'imageUri' missing in response for {user_id}")
 
     except Exception as e:
         print(f"[ROBLOX API] Exception during avatar fetch for {username}: {repr(e)}")
@@ -233,19 +237,14 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
         bg_template = bg_file.convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ))
 
     # Use a standard timeout for the whole session on the VM
-    timeout = aiohttp.ClientTimeout(total=30)
+    timeout = aiohttp.ClientTimeout(total=40, connect=10)
+    connector = aiohttp.TCPConnector(family=socket.AF_INET)
     
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        # Optimization: Fetch all suspect metadata concurrently
-        tasks = [fetch_roblox_data(session, s["_id"]) for s in suspects[:6]]
-        roblox_results = await asyncio.gather(*tasks)
-        
-        # Map results back to suspects
-        metadata_map = {
-            suspects[i]["_id"]: roblox_results[i] 
-            for i in range(len(roblox_results))
-        }
-
+    async with aiohttp.ClientSession(
+        timeout=timeout, 
+        connector=connector, 
+        trust_env=True
+    ) as session:
         for idx, suspect in enumerate(suspects[:6]):
             col = idx % COLS
             row = idx // COLS
@@ -253,7 +252,11 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
             cell_x = PADDING + col * (CELL_W + PADDING)
             cell_y = PADDING + row * (CELL_H + PADDING)
             
-            _, _, avatar_url = metadata_map.get(suspect["_id"], (None, None, None))
+            # Fetch Roblox metadata individually to avoid concurrent burst timeouts
+            _, _, avatar_url = await fetch_roblox_data(session, suspect["_id"])
+            
+            # Small sleep to stabilize connection on GCP VM
+            await asyncio.sleep(0.2)
             
             # card background
             draw.rounded_rectangle(
@@ -576,7 +579,11 @@ class Simon(commands.Cog):
             map_file    : discord.File | None  — map overlay attachment
             avatar_file : discord.File | None  — composited profile picture
         """
-        async with aiohttp.ClientSession() as session:
+        connector = aiohttp.TCPConnector(family=socket.AF_INET)
+        async with aiohttp.ClientSession(
+            connector=connector, 
+            trust_env=True
+        ) as session:
             # Use cache if available
             if roblox_username.lower() in self._roblox_cache:
                 _, display_name, image_url = self._roblox_cache[roblox_username.lower()]
@@ -732,7 +739,11 @@ class Simon(commands.Cog):
         top_rep_name = "Unknown"
         if top_members:
             top_rep_name = top_members[0]["_id"]
-            async with aiohttp.ClientSession() as session:
+            connector = aiohttp.TCPConnector(family=socket.AF_INET)
+            async with aiohttp.ClientSession(
+                connector=connector, 
+                trust_env=True
+            ) as session:
                 _, _, avatar_url = await fetch_roblox_data(session, top_rep_name)
                 if avatar_url:
                     async with session.get(avatar_url) as resp:
