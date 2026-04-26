@@ -14,8 +14,8 @@ import asyncio
 import io
 import math
 import os
-from pathlib import Path
 import socket
+from pathlib import Path
 
 import aiohttp
 import discord
@@ -26,6 +26,7 @@ from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 import json
 
+from config import ROBLOX_API_KEY
 from llm import call_llm
 from map_renderer import draw_heatmap_overlay, draw_map_path
 
@@ -126,71 +127,109 @@ async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
     Resolves a Roblox username → (user_id, display_name, avatar_url).
     Returns (None, None, None) on any failure — callers must handle gracefully.
     """
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-    try:
-        async with session.post(
-            "https://users.roblox.com/v1/usernames/users",
-            json={"usernames": [username], "excludeBannedUsers": False},
-            headers=headers
-        ) as resp:
-            print(f"[ROBLOX API] Username resolution HTTP status: {resp.status}")
+    headers = {
+        "x-api-key": ROBLOX_API_KEY,
+        "Content-Type": "application/json",
+        "User-Agent": "Metropolitan-SIMON/2.1 (Google-Cloud-VM)"
+    }
+
+    timeout = aiohttp.ClientTimeout(total=30, connect=15)
+
+    async def safe_post_json(url, payload, retries=4):
+        last_err = None
+
+        for attempt in range(retries):
             try:
-                raw_text = await resp.text()
-                print(f"[ROBLOX API] Username resolution raw response: {raw_text}")
-                data = await resp.json()
-            except Exception as e:
-                print(f"[ROBLOX API] Username resolution JSON parse error: {type(e).__name__}: {e}")
-                return None, None, None
+                async with session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
+                    if resp.status == 404:
+                        text = await resp.text()
+                        print(f"[ROBLOX API] 404: {text[:200]}")
+                        return None
 
-            if resp.status != 200:
-                print(f"[ROBLOX API] Username resolution failed with status {resp.status}")
+                    if resp.status != 200:
+                        text = await resp.text()
+                        print(f"[ROBLOX API] HTTP {resp.status}: {text[:200]}")
+                        last_err = Exception(f"HTTP {resp.status}")
+                    else:
+                        return await resp.json()
 
-        if not data.get("data"):
+            except (asyncio.TimeoutError, aiohttp.ClientError, OSError) as e:
+                last_err = e
+                print(f"[ROBLOX API] POST attempt {attempt + 1} failed: {repr(e)}")
+
+            await asyncio.sleep(min(6, 0.5 * (2 ** attempt)))
+
+        print(f"[ROBLOX API] FINAL POST FAILURE: {repr(last_err)}")
+        return None
+
+    async def safe_get_json(url, retries=4):
+        # Uses the proper Roblox Thumbnails API instead of the legacy
+        # www.roblox.com redirect, which is blocked by Cloudflare on GCP/datacenter IPs.
+        last_err = None
+
+        for attempt in range(retries):
+            try:
+                async with session.get(url, headers=headers, timeout=timeout) as resp:
+                    if resp.status != 200:
+                        text = await resp.text()
+                        print(f"[ROBLOX API] HEADSHOT HTTP {resp.status}: {text[:200]}")
+                        last_err = Exception(f"HTTP {resp.status}")
+                    else:
+                        return await resp.json()
+
+            except (asyncio.TimeoutError, aiohttp.ClientError, OSError) as e:
+                last_err = e
+                print(f"[ROBLOX API] HEADSHOT attempt {attempt + 1} failed: {repr(e)}")
+
+            await asyncio.sleep(min(6, 0.5 * (2 ** attempt)))
+
+        print(f"[ROBLOX API] FINAL HEADSHOT FAILURE: {repr(last_err)}")
+        return None
+
+    try:
+        print(f"[ROBLOX] Resolving username: {username}")
+
+        data = await safe_post_json(
+            "https://users.roblox.com/v1/usernames/users",
+            {
+                "usernames": [username],
+                "excludeBannedUsers": True
+            }
+        )
+
+        if not data or not data.get("data"):
             return None, None, None
 
         user = data["data"][0]
-        user_id = user["id"]
-        display_name = user.get("displayName") or user.get("name") or username
+        user_id = user.get("id")
+        display_name = user.get("name") or user.get("requestedUsername") or username
 
-    except Exception as e:
-        print(f"[ROBLOX API] User Resolution Exception: {type(e).__name__}: {e}")
-        return None, None, None
-
-    try:
-        async with session.get(
-            "https://thumbnails.roblox.com/v1/users/avatar-headshot",
-            params={"userIds": user_id, "size": "420x420", "format": "Png", "isCircular": "false"},
-            headers=headers
-        ) as resp:
-            print(f"[ROBLOX API] Avatar fetch HTTP status: {resp.status} for user_id={user_id}")
-
-            try:
-                raw_thumb_text = await resp.text()
-                print(f"[ROBLOX API] Avatar raw response: {raw_thumb_text}")
-                thumb_data = await resp.json()
-            except Exception as e:
-                print(f"[ROBLOX API] Avatar JSON parse error: {type(e).__name__}: {e}")
-                thumb_data = None
-
-            if resp.status != 200:
-                print(f"[ROBLOX API] Avatar fetch failed with status {resp.status} for user_id={user_id}")
-
+        # Use the Roblox Thumbnails API — returns a JSON response with the CDN image URL.
+        # The old www.roblox.com/headshot-thumbnail endpoint uses a Cloudflare redirect
+        # that is blocked for datacenter IPs (GCP, AWS, etc.), causing silent timeouts.
+        thumb_data = await safe_get_json(
+            f"https://thumbnails.roblox.com/v1/users/avatar-headshot"
+            f"?userIds={user_id}&size=420x420&format=Png&isCircular=false"
+        )
         avatar_url = None
         if thumb_data and thumb_data.get("data"):
             avatar_url = thumb_data["data"][0].get("imageUrl")
 
-    except Exception as e:
-        print(f"[ROBLOX API] Avatar fetch exception: {type(e).__name__}: {e}")
-        avatar_url = None
+        return user_id, display_name, avatar_url
 
-    return user_id, display_name, avatar_url
+    except asyncio.TimeoutError:
+        print(f"[ROBLOX API] FINAL TIMEOUT for {username}")
+        return None, None, None
+    except Exception as e:
+        print(f"[ROBLOX API] Exception resolving username '{username}': {repr(e)}")
+        return None, None, None
 
 
 # ==========================================
 # WATCHLIST: COMPOSITE IMAGE BUILDER
 # ==========================================
 
-async def build_watchlist_grid(session: aiohttp.ClientSession, suspects: list) -> io.BytesIO | None:
+async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
     """
     suspects: list of dicts with keys:
         _id   (str)  – suspect name (lowercase)
@@ -214,94 +253,105 @@ async def build_watchlist_grid(session: aiohttp.ClientSession, suspects: list) -
     grid = Image.new("RGB", (grid_w, grid_h), BG_COLOR)
     draw = ImageDraw.Draw(grid)
 
+    print(f"[WATCHLIST] Starting grid build for {len(suspects)} suspects...")
+
     # ── Font: try to load a small TTF; fall back gracefully ────── 
     try:
         font_name  = ImageFont.load_default(size=14)
         font_count = ImageFont.load_default(size=12)
-    except Exception:
+    except Exception as e:
+        print(f"[WATCHLIST] Font loading warning: {e}")
         font_name  = ImageFont.load_default()
         font_count = ImageFont.load_default()
 
+    if not ARREST_BG_PATH.exists():
+        print(f"[WATCHLIST] CRITICAL: Background {ARREST_BG_PATH} missing.")
     # Pre-load background to avoid repeated disk I/O in the loop
     with Image.open(ARREST_BG_PATH) as bg_file:
         bg_template = bg_file.convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ))
 
-    # session is now passed as an argument
-    # Optimization: Fetch all suspect metadata concurrently
-    tasks = [fetch_roblox_data(session, s["_id"]) for s in suspects[:6]]
-    roblox_results = await asyncio.gather(*tasks)
+    # Use a standard timeout for the whole session on the VM
+    timeout = aiohttp.ClientTimeout(total=40, connect=10)
+    connector = aiohttp.TCPConnector(family=socket.AF_INET)
     
-    # Map results back to suspects
-    metadata_map = {
-        suspects[i]["_id"]: roblox_results[i] 
-        for i in range(len(roblox_results))
-    }
+    async with aiohttp.ClientSession(
+        timeout=timeout, 
+        connector=connector, 
+        trust_env=True
+    ) as session:
+        for idx, suspect in enumerate(suspects[:6]):
+            col = idx % COLS
+            row = idx // COLS
 
-    for idx, suspect in enumerate(suspects[:6]):
-        col = idx % COLS
-        row = idx // COLS
+            cell_x = PADDING + col * (CELL_W + PADDING)
+            cell_y = PADDING + row * (CELL_H + PADDING)
+            
+            # Fetch Roblox metadata individually to avoid concurrent burst timeouts
+            _, _, avatar_url = await fetch_roblox_data(session, suspect["_id"])
+            
+            # Small sleep to stabilize connection on GCP VM
+            await asyncio.sleep(0.2)
+            
+            # card background
+            draw.rounded_rectangle(
+                [cell_x, cell_y, cell_x + CELL_W, cell_y + CELL_H],
+                radius=10,
+                fill=CARD_COLOR
+            )
 
-        cell_x = PADDING + col * (CELL_W + PADDING)
-        cell_y = PADDING + row * (CELL_H + PADDING)
-        
-        _, _, avatar_url = metadata_map.get(suspect["_id"], (None, None, None))
-        
-        # card background
-        draw.rounded_rectangle(
-            [cell_x, cell_y, cell_x + CELL_W, cell_y + CELL_H],
-            radius=10,
-            fill=CARD_COLOR
-        )
+            # ── Avatar ───────────────────────────────────────────
+            avatar_x = cell_x + (CELL_W - AVATAR_SZ) // 2
+            avatar_y = cell_y + 12
 
-        # ── Avatar ───────────────────────────────────────────
-        avatar_x = cell_x + (CELL_W - AVATAR_SZ) // 2
-        avatar_y = cell_y + 12
-
-        if avatar_url:
-            try:
-                async with session.get(avatar_url) as resp:
-                    raw = await resp.read()
-                avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ), Image.LANCZOS)
-                
-                # Create composite using pre-loaded template
-                composite = bg_template.copy()
-                # Composite transparent avatar onto the arrest background
-                composite.paste(avatar_img, (0, 0), avatar_img)
-                grid.paste(composite.convert("RGB"), (avatar_x, avatar_y))
+            if avatar_url:
+                try:
+                    async with session.get(avatar_url) as resp:
+                        if resp.status != 200:
+                            print(f"[WATCHLIST] Failed to download avatar image: HTTP {resp.status}")
+                        raw = await resp.read()
+                    avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((AVATAR_SZ, AVATAR_SZ), Image.LANCZOS)
                     
-            except Exception:
-                # grey placeholder if download fails
+                    # Create composite using pre-loaded template
+                    composite = bg_template.copy()
+                    # Composite transparent avatar onto the arrest background
+                    composite.paste(avatar_img, (0, 0), avatar_img)
+                    grid.paste(composite.convert("RGB"), (avatar_x, avatar_y))
+                        
+                except Exception as e:
+                    print(f"[WATCHLIST] Exception processing image for {suspect['_id']}: {repr(e)}")
+                    # grey placeholder if download fails
+                    draw.rectangle(
+                        [avatar_x, avatar_y, avatar_x + AVATAR_SZ, avatar_y + AVATAR_SZ],
+                        fill=(60, 60, 70)
+                    )
+            else:
                 draw.rectangle(
                     [avatar_x, avatar_y, avatar_x + AVATAR_SZ, avatar_y + AVATAR_SZ],
                     fill=(60, 60, 70)
                 )
-        else:
-            draw.rectangle(
-                [avatar_x, avatar_y, avatar_x + AVATAR_SZ, avatar_y + AVATAR_SZ],
-                fill=(60, 60, 70)
-            )
 
-        # ── Labels ───────────────────────────────────────────
-        label_y_name  = cell_y + AVATAR_SZ + 22
-        label_y_count = label_y_name + 20
+            # ── Labels ───────────────────────────────────────────
+            label_y_name  = cell_y + AVATAR_SZ + 22
+            label_y_count = label_y_name + 20
 
-        display = suspect["_id"].title()
-        if len(display) > 20:
-            display = display[:18] + "…"
+            display = suspect["_id"].title()
+            if len(display) > 20:
+                display = display[:18] + "…"
 
-        # centre-align text manually (bbox)
-        try:
-            name_bbox  = draw.textbbox((0, 0), display, font=font_name)
-            count_bbox = draw.textbbox((0, 0), f"{suspect['count']} crimes committed.", font=font_count)
-            name_x  = cell_x + (CELL_W - (name_bbox[2]  - name_bbox[0]))  // 2
-            count_x = cell_x + (CELL_W - (count_bbox[2] - count_bbox[0])) // 2
-        except Exception:
-            name_x  = cell_x + 10
-            count_x = cell_x + 10
+            # centre-align text manually (bbox)
+            try:
+                name_bbox  = draw.textbbox((0, 0), display, font=font_name)
+                count_bbox = draw.textbbox((0, 0), f"{suspect['count']} crimes committed.", font=font_count)
+                name_x  = cell_x + (CELL_W - (name_bbox[2]  - name_bbox[0]))  // 2
+                count_x = cell_x + (CELL_W - (count_bbox[2] - count_bbox[0])) // 2
+            except Exception:
+                name_x  = cell_x + 10
+                count_x = cell_x + 10
 
-        draw.text((name_x,  label_y_name),  display,                  fill=NAME_COLOR,  font=font_name)
-        draw.text((count_x, label_y_count), f"{suspect['count']} crimes committed.", fill=COUNT_COLOR, font=font_count)
+            draw.text((name_x,  label_y_name),  display,                  fill=NAME_COLOR,  font=font_name)
+            draw.text((count_x, label_y_count), f"{suspect['count']} crimes committed.", fill=COUNT_COLOR, font=font_count)
 
+    print("[WATCHLIST] Grid build complete.")
     buf = io.BytesIO()
     grid.save(buf, format="PNG")
     buf.seek(0)
@@ -339,6 +389,9 @@ async def build_gang_logo_grid(gang_shorthands: list) -> io.BytesIO | None:
                 continue
         else:
             print(f"[GANG LOGO] File missing: {shorthand}. Checked variations in {BASE_DIR}")
+    
+    if not logos:
+        return None
 
     # Determine grid dimensions (e.g., single row)
     # Assuming all logos are roughly square, let's resize them to a standard size
@@ -495,7 +548,6 @@ class Simon(commands.Cog):
         self._roblox_cache = {}  # Cache for (user_id, display_name, avatar_url)
         self.settings = self.bot.mongo_client["erlc_database"]["settings"]
         # Cache valid nodes string for LLM extraction efficiency
-        self.http = None
         self._nodes_prompt_cache = "\n".join(
             f"{nid}: {info.get('poi', 'Unknown')}"
             for nid, info in self.bot.erlc_graph.nodes_data.items()
@@ -504,12 +556,9 @@ class Simon(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         # Ensure the bot is ready before starting the loop
-        if self.http is None:
-            timeout = aiohttp.ClientTimeout(total=20, connect=5, sock_connect=10)
-            connector = aiohttp.TCPConnector(limit=50, family=socket.AF_INET)
-            self.http = aiohttp.ClientSession(timeout=timeout, connector=connector)
-            print("[SIMON] HTTP session initialized with custom timeout and connector settings.")
+        
         # Pre-render and cache the gang logos composite image for performance
+        print(f"[SIMON] Running in directory: {os.getcwd()}")
         if self.gang_logos_cache is None:
             print("[SIMON] Caching gang logo composite image...")
             gangs = ["77th", "WCC", "NSH"]
@@ -517,6 +566,7 @@ class Simon(commands.Cog):
             print("[SIMON] Gang logo cache initialized.")
 
         if not self.update_hourly_watchlist.is_running():
+            print("[WATCHLIST] Starting hourly update loop...")
             self.update_hourly_watchlist.start()
 
     async def get_watchlist_channel_id(self):
@@ -563,123 +613,134 @@ class Simon(commands.Cog):
             map_file    : discord.File | None  — map overlay attachment
             avatar_file : discord.File | None  — composited profile picture
         """
-        session = self.http
-        # Use cache if available
-        if roblox_username.lower() in self._roblox_cache:
-            _, display_name, image_url = self._roblox_cache[roblox_username.lower()]
-        else:
-            _, display_name, image_url = await fetch_roblox_data(session, roblox_username)
+        connector = aiohttp.TCPConnector(family=socket.AF_INET)
+        async with aiohttp.ClientSession(
+            connector=connector, 
+            trust_env=True
+        ) as session:
+            # Use cache if available
+            if roblox_username.lower() in self._roblox_cache:
+                _, display_name, image_url = self._roblox_cache[roblox_username.lower()]
+            else:
+                _, display_name, image_url = await fetch_roblox_data(session, roblox_username)
 
-        # ── Crime history ────────────────────────────────────────────
-        logs_cursor = (
-            self.bot.suspect_logs
-            .find({"suspect_name": roblox_username.lower()})
-            .sort("timestamp", -1)
-            .limit(20)
-        )
-        logs = await logs_cursor.to_list(length=20)
+            # ── Crime history ────────────────────────────────────────────
+            logs_cursor = (
+                self.bot.suspect_logs
+                .find({"suspect_name": roblox_username.lower()})
+                .sort("timestamp", -1)
+                .limit(20)
+            )
+            logs = await logs_cursor.to_list(length=20)
 
-        if not logs:
-            return [], (None, None)
+            if not logs:
+                return [], (None, None)
 
-        # ── Process Avatar with Background (Reusing outer session) ───
-        avatar_file = None
-        if image_url:
-            async with session.get(image_url) as resp:
-                raw = await resp.read()
+            # ── Process Avatar with Background (Reusing outer session) ───
+            print(f"[PROFILER] Downloading avatar for {roblox_username}...")
+            avatar_file = None
+            if image_url:
+                try:
+                    async with session.get(image_url) as resp:
+                        if resp.status != 200:
+                            print(f"[PROFILER] Failed to download avatar image: HTTP {resp.status}")
+                        raw = await resp.read()
 
-            avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
-            with Image.open(ARREST_BG_PATH) as bg:
-                composite = bg.convert("RGBA").resize((420, 420))
-                composite.paste(avatar_img, (0, 0), avatar_img)
+                    avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
+                    with Image.open(ARREST_BG_PATH) as bg:
+                        composite = bg.convert("RGBA").resize((420, 420))
+                        composite.paste(avatar_img, (0, 0), avatar_img)
 
-                buf = io.BytesIO()
-                composite.convert("RGB").save(buf, format="PNG", optimize=True)
-                buf.seek(0)
-                avatar_file = discord.File(fp=buf, filename="profile_avatar.png")
+                        buf = io.BytesIO()
+                        composite.convert("RGB").save(buf, format="PNG", optimize=True)
+                        buf.seek(0)
+                        avatar_file = discord.File(fp=buf, filename="profile_avatar.png")
+                except Exception as e:
+                    print(f"[PROFILER] Exception processing avatar for {roblox_username}: {repr(e)}")
 
-        # ── Paginate (5 crimes per page) ─────────────────────────────
-        pages = []
-        for i in range(0, len(logs), 5):
-            chunk = logs[i:i + 5]
-            desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Intelligence Profile: {roblox_username}\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+            # ── Paginate (5 crimes per page) ─────────────────────────────
+            pages = []
+            for i in range(0, len(logs), 5):
+                chunk = logs[i:i + 5]
+                desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Intelligence Profile: {roblox_username}\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
 
-            for log in chunk:
-                desc += (
-                    f"\n**Crime:** {log.get('crimes', 'Unknown')}\n"
-                f"**Location:** {log.get('poi') or log.get('postal') or log.get('location_raw') or 'Unknown'}\n"
-                    "**━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
-                )
+                for log in chunk:
+                    desc += (
+                        f"\n**Crime:** {log.get('crimes', 'Unknown')}\n"
+                    f"**Location:** {log.get('poi') or log.get('postal') or log.get('location_raw') or 'Unknown'}\n"
+                        "**━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+                    )
 
-            embed = discord.Embed(description=desc, color=discord.Color.dark_red())
-            if avatar_file:
-                embed.set_thumbnail(url="attachment://profile_avatar.png")
-            pages.append(embed)
+                embed = discord.Embed(description=desc, color=discord.Color.dark_red())
+                if avatar_file:
+                    embed.set_thumbnail(url="attachment://profile_avatar.png")
+                pages.append(embed)
 
-        # ── POI frequency → map overlay ──────────────────────────────
-        poi_counts = {}
-        for log in logs:
-            poi = log.get("poi") or log.get("postal")
-            if poi:
-                poi_counts[poi] = poi_counts.get(poi, 0) + 1
+            # ── POI frequency → map overlay ──────────────────────────────
+            poi_counts = {}
+            for log in logs:
+                poi = log.get("poi") or log.get("postal")
+                if poi:
+                    poi_counts[poi] = poi_counts.get(poi, 0) + 1
 
-        top_pois = sorted(poi_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-        nodes = []
-        for poi, _ in top_pois:
-            resolved = self.bot.erlc_graph.resolve_target(poi)
-            if resolved:
-                nodes.append(resolved)
+            top_pois = sorted(poi_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+            nodes = []
+            for poi, _ in top_pois:
+                resolved = self.bot.erlc_graph.resolve_target(poi)
+                if resolved:
+                    nodes.append(resolved)
 
-        paths_to_draw = []
-        for i in range(len(nodes) - 1):
-            try:
-                path = nx.shortest_path(
-                    self.bot.erlc_graph.graph, nodes[i], nodes[i + 1], weight="weight"
-                )
-                paths_to_draw.append(path)
-            except Exception:
-                continue
+            paths_to_draw = []
+            for i in range(len(nodes) - 1):
+                try:
+                    path = nx.shortest_path(
+                        self.bot.erlc_graph.graph, nodes[i], nodes[i + 1], weight="weight"
+                    )
+                    paths_to_draw.append(path)
+                except Exception:
+                    continue
 
-        loop = asyncio.get_running_loop()
-        map_buffer = await loop.run_in_executor(
-            None, draw_map_path, self.bot.erlc_graph, paths_to_draw
-        )
-
-        if pages and map_buffer:
-            pages[0].set_image(url="attachment://profile_map.png")
-
-        map_file = discord.File(fp=map_buffer, filename="profile_map.png") if map_buffer else None
-
-        # ── LLM behavioural analysis (first page only) ───────────────
-        prompt = f"""
-Analyze the suspect's spatial behavior and geographical footprint.
-Username: {roblox_username}
-Recent History (Crime + Location): {[{'crime': l.get('crimes'), 'loc': l.get('location_raw')} for l in logs[:10]]}
-Frequented POIs: {list(poi_counts.keys())}
-
-TASK: Identify physical location patterns. Determine which areas they treat as "start points" versus "targets." 
-Focus on where they typically rob and their habitual origin points (where they come from). 
-Avoid categorizing by robbery "value" or "tier"; prioritize their movement logic and POI clusters.
-Provide ONLY the analysis text. Do NOT include preambles or postambles.
-"""
-        llm_result = await call_llm(prompt)
-        analysis = "Unavailable"
-        if llm_result and isinstance(llm_result, dict):
-            analysis = (
-                llm_result.get("prediction", {}).get("reasoning")
-                or llm_result.get("analysis")
-                or "No analysis generated."
+            loop = asyncio.get_running_loop()
+            map_buffer = await loop.run_in_executor(
+                None, draw_map_path, self.bot.erlc_graph, paths_to_draw
             )
 
-        if pages:
-            pages[0].add_field(name="🧠 S.I.M.O.N. Behavioural Analysis", value=f"> {analysis[:1000]}", inline=False)
+            if pages and map_buffer:
+                pages[0].set_image(url="attachment://profile_map.png")
 
-        return pages, (map_file, avatar_file)
+            map_file = discord.File(fp=map_buffer, filename="profile_map.png") if map_buffer else None
+
+            # ── LLM behavioural analysis (first page only) ───────────────
+            prompt = f"""
+    Analyze the suspect's spatial behavior and geographical footprint.
+    Username: {roblox_username}
+    Recent History (Crime + Location): {[{'crime': l.get('crimes'), 'loc': l.get('location_raw')} for l in logs[:10]]}
+    Frequented POIs: {list(poi_counts.keys())}
+
+    TASK: Identify physical location patterns. Determine which areas they treat as "start points" versus "targets." 
+    Focus on where they typically rob and their habitual origin points (where they come from). 
+    Avoid categorizing by robbery "value" or "tier"; prioritize their movement logic and POI clusters.
+    Provide ONLY the analysis text. Do NOT include preambles or postambles.
+    """
+            llm_result = await call_llm(prompt)
+            analysis = "Unavailable"
+            if llm_result and isinstance(llm_result, dict):
+                analysis = (
+                    llm_result.get("prediction", {}).get("reasoning")
+                    or llm_result.get("analysis")
+                    or "No analysis generated."
+                )
+
+            if pages:
+                pages[0].add_field(name="🧠 S.I.M.O.N. Behavioural Analysis", value=f"> {analysis[:1000]}", inline=False)
+
+            return pages, (map_file, avatar_file)
 
 
     async def build_gang_profiler(self, gang_shorthand: str):
         """Generates a profile for a specific gang based on logs and manual MO."""
         gang_config = await self.settings.find_one({"_id": f"gang_{gang_shorthand}"})
+        gang_config = gang_config or {}
         
         # Aggregation for top members
         pipeline = [
@@ -712,19 +773,23 @@ Provide ONLY the analysis text. Do NOT include preambles or postambles.
         top_rep_name = "Unknown"
         if top_members:
             top_rep_name = top_members[0]["_id"]
-            session = self.http
-            _, _, avatar_url = await fetch_roblox_data(session, top_rep_name)
-            if avatar_url:
-                async with session.get(avatar_url) as resp:
-                    raw = await resp.read()
-                avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
-                with Image.open(ARREST_BG_PATH) as bg:
-                    composite = bg.convert("RGBA").resize((420, 420))
-                    composite.paste(avatar_img, (0, 0), avatar_img)
-                    buf = io.BytesIO()
-                    composite.convert("RGB").save(buf, format="PNG")
-                    buf.seek(0)
-                    avatar_file = discord.File(fp=buf, filename="gang_top_rep.png")
+            connector = aiohttp.TCPConnector(family=socket.AF_INET)
+            async with aiohttp.ClientSession(
+                connector=connector, 
+                trust_env=True
+            ) as session:
+                _, _, avatar_url = await fetch_roblox_data(session, top_rep_name)
+                if avatar_url:
+                    async with session.get(avatar_url) as resp:
+                        raw = await resp.read()
+                    avatar_img = Image.open(io.BytesIO(raw)).convert("RGBA").resize((420, 420), Image.LANCZOS)
+                    with Image.open(ARREST_BG_PATH) as bg:
+                        composite = bg.convert("RGBA").resize((420, 420))
+                        composite.paste(avatar_img, (0, 0), avatar_img)
+                        buf = io.BytesIO()
+                        composite.convert("RGB").save(buf, format="PNG")
+                        buf.seek(0)
+                        avatar_file = discord.File(fp=buf, filename="gang_top_rep.png")
 
         # LLM Synthesis of the manual MO
         prompt = f"Summarize this gang MO intelligence for a tactical briefing. Focus on patterns and threats: {mo_text}. Do NOT include any preambles or postambles."
@@ -765,6 +830,7 @@ Provide ONLY the analysis text. Do NOT include preambles or postambles.
 
     async def _generate_gang_watchlist_content(self):
         """Aggregates crime data by gang and identifies the top representative for each."""
+        print("[WATCHLIST] Compiling gang analytics...")
         gangs = ["77th", "WCC", "NSH"]
         gang_stats = []
         
@@ -788,6 +854,7 @@ Provide ONLY the analysis text. Do NOT include preambles or postambles.
                 "top_rep": top_sus["_id"],
                 "rep_count": top_sus["count"]
             })
+        print(f"[WATCHLIST] Gang stats compiled for: {[g['gang'] for g in gang_stats]}")
 
         # Use cached gang logo image
         gang_logo_file = discord.utils.MISSING
@@ -824,26 +891,31 @@ Provide ONLY the analysis text. Do NOT include preambles or postambles.
 
     async def _generate_suspect_watchlist_content(self):
         """Helper to generate the embed, file, and view for the watchlist."""
+        print("[WATCHLIST] Fetching top suspect data from MongoDB...")
         # 1. Aggregate top 6 suspects by total crime count
         top_suspects_pipeline = [
             {
                 "$group": {
                     "_id": "$suspect_name",
                     "count": {"$sum": 1},
-                    "last_crime":    {"$last": "$crimes"},
                     "last_seen":     {"$last": "$timestamp"}
                 }
             },
             {"$sort":  {"count": -1}},
             {"$limit": 6}
         ]
-        cursor = self.bot.suspect_logs.aggregate(top_suspects_pipeline)
-        top_suspects = await cursor.to_list(length=6)
-
+        try:
+            cursor = self.bot.suspect_logs.aggregate(top_suspects_pipeline)
+            top_suspects = await cursor.to_list(length=6)
+        except Exception as e:
+            print(f"[WATCHLIST] MongoDB Aggregation Error: {e}")
+            return None, None, None
+            
+        print(f"[WATCHLIST] Found {len(top_suspects)} top suspects.")
         if not top_suspects:
-            return None, None, None # Indicate no content
+            print("[WATCHLIST] Aggregation returned 0 results. Check if suspect_logs collection is empty.")
+            return None, None, None
 
-        # 2. Batch resolve most frequent locations for all top suspects (Reduces 6 queries to 1)
         names = [s["_id"] for s in top_suspects]
         freq_pipeline = [
             {"$match": {"suspect_name": {"$in": names}, "postal": {"$ne": None}}},
@@ -862,10 +934,13 @@ Provide ONLY the analysis text. Do NOT include preambles or postambles.
             else:
                 suspect["most_frequent_location"] = "UNK"
 
+        print("[WATCHLIST] Locations resolved. Starting grid generation...")
         # 2. Build 2×3 headshot grid
-        grid_buffer = await build_watchlist_grid(self.http, top_suspects)
+        print(f"[WATCHLIST] Building visual grid for {len(top_suspects)} suspects...")
+        grid_buffer = await build_watchlist_grid(top_suspects)
         if not grid_buffer:
-            return None, None, None
+            print("[WATCHLIST] Warning: build_watchlist_grid returned None.")
+            # We continue even if the image fails, though the generator might return None later
 
         # 3. Compose main embed
         embed = discord.Embed(
@@ -907,12 +982,14 @@ Provide ONLY the analysis text. Do NOT include preambles or postambles.
     @tasks.loop(hours=1.0)
     async def update_hourly_watchlist(self):
         await self.bot.wait_until_ready() # Ensure bot is fully ready
+        print("[WATCHLIST] Triggering hourly update cycle...")
 
         # Fetch the last watchlist message ID from the database
         state = await self.bot.bot_state.find_one({"_id": "watchlist_state"})
         state = state or {}
         last_suspect_id = state.get("last_suspect_msg_id")
         last_gang_id = state.get("last_gang_msg_id")
+        print(f"[WATCHLIST] Clean-up: Previous message IDs identified as {last_suspect_id}, {last_gang_id}")
 
         channel_id = await self.get_watchlist_channel_id()
         if not channel_id:
@@ -922,6 +999,7 @@ Provide ONLY the analysis text. Do NOT include preambles or postambles.
         channel = self.bot.get_channel(channel_id)
         if not channel:
             print(f"[WATCHLIST] Error: Watchlist channel with ID {channel_id} not found.")
+            print(f"[WATCHLIST] Available channels: {[c.id for c in self.bot.get_all_channels() if isinstance(c, discord.TextChannel)]}")
             return
 
         # 1. Delete previous messages
@@ -932,15 +1010,20 @@ Provide ONLY the analysis text. Do NOT include preambles or postambles.
                     await old_message.delete()
                 except Exception:
                     pass
+        print("[WATCHLIST] Previous messages cleared (if any).")
 
         # 2. Generate and Send Suspect Watchlist
+        print("[WATCHLIST] Generating suspect watchlist content...")
         s_embed, s_file, s_view = await self._generate_suspect_watchlist_content()
         if not s_embed:
-            print("[WATCHLIST] No suspect records found for hourly update.")
+            print("[WATCHLIST] Early exit: Generator returned no content (s_embed is None).")
             return
+        print("[WATCHLIST] Suspect content generated successfully.")
         
         # 3. Generate and Send Gang Watchlist (now returns file too)
+        print("[WATCHLIST] Generating gang watchlist content...")
         g_embed, g_file, g_view = await self._generate_gang_watchlist_content()
+        print("[WATCHLIST] Gang content generated successfully.")
 
         try:
             if s_file:
@@ -967,7 +1050,8 @@ Provide ONLY the analysis text. Do NOT include preambles or postambles.
         except discord.Forbidden:
             print(f"[WATCHLIST] Error: Missing permissions to send message in {channel.name}.")
         except Exception as e:
-            print(f"[WATCHLIST] Error sending new watchlist: {e}")
+            print(f"[WATCHLIST] Exception sending new watchlist: {repr(e)}")
+            import traceback; traceback.print_exc()
 
 
     # ------------------------------------------------------------------ #
