@@ -18,6 +18,7 @@ import socket
 from pathlib import Path
 
 import aiohttp
+from curl_cffi.requests import AsyncSession as CurlSession
 import discord
 import networkx as nx
 from discord.ext import tasks # Import tasks for hourly updates
@@ -122,104 +123,83 @@ def normalize_postal(postal: str) -> str:
 # ROBLOX HELPER
 # ==========================================
 
-async def fetch_roblox_data(session: aiohttp.ClientSession, username: str):
+async def fetch_roblox_data(username: str):
     """
     Resolves a Roblox username → (user_id, display_name, avatar_url).
     Returns (None, None, None) on any failure — callers must handle gracefully.
+
+    Uses curl_cffi instead of aiohttp to impersonate a real browser TLS fingerprint.
+    aiohttp's TLS signature is flagged by Cloudflare on GCP/datacenter IPs even when
+    the IP itself is not blocked — curl_cffi uses libcurl with Chrome's JA3 fingerprint,
+    which passes the same check that the curl CLI passes.
     """
-    headers = {
-        "x-api-key": ROBLOX_API_KEY,
-        "Content-Type": "application/json",
-        "User-Agent": "Metropolitan-SIMON/2.1 (Google-Cloud-VM)"
-    }
-
-    timeout = aiohttp.ClientTimeout(total=30, connect=15)
-
-    async def safe_post_json(url, payload, retries=4):
+    async def safe_post_json(curl, url, payload, retries=4):
         last_err = None
-
         for attempt in range(retries):
             try:
-                async with session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
-                    if resp.status == 404:
-                        text = await resp.text()
-                        print(f"[ROBLOX API] 404: {text[:200]}")
-                        return None
-
-                    if resp.status != 200:
-                        text = await resp.text()
-                        print(f"[ROBLOX API] HTTP {resp.status}: {text[:200]}")
-                        last_err = Exception(f"HTTP {resp.status}")
-                    else:
-                        return await resp.json()
-
-            except (asyncio.TimeoutError, aiohttp.ClientError, OSError) as e:
+                resp = await curl.post(url, json=payload, timeout=20)
+                if resp.status_code == 404:
+                    print(f"[ROBLOX API] 404: {resp.text[:200]}")
+                    return None
+                if resp.status_code != 200:
+                    print(f"[ROBLOX API] HTTP {resp.status_code}: {resp.text[:200]}")
+                    last_err = Exception(f"HTTP {resp.status_code}")
+                else:
+                    return resp.json()
+            except Exception as e:
                 last_err = e
                 print(f"[ROBLOX API] POST attempt {attempt + 1} failed: {repr(e)}")
-
             await asyncio.sleep(min(6, 0.5 * (2 ** attempt)))
-
         print(f"[ROBLOX API] FINAL POST FAILURE: {repr(last_err)}")
         return None
 
-    async def safe_get_json(url, retries=4):
-        # Uses the proper Roblox Thumbnails API instead of the legacy
-        # www.roblox.com redirect, which is blocked by Cloudflare on GCP/datacenter IPs.
+    async def safe_get_json(curl, url, retries=4):
         last_err = None
-
         for attempt in range(retries):
             try:
-                async with session.get(url, headers=headers, timeout=timeout) as resp:
-                    if resp.status != 200:
-                        text = await resp.text()
-                        print(f"[ROBLOX API] HEADSHOT HTTP {resp.status}: {text[:200]}")
-                        last_err = Exception(f"HTTP {resp.status}")
-                    else:
-                        return await resp.json()
-
-            except (asyncio.TimeoutError, aiohttp.ClientError, OSError) as e:
+                resp = await curl.get(url, timeout=20)
+                if resp.status_code != 200:
+                    print(f"[ROBLOX API] HEADSHOT HTTP {resp.status_code}: {resp.text[:200]}")
+                    last_err = Exception(f"HTTP {resp.status_code}")
+                else:
+                    return resp.json()
+            except Exception as e:
                 last_err = e
                 print(f"[ROBLOX API] HEADSHOT attempt {attempt + 1} failed: {repr(e)}")
-
             await asyncio.sleep(min(6, 0.5 * (2 ** attempt)))
-
         print(f"[ROBLOX API] FINAL HEADSHOT FAILURE: {repr(last_err)}")
         return None
 
     try:
         print(f"[ROBLOX] Resolving username: {username}")
 
-        data = await safe_post_json(
-            "https://users.roblox.com/v1/usernames/users",
-            {
-                "usernames": [username],
-                "excludeBannedUsers": True
-            }
-        )
+        # impersonate="chrome120" makes curl_cffi send Chrome's TLS fingerprint,
+        # which passes Cloudflare's JA3 check on GCP servers.
+        async with CurlSession(impersonate="chrome120") as curl:
+            data = await safe_post_json(
+                curl,
+                "https://users.roblox.com/v1/usernames/users",
+                {"usernames": [username], "excludeBannedUsers": True}
+            )
 
-        if not data or not data.get("data"):
-            return None, None, None
+            if not data or not data.get("data"):
+                return None, None, None
 
-        user = data["data"][0]
-        user_id = user.get("id")
-        display_name = user.get("name") or user.get("requestedUsername") or username
+            user = data["data"][0]
+            user_id = user.get("id")
+            display_name = user.get("name") or user.get("requestedUsername") or username
 
-        # Use the Roblox Thumbnails API — returns a JSON response with the CDN image URL.
-        # The old www.roblox.com/headshot-thumbnail endpoint uses a Cloudflare redirect
-        # that is blocked for datacenter IPs (GCP, AWS, etc.), causing silent timeouts.
-        thumb_data = await safe_get_json(
-            f"https://thumbnails.roblox.com/v1/users/avatar-headshot"
-            f"?userIds={user_id}&size=420x420&format=Png&isCircular=false"
-        )
-        avatar_url = None
-        if thumb_data and thumb_data.get("data"):
-            avatar_url = thumb_data["data"][0].get("imageUrl")
+            thumb_data = await safe_get_json(
+                curl,
+                f"https://thumbnails.roblox.com/v1/users/avatar-headshot"
+                f"?userIds={user_id}&size=420x420&format=Png&isCircular=false"
+            )
+            avatar_url = None
+            if thumb_data and thumb_data.get("data"):
+                avatar_url = thumb_data["data"][0].get("imageUrl")
 
-        return user_id, display_name, avatar_url
+            return user_id, display_name, avatar_url
 
-    except asyncio.TimeoutError:
-        print(f"[ROBLOX API] FINAL TIMEOUT for {username}")
-        return None, None, None
     except Exception as e:
         print(f"[ROBLOX API] Exception resolving username '{username}': {repr(e)}")
         return None, None, None
@@ -275,9 +255,8 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
     connector = aiohttp.TCPConnector(family=socket.AF_INET)
     
     async with aiohttp.ClientSession(
-        timeout=timeout, 
-        connector=connector, 
-        trust_env=True
+        timeout=timeout,
+        connector=connector
     ) as session:
         for idx, suspect in enumerate(suspects[:6]):
             col = idx % COLS
@@ -287,7 +266,7 @@ async def build_watchlist_grid(suspects: list) -> io.BytesIO | None:
             cell_y = PADDING + row * (CELL_H + PADDING)
             
             # Fetch Roblox metadata individually to avoid concurrent burst timeouts
-            _, _, avatar_url = await fetch_roblox_data(session, suspect["_id"])
+            _, _, avatar_url = await fetch_roblox_data(suspect["_id"])
             
             # Small sleep to stabilize connection on GCP VM
             await asyncio.sleep(0.2)
@@ -615,14 +594,13 @@ class Simon(commands.Cog):
         """
         connector = aiohttp.TCPConnector(family=socket.AF_INET)
         async with aiohttp.ClientSession(
-            connector=connector, 
-            trust_env=True
+            connector=connector
         ) as session:
             # Use cache if available
             if roblox_username.lower() in self._roblox_cache:
                 _, display_name, image_url = self._roblox_cache[roblox_username.lower()]
             else:
-                _, display_name, image_url = await fetch_roblox_data(session, roblox_username)
+                _, display_name, image_url = await fetch_roblox_data(roblox_username)
 
             # ── Crime history ────────────────────────────────────────────
             logs_cursor = (
@@ -775,10 +753,9 @@ class Simon(commands.Cog):
             top_rep_name = top_members[0]["_id"]
             connector = aiohttp.TCPConnector(family=socket.AF_INET)
             async with aiohttp.ClientSession(
-                connector=connector, 
-                trust_env=True
+                connector=connector
             ) as session:
-                _, _, avatar_url = await fetch_roblox_data(session, top_rep_name)
+                _, _, avatar_url = await fetch_roblox_data(top_rep_name)
                 if avatar_url:
                     async with session.get(avatar_url) as resp:
                         raw = await resp.read()
