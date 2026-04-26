@@ -680,6 +680,7 @@ class Operations(commands.Cog):
         prompt = f"""
         You are a highly detailed Metropolitan Intelligence Clerk.
         Extract and EXPAND on the After Action Report (AAR) data from this unstructured text into a professional, detailed tactical summary.
+        If the officer is being inappropriate, or the situation is obviously not a valid police/crime scenario, flag it as invalid and do NOT attempt to fabricate details. Even if there are details that seems like police action was taken, it is highly possible it is a troller, trolling.
         Officer: {message.author.display_name}
         Text: "{text}"
 
