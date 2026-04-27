@@ -74,7 +74,7 @@ def _get_zoomed_map(graph, postal: str) -> io.BytesIO | None:
 
     try:
         with Image.open(MAP_PATH) as img:
-            half = 100  # 400x400 crop gives more tactical context than 300x300
+            half = 200  # 400x400 crop gives more tactical context than 300x300
             img_w, img_h = img.size
             # Clamp the box so we never crop outside the image boundaries
             left   = max(0, x - half)

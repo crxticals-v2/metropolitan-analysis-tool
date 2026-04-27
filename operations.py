@@ -390,7 +390,11 @@ class IntelHistoryView(discord.ui.View):
             ts = item['timestamp']
             # Handle both datetime objects and strings if necessary
             time_str = ts.strftime("%Y-%m-%d %H:%M") if hasattr(ts, 'strftime') else str(ts)
-            desc += f"`{time_str}` | **{item['points']:+d}** | {item['reason']}\n"
+            # Support both old (points) and new (weekly_gain/token_gain) history formats
+            if 'weekly_gain' in item:
+                desc += f"`{time_str}` | **+{item['weekly_gain']} Score / +{item['token_gain']} Tokens** | {item['reason']}\n"
+            else:
+                desc += f"`{time_str}` | **{item.get('points', 0):+d}** | {item['reason']}\n"
             
         embed = discord.Embed(description=desc, color=discord.Color.blue())
         embed.set_footer(text=f"Page {self.page + 1}")
@@ -437,24 +441,29 @@ class ShopApprovalView(discord.ui.View):
         if current_points < self.cost:
             return await interaction.response.send_message(f"❌ {self.target_user.display_name} no longer has enough points.", ephemeral=True)
 
-        # Deduct points
-        await self.cog.officer_stats.update_one(
-            {"_id": self.target_user.id},
-            {
-                "$inc": {"intel_points": -self.cost},
-                "$push": {"history": {
-                    "reason": f"Shop Purchase: {self.item_label}", 
-                    "points": -self.cost, 
-                    "timestamp": datetime.datetime.now(datetime.timezone.utc)
-                }}
-            }
-        )
+        # Deduct Career Tokens
+        update_data = {
+            "$inc": {"intel_points": -self.cost},
+            "$push": {"history": {
+                "reason": f"Shop Purchase: {self.item_label}",
+                "token_gain": -self.cost,
+                "weekly_gain": 0,
+                "timestamp": datetime.datetime.now(datetime.timezone.utc)
+            }}
+        }
+
+        # Handle 24hr Multiplier specific logic
+        if self.item_label == "24hr Point Multiplier (1.5x)":
+            expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
+            update_data["$set"] = {"multiplier_expiry": expiry}
+
+        await self.cog.officer_stats.update_one({"_id": self.target_user.id}, update_data)
 
         # Update Embed
         embed = interaction.message.embeds[0]
         embed.title = None
         embed.color = discord.Color.green()
-        embed.set_field_at(0, name="Status", value="✅ Approved", inline=False)
+        embed.set_field_at(0, name="Status", value="✅ Approved & Tokens Deducted", inline=False)
         embed.add_field(name="Approved By", value=interaction.user.mention, inline=False)
         
         await interaction.message.edit(embed=embed, view=None)
@@ -488,26 +497,30 @@ class ShopView(discord.ui.View):
         self.cog = cog
         self.points = current_points
         self.items = {
-            "shift_15": {"label": "Shift Time (+15 minutes)", "cost": 3},
-            "shift_30": {"label": "Shift Time (+30 minutes)", "cost": 6},
-            "hint":     {"label": "Hint on next Drill/Hunt", "cost": 5},
-            "quota":    {"label": "Quota Exemption (1 Week)", "cost": 12},
+            "shift_15":   {"label": "Shift Time (+15 minutes)", "cost": 3},
+            "shift_30":   {"label": "Shift Time (+30 minutes)", "cost": 6},
+            "hint":       {"label": "Hint on next Drill/Hunt", "cost": 5},
+            "quota":      {"label": "Quota Exemption (1 Week)", "cost": 12},
+            "ic_shift":   {"label": "1 Shift as Responding Incident Commander", "cost": 30},
+            "multiplier": {"label": "24hr Point Multiplier (1.5x)", "cost": 20},
         }
 
     @discord.ui.select(
         placeholder="Select an item to redeem...",
         options=[
-            discord.SelectOption(label="Shift Time (+15m)", description="Cost: 3 Points", value="shift_15"),
-            discord.SelectOption(label="Shift Time (+30m)", description="Cost: 6 Points", value="shift_30"),
-            discord.SelectOption(label="Next Drill/Hunt Hint", description="Cost: 5 Points", value="hint"),
-            discord.SelectOption(label="Quota Exemption (1 Week)", description="Cost: 12 Points", value="quota"),
+            discord.SelectOption(label="Shift Time (+15m)", description="Cost: 3 Tokens", value="shift_15"),
+            discord.SelectOption(label="Shift Time (+30m)", description="Cost: 6 Tokens", value="shift_30"),
+            discord.SelectOption(label="Next Drill/Hunt Hint", description="Cost: 5 Tokens", value="hint"),
+            discord.SelectOption(label="Quota Exemption (1 Week)", description="Cost: 12 Tokens", value="quota"),
+            discord.SelectOption(label="Shift as Responding IC", description="Cost: 30 Tokens", value="ic_shift"),
+            discord.SelectOption(label="24hr 1.5x Multiplier", description="Cost: 20 Tokens", value="multiplier"),
         ]
     )
     async def select_item(self, interaction: discord.Interaction, select: discord.ui.Select):
         item = self.items[select.values[0]]
         
         if self.points < item['cost']:
-            return await interaction.response.send_message(f"❌ You need {item['cost']} points for this, but you only have {self.points}.", ephemeral=True)
+            return await interaction.response.send_message(f"❌ You need {item['cost']} tokens for this, but you only have {self.points}.", ephemeral=True)
 
         shop_channel = await self.cog._resolve_output_channel(interaction, "metro_shop")
         
@@ -521,9 +534,9 @@ class ShopView(discord.ui.View):
                 "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
                 f"**Officer:** {interaction.user.mention}\n"
                 f"**Item:** {item['label']}\n"
-                f"**Cost:** `{item['cost']}` Points\n"
-                f"**Balance Before:** `{self.points}`\n"
-                f"**Balance After:** `{self.points - item['cost']}`\n"
+                f"**Cost:** `{item['cost']}` Career Tokens\n"
+                f"**Token Balance Before:** `{self.points}`\n"
+                f"**Token Balance After:** `{self.points - item['cost']}`\n"
             ),
             color=discord.Color.gold()
         )
@@ -925,16 +938,38 @@ class Operations(commands.Cog):
         return any(any(rank in role.name for rank in self.SENIOR_HIGH_COMMAND_RANKS) for role in member.roles)
 
     async def _award_intel_points(self, user_id: int, points: int, reason: str):
-        """Increments an officer's intel points in the database."""
+        """Increments an officer's Weekly Score and Career Tokens."""
         now = datetime.datetime.now(datetime.timezone.utc)
+        multiplier = 1.0
+
+        # Check for active multiplier
+        stats = await self.officer_stats.find_one({"_id": user_id})
+        if stats and "multiplier_expiry" in stats:
+            expiry = stats["multiplier_expiry"]
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=datetime.timezone.utc)
+            
+            if now < expiry:
+                multiplier = 1.5
+                reason = f"{reason} [1.5x Multiplier]"
+
+        weekly_gain = int(points * multiplier)
+        # Career tokens are earned at a controlled rate (roughly 50% of base points, min 1)
+        token_gain = max(1, int((points * 0.5) * multiplier)) if points > 0 else 0
+
         await self.officer_stats.update_one(
             {"_id": user_id},
             {
                 "$inc": {
-                    "intel_points": points,    # Lifetime
-                    "weekly_points": points     # Resets weekly
+                    "intel_points": token_gain,  # Career Tokens (Permanent)
+                    "weekly_points": weekly_gain  # Weekly Operational Score (Resets)
                 },
-                "$push": {"history": {"reason": reason, "points": points, "timestamp": now}}
+                "$push": {"history": {
+                    "reason": reason, 
+                    "weekly_gain": weekly_gain, 
+                    "token_gain": token_gain, 
+                    "timestamp": now
+                }}
             },
             upsert=True
         )
@@ -1877,7 +1912,10 @@ class Operations(commands.Cog):
         
         data = await self.officer_stats.find_one({"_id": officer.id})
         if not data or not data.get("history"):
-            await interaction.followup.send(f"No intelligence history found for {officer.mention}.", ephemeral=True)
+            # Basic profile if no history exists yet
+            tokens = data.get("intel_points", 0) if data else 0
+            weekly = data.get("weekly_points", 0) if data else 0
+            await interaction.followup.send(f"**{officer.display_name}**\nCareer Tokens: `{tokens}`\nWeekly Score: `{weekly}`\n(No detailed history found.)", ephemeral=True)
             return
 
         view = IntelHistoryView(data["history"], officer)
@@ -1916,7 +1954,7 @@ class Operations(commands.Cog):
             await interaction.followup.send("No points have been recorded yet.")
             return
 
-        desc = "## <:LAPD_Metropolitan:1495867271501975552> | Weekly Leaderboard\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+        desc = "## <:LAPD_Metropolitan:1495867271501975552> | Weekly Operational Standings\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
         for i, data in enumerate(top_officers, 1):
             member = interaction.guild.get_member(data["_id"])
             name = member.mention if member else f"Unknown ({data['_id']})"
@@ -2030,7 +2068,7 @@ class Operations(commands.Cog):
             description=(
                 "## 🎉 | Metro Shop Rewards\n"
                 "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
-                f"Welcome, Operative. Your hard work has earned you **{points}** Intelligence Points. Choose a reward below to redeem them."
+                f"Welcome, Operative. Your hard work has earned you **{points}** Career Intel Tokens. Choose a reward below to redeem them."
             ),
             color=discord.Color.blue()
         )
