@@ -416,11 +416,19 @@ class ShopApprovalView(discord.ui.View):
         self.target_user = target_user
         self.item_label = item_label
         self.cost = cost
+        self._lock = asyncio.Lock()
+        self._handled = False
 
     @discord.ui.button(label="Approve Purchase", style=discord.ButtonStyle.success, emoji="✅")
     async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.cog._is_senior_high_command(interaction.user):
             return await interaction.response.send_message("❌ Only Senior High Command can approve shop requests.", ephemeral=True)
+
+        async with self._lock:
+            if self._handled:
+                return await interaction.response.send_message("❌ This request has already been processed.", ephemeral=True)
+            
+            self._handled = True
 
         # Double check balance before deduction
         data = await self.cog.officer_stats.find_one({"_id": self.target_user.id})
@@ -458,6 +466,12 @@ class ShopApprovalView(discord.ui.View):
     async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.cog._is_high_command(interaction.user):
             return await interaction.response.send_message("❌ Only High Command can deny shop requests.", ephemeral=True)
+
+        async with self._lock:
+            if self._handled:
+                return await interaction.response.send_message("❌ This request has already been processed.", ephemeral=True)
+            
+            self._handled = True
 
         embed = interaction.message.embeds[0]
         embed.title = None

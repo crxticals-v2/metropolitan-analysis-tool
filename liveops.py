@@ -170,7 +170,7 @@ def _embed_briefing(ic: discord.Member, postal: str, assignments: dict) -> disco
     return embed
 
 
-def _embed_readiness(ic: discord.Member, postal: str, assignments: dict, states: dict) -> discord.Embed:
+def _embed_readiness(ic: discord.Member, postal: str, assignments: dict, states: dict, image_url: str = None) -> discord.Embed:
     """Readiness board embed — updates live as IC toggles elements."""
     ready_count = sum(1 for v in states.values() if v)
     total_count  = len(states)
@@ -204,11 +204,13 @@ def _embed_readiness(ic: discord.Member, postal: str, assignments: dict, states:
 
     embed = discord.Embed(description="\n".join(desc_lines), color=color)
     embed.set_thumbnail(url=METRO_ICON)
+    if image_url:
+        embed.set_image(url=image_url)
     embed.set_footer(text="Only the IC can toggle readiness  ·  All-green unlocks initiation")
     return embed
 
 
-def _embed_initiated(ic: discord.Member, postal: str, assignments: dict) -> discord.Embed:
+def _embed_initiated(ic: discord.Member, postal: str, assignments: dict, image_url: str = None) -> discord.Embed:
     """Final 'Operation Initiated' embed (gold = go)."""
     desc_lines = [
         f"## ⚡ | OPERATION INITIATED",
@@ -228,6 +230,8 @@ def _embed_initiated(ic: discord.Member, postal: str, assignments: dict) -> disc
 
     embed = discord.Embed(description="\n".join(desc_lines), color=discord.Color.gold())
     embed.set_thumbnail(url=METRO_ICON)
+    if image_url:
+        embed.set_image(url=image_url)
     embed.set_footer(
         text=f"Initiated by {ic.display_name}",
         icon_url=ic.display_avatar.url if ic.display_avatar else None,
@@ -428,8 +432,12 @@ class LiveOpReadinessView(discord.ui.View):
         self.ic          = ic
         self.assignments = assignments
         self.postal      = postal
+        self.image_url   = None
         self.states      = {label: False for label in assignments}
         self._rebuild()
+
+    def set_image(self, *, url: str):
+        self.image_url = url
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
@@ -485,7 +493,7 @@ class LiveOpReadinessView(discord.ui.View):
             )
         else:
             # Standard embed fallback
-            embed = _embed_readiness(self.ic, self.postal, self.assignments, self.states)
+            embed = _embed_readiness(self.ic, self.postal, self.assignments, self.states, self.image_url)
             await interaction.response.edit_message(embed=embed, view=self)
 
     # ── Initiate ──────────────────────────────────────────────────────────────
@@ -496,7 +504,7 @@ class LiveOpReadinessView(discord.ui.View):
                 "❌ Only the Incident Commander can initiate.", ephemeral=True
             )
 
-        embed = _embed_initiated(self.ic, self.postal, self.assignments)
+        embed = _embed_initiated(self.ic, self.postal, self.assignments, self.image_url)
         await interaction.response.edit_message(
             content="",
             embed=embed,
