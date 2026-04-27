@@ -53,6 +53,7 @@ class MetroBot(commands.Bot):
         self.watchlist_channel_id = WATCHLIST_CHANNEL_ID
         await self.load_extension("simon")
         await self.load_extension("operations")
+        await self.load_extension("handbook")
         await self.tree.sync()
         print("✅ Slash commands synced.")
 

@@ -37,8 +37,12 @@
       "y": 2000
     },
     "ind_cline": {
-      "x": 1825,
-      "y": 1961
+      "x": 1827,
+      "y": 1970,
+      "label": "INT_COLONIAL",
+      "poi": "Jail",
+      "type": "Government",
+      "robable": false
     },
     "orch_fairfax": {
       "x": 472,
@@ -172,10 +176,6 @@
       "x": 1421,
       "y": 1857
     },
-    "col_south": {
-      "x": 1200,
-      "y": 2050
-    },
     "col_complex": {
       "x": 1831,
       "y": 2158
@@ -191,10 +191,6 @@
     "riv_lower": {
       "x": 1073,
       "y": 1785
-    },
-    "riv_city": {
-      "x": 1200,
-      "y": 2100
     },
     "hwy55_north": {
       "x": 2045,
@@ -536,7 +532,7 @@
       "label": "INT_JEWELRY",
       "x": 880,
       "y": 1910,
-      "poi": "Jewelry",
+      "poi": "Jewelry Store",
       "robable": true,
       "type": "commercial"
     },
@@ -558,8 +554,8 @@
     },
     "N-410": {
       "label": "INT_ARBOR_MID",
-      "x": 601,
-      "y": 1756,
+      "x": 565,
+      "y": 1764,
       "poi": "Dirt Tracks",
       "robable": false,
       "type": "utility"
@@ -606,16 +602,16 @@
     },
     "N-601": {
       "label": "INT_COLONIAL_COMPLEX",
-      "x": 1607,
-      "y": 1337,
+      "x": 1592,
+      "y": 1323,
       "poi": "Cornfields",
       "robable": false,
       "type": "government"
     },
     "N-602": {
       "label": "INT_COLONIAL_W",
-      "x": 1534,
-      "y": 1300,
+      "x": 1465,
+      "y": 1296,
       "poi": "Gas Station (Rural)",
       "robable": true,
       "type": "commercial"
@@ -774,7 +770,7 @@
     },
     "N-909": {
       "label": "INT_COUNTY_MID",
-      "x": 1722,
+      "x": 1729,
       "y": 1082,
       "poi": "County Mid Road",
       "robable": false,
@@ -797,7 +793,7 @@
       "type": "utility"
     },
     "N-1105": {
-      "label": "INT_SHOPS_COUNTY",
+      "label": "INT_HOUSING_COUNTY",
       "x": 2593,
       "y": 887,
       "poi": "Basic Housing",
@@ -806,8 +802,8 @@
     },
     "N-1106": {
       "label": "INT_TERRACE_E",
-      "x": 2563,
-      "y": 1078,
+      "x": 2576,
+      "y": 1091,
       "poi": "Terrace Drive East",
       "robable": false,
       "type": "utility"
@@ -822,8 +818,8 @@
     },
     "N-1108": {
       "label": "INT_AUTO_GARAGE_COUNTY",
-      "x": 2458,
-      "y": 1078,
+      "x": 2452,
+      "y": 1090,
       "poi": "Auto Garage (county)",
       "robable": false,
       "type": "commercial"
@@ -1096,7 +1092,8 @@
       "y": 1602,
       "label": "CDU_Vine",
       "type": "commercial",
-      "robable": false
+      "robable": true,
+      "poi": null
     },
     "N-506": {
       "x": 1717,
@@ -1134,6 +1131,14 @@
       "label": "Cedar Street",
       "poi": "Cedar Street",
       "type": "Utility",
+      "robable": false
+    },
+    "N-2161": {
+      "x": 781,
+      "y": 2091,
+      "label": "Main Park",
+      "poi": "Main Park",
+      "type": "commercial",
       "robable": false
     }
   },
@@ -5909,6 +5914,36 @@
       "target": "N-216",
       "road": "Unnamed Road",
       "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-213",
+      "target": "N-2161",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-402",
+      "target": "N-410",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-4101",
+      "target": "N-406",
+      "road": "Unnamed Road",
+      "type": "offroad",
       "is_one_way": false,
       "metadata": {
         "postals": []

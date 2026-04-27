@@ -148,6 +148,7 @@ class ChannelView(discord.ui.View):
             discord.SelectOption(label="Training Host", value="host_metro_training"),
             discord.SelectOption(label="Training Results", value="metro_log_training"),
             discord.SelectOption(label="After Action", value="after_action"),
+            discord.SelectOption(label="Welcome Messages", value="welcome"),
             discord.SelectOption(label="K9", value="k9"),
             discord.SelectOption(label="Archives", value="archives"),
             discord.SelectOption(label="Shop", value="metro_shop"),
@@ -960,7 +961,7 @@ class Operations(commands.Cog):
         interaction: discord.Interaction,
         action: app_commands.Choice[str],
         link_type: app_commands.Choice[str],
-        thread: discord.Thread = None,
+        thread: discord.Thread,
     ):
         """Maps a user to a specific thread ID in MongoDB or removes it."""
         if action.value == "link":
@@ -1905,6 +1906,64 @@ class Operations(commands.Cog):
             )
         )
         await interaction.followup.send(embed=embed)
+
+    # ------------------------------------------------------------------ #
+    # /metro_welcome                                                     #
+    # ------------------------------------------------------------------ #
+
+    @app_commands.command(
+        name="metro_welcome",
+        description="Welcome a new officer to the Metropolitan Unit.",
+    )
+    async def metro_welcome(self, interaction: discord.Interaction, officer: discord.Member):
+        """Sends a structured welcome message to a new Metro Operative."""
+        await interaction.response.defer(ephemeral=True)
+
+        target_channel = await self._resolve_output_channel(interaction, "welcome")
+
+        desc = (
+            f"## 👋 | **Welcome, Fellow Operative!**\n"
+            f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+            f"{officer.mention}, welcome to the **Metropolitan Unit**! As a member of this elite "
+            f"division, you now hold the responsibility of being the LAPD's primary arm for "
+            f"high-risk suppression, gang disruption, and tactical response. \n\n"
+            f"### 🚀 The Next Steps"
+            f"**1. Link your intelligence threads!**\n"
+            f"> Every operative is required to maintain their own field reporting logs. Use the `/metro_link` "
+            f"> command to map your Discord threads to the S.I.M.O.N. database. This allows you to use the "
+            f"> `–metroAA` rapid-log engine and earn Intel Points for your service.\n\n"
+            f"**2. Pass your Trial!**"
+            f"> You must first pass your intensive training regiment, which grants both the Assault Rifle Certificate and the Undercover Certificate."
+            f"> As a Probationary Operative, you must exhibit proficiency in high-stress environments. "
+            f"> Participate in active deployments or trainings where Command can evaluate your tactics. "
+            f"> Once certified, you will be cleared for independent specialist assignments.\n\n"
+            f"**3. Master the Doctrine!**"
+            f"> Success in Metro is built on knowledge. We recommend you familiarize yourself with our "
+            f"> Standard Operations handbook and the Intelligence Point (IP) rewards shop. Your journey starts now.\n\n"
+            f"### 💡 Essential Information"
+            f"1️⃣ Use `/metro_handbook` to read the Standard Operations Handbook.\n"
+            f"2️⃣ Wait for a training session to be hosted to be fully trained\n"
+            f"3️⃣ Always utilize an unmarked configuration for patrol unless authorized for specific raids.\n\n"
+            f"Good luck, Operative! If you have inquiries, our High Command and veterans are ready to assist.\n"
+            f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            f"You have been welcomed by {interaction.user.mention}."
+        )
+
+        embed = discord.Embed(description=desc, color=discord.Color.blue())
+        embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
+        embed.set_footer(
+            text=f"Metropolitan Unit • Recruitment & Induction",
+            icon_url=interaction.user.display_avatar.url if interaction.user.display_avatar else None,
+        )
+
+        # Send the ping and the embed to the configured channel
+        await target_channel.send(content=officer.mention, embed=embed)
+
+        # Feedback for the person executing the command
+        await interaction.followup.send(
+            f"✅ {officer.display_name} has been welcomed.", 
+            ephemeral=True
+        )
 
     @app_commands.command(name="metro_shop", description="Redeem your intelligence points for various rewards.")
     async def metro_shop(self, interaction: discord.Interaction):
