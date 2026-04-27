@@ -16,7 +16,6 @@ Metropolitan Unit administrative & operational commands:
 import os
 import json
 import time
-import io
 import datetime
 import discord
 from discord import app_commands
@@ -24,7 +23,8 @@ import random
 from discord.ext import commands
 import asyncio
 from pathlib import Path
-import re
+
+from liveops import LiveOpAssignmentView, _embed_setup
 
 OWNER_UID = 613698960133062687
 BASE_DIR = Path(__file__).parent.resolve()
@@ -606,156 +606,6 @@ class WeeklyResetView(discord.ui.View):
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("Reset cancelled.", ephemeral=True)
         self.stop()
-
-# ──────────────────────────────────────────────
-# LIVE OPERATION COMPONENTS
-# ──────────────────────────────────────────────
-
-class LiveOpReadinessView(discord.ui.View):
-    """The final Readiness Poll view with dynamic toggle buttons."""
-    def __init__(self, cog, ic: discord.Member, assignments: dict, postal: str):
-        super().__init__(timeout=None)
-        self.cog = cog
-        self.ic = ic
-        self.assignments = assignments # {role_label: member}
-        self.postal = postal
-        self.ready_states = {label: False for label in assignments.keys()}
-        self._build_buttons()
-
-    def _build_buttons(self):
-        self.clear_items()
-        for label, member in self.assignments.items():
-            is_ready = self.ready_states[label]
-            btn = discord.ui.Button(
-                label=f"{label}: {member.display_name}",
-                style=discord.ButtonStyle.success if is_ready else discord.ButtonStyle.danger,
-                custom_id=f"ready_{label}"
-            )
-            btn.callback = self.toggle_ready
-            self.add_item(btn)
-        
-        # Show Initiate button only if all are green
-        if all(self.ready_states.values()):
-            initiate_btn = discord.ui.Button(
-                label="INITIATE OPERATION",
-                style=discord.ButtonStyle.primary,
-                emoji="⚡",
-                row=4
-            )
-            initiate_btn.callback = self.initiate_op
-            self.add_item(initiate_btn)
-
-    async def toggle_ready(self, interaction: discord.Interaction):
-        if interaction.user.id != self.ic.id:
-            return await interaction.response.send_message("❌ Only the Incident Commander can toggle readiness.", ephemeral=True)
-        
-        label = interaction.data['custom_id'].replace("ready_", "")
-        self.ready_states[label] = not self.ready_states[label]
-        self._build_buttons()
-        await interaction.response.edit_message(view=self)
-
-    async def initiate_op(self, interaction: discord.Interaction):
-        if interaction.user.id != self.ic.id:
-            return await interaction.response.send_message("❌ Only the Incident Commander can initiate.", ephemeral=True)
-        
-        embed = interaction.message.embeds[0]
-        embed.color = discord.Color.gold()
-        embed.title = "⚡ OPERATION INITIATED ⚡"
-        embed.description = f"**All units are green. Execute on postal {self.postal} immediately.**\n" + embed.description
-        
-        await interaction.response.edit_message(content="🚨 **STORMING - GO GO GO** 🚨", embed=embed, view=None)
-        await interaction.channel.send(f"## 🚨 {self.ic.mention} has initiated the breach!")
-
-class LiveOpAssignmentView(discord.ui.View):
-    """Intermediate view to assign operatives to roles."""
-    def __init__(self, cog, ic: discord.Member, postal: str, members: list):
-        super().__init__(timeout=600)
-        self.cog = cog
-        self.ic = ic
-        self.postal = postal
-        self.members = members
-        self.assignments = {}
-
-        # Predefined Roles
-        self.role_list = [
-            "Sniper", "Drone Operator", "Stakeout 1", "Stakeout 2",
-            "TL Alpha", "Breacher A", "Driver A", "Negotiator A", "Point A", "Cover A", "Rear A",
-            "TL Bravo", "Breacher B", "Driver B", "Negotiator B", "Point B", "Cover B", "Rear B",
-            "TL Charlie", "Breacher C", "Driver C", "Negotiator C", "Point C", "Cover C", "Rear C"
-        ]
-        
-        # Category Select
-        self.add_item(self.create_role_select())
-
-    def create_role_select(self):
-        select = discord.ui.Select(placeholder="Select a Role to Assign...", options=[
-            discord.SelectOption(label=r, value=r) for r in self.role_list if r not in self.assignments
-        ][:25])
-        select.callback = self.role_selected
-        return select
-
-    async def role_selected(self, interaction: discord.Interaction):
-        role = interaction.data['values'][0]
-        # Show a member selection
-        view = discord.ui.View()
-        member_select = discord.ui.Select(placeholder=f"Assign Operative to {role}...")
-        for m in self.members:
-            member_select.add_option(label=m.display_name, value=str(m.id))
-        
-        async def member_callback(inter: discord.Interaction):
-            m_id = int(inter.data['values'][0])
-            member = discord.utils.get(self.members, id=m_id)
-            self.assignments[role] = member
-            await inter.response.edit_message(content=f"✅ Assigned **{member.display_name}** to **{role}**.\nTotal assigned: {len(self.assignments)}", view=self)
-
-        member_select.callback = member_callback
-        view.add_item(member_select)
-        await interaction.response.edit_message(content=f"Assigning element: **{role}**", view=view)
-
-    @discord.ui.button(label="Finalize Plan & Generate Briefing", style=discord.ButtonStyle.primary, row=4)
-    async def finalize(self, interaction: discord.Interaction):
-        if not self.assignments:
-            return await interaction.response.send_message("❌ You must assign at least one role.", ephemeral=True)
-        
-        await interaction.response.defer()
-
-        # Generate zoomed map
-        simon_cog = self.cog.bot.get_cog("Simon")
-        map_file = discord.utils.MISSING
-        if simon_cog:
-            from map_renderer import draw_map_path
-            node = self.cog.bot.erlc_graph.resolve_target(self.postal)
-            if node:
-                # Draw a "path" of one node to highlight the area
-                loop = asyncio.get_running_loop()
-                buf = await loop.run_in_executor(None, draw_map_path, self.cog.bot.erlc_graph, [[node]])
-                map_file = discord.File(fp=buf, filename="op_map.png")
-
-        desc = (
-            f"## <:LAPD_Metropolitan:1495867271501975552> | LIVE OPERATION BRIEFING\n"
-            f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
-            f"**Incident Commander:** {self.ic.mention}\n"
-            f"**Operation Zone:** Postal `{self.postal}`\n"
-            f"**Timestamp:** <t:{int(time.time())}:F>\n\n"
-            "### 📋 Assigned Elements\n"
-        )
-        
-        # Sort roles by team for the embed
-        for role, member in sorted(self.assignments.items()):
-            desc += f"• **{role}:** {member.mention}\n"
-
-        embed = discord.Embed(description=desc, color=discord.Color.red())
-        if map_file:
-            embed.set_image(url="attachment://op_map.png")
-        
-        embed.set_footer(text="AWAITING UNIT READINESS | ALL ELEMENTS MUST BE GREEN TO INITIATE")
-
-        readiness_view = LiveOpReadinessView(self.cog, self.ic, self.assignments, self.postal)
-        
-        if map_file:
-            await interaction.followup.send(content="## 📡 LIVE OPERATION CHANNEL OPEN", embed=embed, file=map_file, view=readiness_view)
-        else:
-            await interaction.followup.send(content="## 📡 LIVE OPERATION CHANNEL OPEN", embed=embed, view=readiness_view)
 
 
 # ──────────────────────────────────────────────
@@ -1528,6 +1378,44 @@ class Operations(commands.Cog):
         )
 
     # ------------------------------------------------------------------ #
+    # /metro_start_live                                                    #
+    # ------------------------------------------------------------------ #
+
+    @app_commands.command(
+        name="metro_start_live",
+        description="Initialize a live Metropolitan operation with element assignments and map briefing.",
+    )
+    @app_commands.describe(
+        postal="The postal or POI where the operation is focused.",
+        operatives="Mention all operatives in the op (e.g. @User1 @User2).",
+    )
+    async def metro_start_live(
+        self, interaction: discord.Interaction, postal: str, operatives: str):
+        import re
+
+        user_ids = list(set(re.findall(r'\d{17,19}', operatives)))
+        members  = [m for uid in user_ids if (m := interaction.guild.get_member(int(uid)))]
+
+        if not members:
+            return await interaction.response.send_message(
+                "❌ No valid operatives found. Please mention them or provide their IDs.",
+                ephemeral=True,
+            )
+
+        resolved = self.bot.erlc_graph.resolve_target(postal)
+        if not resolved:
+            return await interaction.response.send_message(
+                f"❌ Postal `{postal}` could not be resolved in the map database.",
+                ephemeral=True,
+            )
+
+        embed = _embed_setup(interaction.user, postal, {}, members)
+        await interaction.response.send_message(
+            embed=embed,
+            view=LiveOpAssignmentView(self, interaction.user, postal, members),
+            ephemeral=True,
+        )
+    # ------------------------------------------------------------------ #
     # /metro_after_action                                                 #
     # ------------------------------------------------------------------ #
 
@@ -2169,40 +2057,6 @@ class Operations(commands.Cog):
         )
         await interaction.response.send_message(embed=embed, view=WeeklyResetView(self))
 
-    # ------------------------------------------------------------------ #
-    # /metro_start_live                                                  #
-    # ------------------------------------------------------------------ #
-
-    @app_commands.command(
-        name="metro_start_live",
-        description="Initialize a live Metropolitan operation with element assignments and map briefing."
-    )
-    @app_commands.describe(
-        postal="The postal or POI where the operation is focused.",
-        operatives="Mention or list IDs of all operatives in the op (e.g. @User1 @User2)."
-    )
-    async def metro_start_live(self, interaction: discord.Interaction, postal: str, operatives: str):
-        """Starts the interactive live operation setup."""
-        # Parse operative IDs from string
-        user_ids = list(set(re.findall(r'\d{17,19}', operatives)))
-        members = []
-        for uid in user_ids:
-            m = interaction.guild.get_member(int(uid))
-            if m: members.append(m)
-        
-        if not members:
-            return await interaction.response.send_message("❌ No valid operatives found in your input. Please mention them or provide IDs.", ephemeral=True)
-
-        # Normalize postal
-        resolved = self.bot.erlc_graph.resolve_target(postal)
-        if not resolved:
-            return await interaction.response.send_message(f"❌ Postal `{postal}` could not be resolved in the map database.", ephemeral=True)
-
-        await interaction.response.send_message(
-            f"### 📑 Operation Setup: Postal {postal}\nAssign the **{len(members)}** identified operatives to their tactical elements below.",
-            view=LiveOpAssignmentView(self, interaction.user, postal, members),
-            ephemeral=True
-        )
 
 async def setup(bot):
     await bot.add_cog(Operations(bot))
