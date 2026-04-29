@@ -26,9 +26,12 @@ import hashlib
 from discord import app_commands
 from PIL import Image, ImageDraw
 from pathlib import Path
+import discord
+print([x for x in dir(discord) if 'allery' in x or 'edia' in x])
+print([x for x in dir(discord.ui) if 'allery' in x or 'edia' in x])
 
-# ── Toggle this based on your discord.py version ──────────────────────────────
-USE_COMPONENTS_V2 = False   # requires discord.py 2.5+ for Container / TextDisplay
+# ── Components v2 is always on — requires discord.py 2.7+ ────────────────────
+USE_COMPONENTS_V2 = True
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -76,7 +79,7 @@ def _get_zoomed_map(graph, postal: str) -> io.BytesIO | None:
 
     try:
         with Image.open(MAP_PATH) as img:
-            half_x = 500  # Expanded X for cinematic widescreen embed coverage
+            half_x = 700  # Expanded X for cinematic widescreen embed coverage
             half_y = 220  # Balanced Y height
             img_w, img_h = img.size
             # Clamp the box so we never crop outside the image boundaries
@@ -257,57 +260,8 @@ def _embed_initiated(ic: discord.Member, postal: str, assignments: dict, target_
     return embed
 
 
-# ── Components v2 helpers (discord.py 2.5+) ───────────────────────────────────
-
-def _try_build_v2_readiness(ic: discord.Member, postal: str, assignments: dict, states: dict):
-    """
-    Builds a Components v2 Container for the readiness board.
-    Returns (container, flags) on success, or (None, None) if v2 is unavailable.
-
-    In discord.py 2.5+ you can pass the returned container directly:
-        await interaction.response.edit_message(components=[container], flags=flags, view=view)
-    """
-    if not USE_COMPONENTS_V2:
-        return None, None
-    try:
-        ready_count = sum(1 for v in states.values() if v)
-        total_count  = len(states)
-        all_ready    = ready_count == total_count
-
-        accent = discord.Color.green() if all_ready else discord.Color.red()
-        container = discord.ui.Container(accent_colour=accent)
-
-        container.add_item(discord.ui.TextDisplay(
-            f"## {METRO_EMOJI}  UNIT READINESS STATUS\n"
-            f"**IC:** {ic.mention}  ·  **Zone:** Postal `{postal}`  ·  <t:{int(time.time())}:R>"
-        ))
-        container.add_item(discord.ui.Separator())
-
-        for group, roles in _group_assignments(assignments).items():
-            container.add_item(discord.ui.TextDisplay(f"### {group}"))
-            for role, member in roles.items():
-                dot = "🟢" if states.get(role) else "🔴"
-                section = discord.ui.Section(
-                    discord.ui.TextDisplay(f"{dot}  **{role}**  —  {member.mention}")
-                )
-                container.add_item(section)
-
-        container.add_item(discord.ui.Separator())
-        if all_ready:
-            container.add_item(discord.ui.TextDisplay(
-                "✅  **All elements are green — awaiting IC command to initiate.**"
-            ))
-        else:
-            container.add_item(discord.ui.TextDisplay(
-                f"⏳  **{ready_count} / {total_count} elements confirmed ready.**"
-            ))
-
-        flags = discord.MessageFlags(is_components_v2=True)
-        return container, flags
-
-    except (AttributeError, TypeError):
-        # discord.py version doesn't expose v2 classes — fall back silently
-        return None, None
+# _try_build_v2_readiness removed — layout is now owned by LiveOpReadinessView._rebuild()
+# which uses LayoutView; the flag is set automatically by discord.py.
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -429,34 +383,35 @@ class LiveOpAssignmentView(discord.ui.View):
         map_file = discord.utils.MISSING
         loop = asyncio.get_running_loop()
         buf = await loop.run_in_executor(None, _get_zoomed_map, self.cog.bot.erlc_graph, self.postal)
-        
+        print(f"[MAP DEBUG] buf returned: {buf}")
+
         if buf:
             map_file = discord.File(fp=buf, filename="op_map.png")
-
-        briefing = _embed_briefing(self.ic, self.postal, self.assignments, self.start_time, self.target_gang)
-        if map_file is not discord.utils.MISSING:
-            briefing.set_image(url="attachment://op_map.png")
+            print(f"[MAP DEBUG] map_file created: {map_file}")
 
         # Pre-build manifest string for notifications
         manifest_text = "\n".join([f"> `{role}` — {m.display_name}" for role, m in self.assignments.items()])
 
         # ── 1. Prepare Readiness Board ────────────────────────────────────────
+        # The LiveOpReadinessView Container includes all briefing info + per-assignment
+        # status rows, so no separate briefing embed is needed alongside it.
         readiness_view = LiveOpReadinessView(self.cog, self.ic, self.assignments, self.postal, self.start_time, db_id=db_id, target_gang=self.target_gang)
-        if map_file is not discord.utils.MISSING:
-            readiness_view.set_image(url="attachment://op_map.png")
+        if buf:
+            readiness_view._map_buf = buf
+            readiness_view.image_url = "attachment://op_map.png"
+            readiness_view._rebuild()
+            print(f"[MAP DEBUG] image_url set on view: {readiness_view.image_url}")
+        else:
+            print(f"[MAP DEBUG] buf is None/falsy — map will NOT appear")
 
         kwargs: dict = dict(
-            content=(
-                f"{METRO_EMOJI} **LIVE OPERATION CHANNEL OPEN**  ·  "
-                f"IC: {self.ic.mention}  ·  Zone: Postal `{self.postal}`"
-            ),
-            embed=briefing,
+            content=None,
             view=readiness_view,
         )
         if map_file is not discord.utils.MISSING:
             kwargs["file"] = map_file
 
-        # ── 2. Post Operation Briefing to Channel ─────────────────────────────
+        # ── 2. Post Operation Readiness Board to Channel ──────────────────────
         await interaction.followup.send(**kwargs)
 
         # ── 3. Dispatch Notifications (Background) ─────────────────────────────
@@ -471,13 +426,14 @@ class LiveOpAssignmentView(discord.ui.View):
                     dm_embed = discord.Embed(
                         description=(
                             f"## 🚨 {METRO_EMOJI} | CONFIDENTIAL BRIEFING: {self.postal}\n"
-                            f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+                            f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
                             f"You have been assinged to a live operation.\n"
-                            f"**AO:** `{self.postal}`  ·  **Start:** `{self.start_time}`\n\n"
+                            f"**AO:** `{self.postal}` · **Start:** `{self.start_time}`\n\n"
                             f"**Target:** `{self.target_gang}`\n\n"
                             f"### 📋 Strategic Manifest\n{manifest_text}\n\n"
                             f"**Your Assigned Role:** `{role}`\n\n"
                             f"**Incident Commander:** {self.ic.mention}\n"
+                            f"**Convene with your Incident Commander prior to operation initiation.**"
                             f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
                             f"Review the manifest above. Maintain operational security."
                         ),
@@ -518,22 +474,42 @@ class AbortReasonModal(discord.ui.Modal):
             {"_id": self.view.db_id},
             {"$set": {"status": "Aborted", "abort_reason": self.reason.value, "aborted_at": datetime.datetime.now(datetime.timezone.utc)}}
         )
-        
-        embed = discord.Embed(
-            title="🛑 OPERATION ABORTED",
-            description=f"The operation at Postal `{self.view.postal}` has been cancelled by {self.view.ic.mention}.\n\n**Reason:** {self.reason.value}",
-            color=discord.Color.dark_grey()
+
+        container = discord.ui.Container(accent_colour=discord.Color.dark_grey())
+        container.add_item(discord.ui.TextDisplay(
+            f"## 🛑  OPERATION ABORTED — Postal `{self.view.postal}`\n"
+            f"{DIVIDER}\n"
+            f"The operation has been stood down by {self.view.ic.mention}.\n\n"
+            f"**Reason:** {self.reason.value}\n\n"
+            f"**Aborted:** <t:{int(time.time())}:F>"
+        ))
+
+        abort_view = discord.ui.LayoutView()
+        abort_view.add_item(container)
+
+        await interaction.response.edit_message(
+            content=None,
+            embed=None,
+            view=abort_view,
+            attachments=[],
         )
-        await interaction.response.edit_message(content=None, embed=embed, view=None, attachments=[])
 
 
-class LiveOpReadinessView(discord.ui.View):
+class LiveOpReadinessView(discord.ui.LayoutView):
     """
-    Public-facing readiness board.
-    IC toggles each element green/red; when all green the INITIATE button appears.
+    Public-facing readiness board — Components v2 (discord.py 2.7+).
 
-    Attempts Components v2 for the status display (discord.py 2.5+),
-    falls back to a standard embed automatically if v2 is unavailable.
+    Each assignment is rendered as:
+        [ASSIGNMENT — @member]
+        [STATUS BUTTON]
+        ─────────────────
+        [ASSIGNMENT — @member]
+        [STATUS BUTTON]
+        ...
+
+    All layout lives inside a single Container added to the View, so
+    Discord renders the full rich layout while callbacks still dispatch
+    via the standard View mechanism (matched by custom_id).
     """
 
     def __init__(self, cog, ic: discord.Member, assignments: dict, postal: str, start_time: str = "Immediate", db_id=None, target_gang: str = "None"):
@@ -544,51 +520,127 @@ class LiveOpReadinessView(discord.ui.View):
         self.postal      = postal
         self.start_time  = start_time
         self.target_gang = target_gang
-        self.status      = "Planning" # Initial status
+        self.status      = "Planning"
         self.db_id       = db_id
-        self.image_url   = None
+        self.image_url   = None  # kept for API compatibility; image now sent as attachment
         self.states      = {label: False for label in assignments}
         self._rebuild()
 
     def set_image(self, *, url: str):
+        """Store the attachment URL so _rebuild can embed it via MediaGallery."""
         self.image_url = url
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
     def _rebuild(self):
+        """Rebuild the entire Components v2 Container from current state."""
         self.clear_items()
-        all_ready = all(self.states.values()) and self.status != "Active" # Can't be "ready" if already active
 
-        for i, (label, member) in enumerate(self.assignments.items()):
+        is_active  = self.status == "Active"
+        all_ready  = all(self.states.values()) and not is_active
+        ready_count = sum(1 for v in self.states.values() if v)
+        total_count = len(self.states)
+
+        # ── Accent colour reflects current phase ─────────────────────────────
+        if is_active:
+            accent = discord.Color.gold()
+        elif all_ready:
+            accent = discord.Color.green()
+        else:
+            accent = discord.Color.red()
+
+        container = discord.ui.Container(accent_colour=accent)
+
+        # ── Header ───────────────────────────────────────────────────────────
+        if is_active:
+            phase_line = f"## ⚡  OPERATION ACTIVE — Postal `{self.postal}`"
+        elif all_ready:
+            phase_line = f"## ✅  ALL ELEMENTS GREEN — Postal `{self.postal}`"
+        else:
+            phase_line = f"## {METRO_EMOJI}  OPERATIONAL READINESS BOARD — Postal `{self.postal}`"
+
+        container.add_item(discord.ui.TextDisplay(
+            f"{phase_line}\n"
+            f"{DIVIDER}\n"
+            f"**IC:** {self.ic.mention}  ·  "
+            f"**Target:** `{self.target_gang}`  ·  "
+            f"**Start:** `{self.start_time}`  ·  "
+            f"<t:{int(time.time())}:R>"
+        ))
+        container.add_item(discord.ui.Separator())
+
+        # ── Tactical map ──────────────────────────────────────────────────────
+        print(f"[MAP DEBUG] _rebuild called, image_url={self.image_url}")
+        if self.image_url:
+            print(f"[MAP DEBUG] _rebuild: inserting MediaGallery")
+            container.add_item(discord.ui.MediaGallery(
+                discord.MediaGalleryItem(media=discord.UnfurledMediaItem(url=self.image_url))
+            ))
+            container.add_item(discord.ui.Separator())
+
+        container.add_item(discord.ui.TextDisplay("### 🚦 Element Status"))
+
+        # ── Per-assignment: Section with button accessory ─────────────────────
+        items_list = list(self.assignments.items())
+        for i, (label, member) in enumerate(items_list):
             ready = self.states[label]
+
             btn = discord.ui.Button(
-                label=f"{'✅' if ready else '🔴'}  {label}: {member.display_name}",
+                label="🟢 Ready" if ready else "🔴 Not Ready",
                 style=discord.ButtonStyle.success if ready else discord.ButtonStyle.danger,
                 custom_id=f"ready_{label}",
-                row=min(i // 5, 3),
             )
             btn.callback = self._make_toggle(label)
-            self.add_item(btn)
 
-        # Abort button available to the IC at all times
-        abort = discord.ui.Button(
+            section = discord.ui.Section(
+                discord.ui.TextDisplay(f"**{label}** | {member.mention}"),
+                accessory=btn,
+            )
+            container.add_item(section)
+
+            if i < len(items_list) - 1:
+                container.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
+
+        # ── Summary line ─────────────────────────────────────────────────────
+        container.add_item(discord.ui.Separator())
+        if is_active:
+            container.add_item(discord.ui.TextDisplay(
+                "⚡  **Operation is underway.  IC may abort at any time.**"
+            ))
+        elif all_ready:
+            container.add_item(discord.ui.TextDisplay(
+                "✅  **All elements synchronized — awaiting IC initiation command.**"
+            ))
+        else:
+            container.add_item(discord.ui.TextDisplay(
+                f"⏳  **{ready_count} / {total_count} elements confirmed ready.**"
+            ))
+
+        # ── Control row: Abort (always) + Initiate (all-ready only) ──────────
+        container.add_item(discord.ui.Separator())
+
+        abort_btn = discord.ui.Button(
             label="✖  ABORT OPERATION",
             style=discord.ButtonStyle.secondary,
             custom_id="abort_op",
-            row=4
         )
-        abort.callback = self._abort
-        self.add_item(abort)
+        abort_btn.callback = self._abort
 
-        if all_ready and self.status != "Active": # Only show initiate button if not yet active
-            initiate = discord.ui.Button(
+        control_row = discord.ui.ActionRow(abort_btn)
+
+        if all_ready:
+            initiate_btn = discord.ui.Button(
                 label="⚡  INITIATE OPERATION",
                 style=discord.ButtonStyle.primary,
                 custom_id="initiate",
-                row=4,
             )
-            initiate.callback = self._initiate
-            self.add_item(initiate)
+            initiate_btn.callback = self._initiate
+            control_row.add_item(initiate_btn)
+
+        container.add_item(control_row)
+
+        # ── Register the whole container with the View ────────────────────────
+        self.add_item(container)
 
     async def _abort(self, interaction: discord.Interaction):
         if interaction.user.id != self.ic.id:
@@ -608,23 +660,12 @@ class LiveOpReadinessView(discord.ui.View):
         return _toggle
 
     async def _update_message(self, interaction: discord.Interaction):
-        """Send the readiness update, preferring Components v2 if available."""
-        container, flags = _try_build_v2_readiness(
-            self.ic, self.postal, self.assignments, self.states
+        """Refresh the readiness board in-place using Components v2."""
+        await interaction.response.edit_message(
+            content=None,
+            embed=None,
+            view=self,
         )
-        if container and flags:
-            # Components v2 path — rich layout, no embed
-            await interaction.response.edit_message(
-                content=None,
-                embed=None,
-                components=[container],
-                view=self,
-                flags=flags,
-            )
-        else:
-            # Standard embed fallback
-            embed = _embed_readiness(self.ic, self.postal, self.assignments, self.states, self.start_time, self.target_gang, self.image_url)
-            await interaction.response.edit_message(embed=embed, view=self)
 
     # ── Initiate ──────────────────────────────────────────────────────────────
 
@@ -639,12 +680,11 @@ class LiveOpReadinessView(discord.ui.View):
             {"$set": {"status": "Active", "initiated_at": datetime.datetime.now(datetime.timezone.utc)}}
         )
 
-        self.status = "Active" # Update internal status
-        self._rebuild() # Rebuild the view to remove the initiate button
+        self.status = "Active"
+        self._rebuild()  # Rebuilds with gold accent + removes initiate button; abort remains
 
-        embed = _embed_initiated(self.ic, self.postal, self.assignments, self.target_gang, self.image_url)
         await interaction.response.edit_message(
-            content="",
-            embed=embed,
-            view=self, # Keep the view active so abort button remains
+            content=None,
+            embed=None,
+            view=self,
         )
