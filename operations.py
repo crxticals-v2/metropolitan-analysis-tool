@@ -658,6 +658,7 @@ class Operations(commands.Cog):
         self.aar_logs = self.bot.mongo_client["erlc_database"]["aar_logs"]
         self.k9_logs = self.bot.mongo_client["erlc_database"]["k9_logs"]
         self.case_logs = self.bot.mongo_client["erlc_database"]["case_logs"]
+        self.live_ops = self.bot.mongo_client["erlc_database"]["live_ops"]
         self.officer_stats = self.bot.mongo_client["erlc_database"]["officer_stats"]
         
         # SIMON Intelligence Collection (Persistent)
@@ -1447,9 +1448,17 @@ class Operations(commands.Cog):
     @app_commands.describe(
         postal="The postal or POI where the operation is focused.",
         operatives="Mention all operatives in the op (e.g. @User1 @User2).",
+        start_time="Optional: Set a future time for the operation (e.g. 8:00 PM EST). Defaults to Immediate.",
+        target_gang="The criminal faction targeted by this operation."
     )
+    @app_commands.choices(target_gang=[
+        app_commands.Choice(name="None / Unaffiliated", value="None"),
+        app_commands.Choice(name="77th Saints Gang", value="77th"),
+        app_commands.Choice(name="West Coast Cartel", value="WCC"),
+        app_commands.Choice(name="Noche Silente Hermanos", value="NSH"),
+    ])
     async def metro_start_live(
-        self, interaction: discord.Interaction, postal: str, operatives: str):
+        self, interaction: discord.Interaction, postal: str, operatives: str, start_time: str = "Immediate", target_gang: str = "None"):
         import re
 
         user_ids = list(set(re.findall(r'\d{17,19}', operatives)))
@@ -1468,10 +1477,10 @@ class Operations(commands.Cog):
                 ephemeral=True,
             )
 
-        embed = _embed_setup(interaction.user, postal, {}, members)
+        embed = _embed_setup(interaction.user, postal, {}, members, start_time, target_gang)
         await interaction.response.send_message(
             embed=embed,
-            view=LiveOpAssignmentView(self, interaction.user, postal, members),
+            view=LiveOpAssignmentView(self, interaction.user, postal, members, start_time, target_gang),
             ephemeral=True,
         )
     # ------------------------------------------------------------------ #
