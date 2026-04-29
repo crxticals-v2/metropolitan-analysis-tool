@@ -425,9 +425,9 @@ class LiveOpAssignmentView(discord.ui.View):
                 try:
                     dm_embed = discord.Embed(
                         description=(
-                            f"## 🚨 {METRO_EMOJI} | CONFIDENTIAL BRIEFING: {self.postal}\n"
+                            f"## {METRO_EMOJI} | CONFIDENTIAL BRIEFING: {self.postal}\n"
                             f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
-                            f"You have been assinged to a live operation.\n"
+                            f"You have been assigned to a live operation. Your briefing is available here\n"
                             f"**AO:** `{self.postal}` · **Start:** `{self.start_time}`\n\n"
                             f"**Target:** `{self.target_gang}`\n\n"
                             f"### 📋 Strategic Manifest\n{manifest_text}\n\n"
@@ -456,17 +456,17 @@ class LiveOpAssignmentView(discord.ui.View):
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-class AbortReasonModal(discord.ui.Modal):
+class TerminateOperationModal(discord.ui.Modal):
     reason = discord.ui.TextInput(
-        label="Reason for Abortion",
-        placeholder="Provide the reason for standing down the operation...",
+        label="Reason for Termination",
+        placeholder="Provide the reason for terminating the operation... (Can be that operation is completed, or the operation is no longer viable due to leaks, etc.)",
         style=discord.TextStyle.paragraph,
         required=True,
         max_length=500
     )
 
     def __init__(self, view: 'LiveOpReadinessView'):
-        super().__init__(title="Abort Live Operation")
+        super().__init__(title="Terminate Live Operation")
         self.view = view
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -477,7 +477,7 @@ class AbortReasonModal(discord.ui.Modal):
 
         container = discord.ui.Container(accent_colour=discord.Color.dark_grey())
         container.add_item(discord.ui.TextDisplay(
-            f"## 🛑  OPERATION ABORTED — Postal `{self.view.postal}`\n"
+            f"## 🛑  OPERATION Terminated — Postal `{self.view.postal}`\n"
             f"{DIVIDER}\n"
             f"The operation has been stood down by {self.view.ic.mention}.\n\n"
             f"**Reason:** {self.reason.value}\n\n"
@@ -497,20 +497,7 @@ class AbortReasonModal(discord.ui.Modal):
 
 class LiveOpReadinessView(discord.ui.LayoutView):
     """
-    Public-facing readiness board — Components v2 (discord.py 2.7+).
-
-    Each assignment is rendered as:
-        [ASSIGNMENT — @member]
-        [STATUS BUTTON]
-        ─────────────────
-        [ASSIGNMENT — @member]
-        [STATUS BUTTON]
-        ...
-
-    All layout lives inside a single Container added to the View, so
-    Discord renders the full rich layout while callbacks still dispatch
-    via the standard View mechanism (matched by custom_id).
-    """
+    Public-facing readiness board — Components v2 (discord.py 2.7+)."""
 
     def __init__(self, cog, ic: discord.Member, assignments: dict, postal: str, start_time: str = "Immediate", db_id=None, target_gang: str = "None"):
         super().__init__(timeout=None)
@@ -525,7 +512,6 @@ class LiveOpReadinessView(discord.ui.LayoutView):
         self.image_url   = None  # kept for API compatibility; image now sent as attachment
         self.states      = {label: False for label in assignments}
         self._rebuild()
-
     def set_image(self, *, url: str):
         """Store the attachment URL so _rebuild can embed it via MediaGallery."""
         self.image_url = url
@@ -605,7 +591,7 @@ class LiveOpReadinessView(discord.ui.LayoutView):
         container.add_item(discord.ui.Separator())
         if is_active:
             container.add_item(discord.ui.TextDisplay(
-                "⚡  **Operation is underway.  IC may abort at any time.**"
+                "⚡  **Operation is underway.  IC may terminate at any time.**"
             ))
         elif all_ready:
             container.add_item(discord.ui.TextDisplay(
@@ -619,14 +605,14 @@ class LiveOpReadinessView(discord.ui.LayoutView):
         # ── Control row: Abort (always) + Initiate (all-ready only) ──────────
         container.add_item(discord.ui.Separator())
 
-        abort_btn = discord.ui.Button(
-            label="✖  ABORT OPERATION",
+        terminate_btn = discord.ui.Button(
+            label="⏹️  TERMINATE OPERATION",
             style=discord.ButtonStyle.secondary,
-            custom_id="abort_op",
+            custom_id="terminate_op",
         )
-        abort_btn.callback = self._abort
+        terminate_btn.callback = self._terminate
 
-        control_row = discord.ui.ActionRow(abort_btn)
+        control_row = discord.ui.ActionRow(terminate_btn)
 
         if all_ready:
             initiate_btn = discord.ui.Button(
@@ -642,11 +628,11 @@ class LiveOpReadinessView(discord.ui.LayoutView):
         # ── Register the whole container with the View ────────────────────────
         self.add_item(container)
 
-    async def _abort(self, interaction: discord.Interaction):
+    async def _terminate(self, interaction: discord.Interaction):
         if interaction.user.id != self.ic.id:
-            return await interaction.response.send_message("❌ Only the Incident Commander can abort the operation.", ephemeral=True)
+            return await interaction.response.send_message("❌ Only the Incident Commander can terminate the operation.", ephemeral=True)
         
-        await interaction.response.send_modal(AbortReasonModal(self))
+        await interaction.response.send_modal(TerminateOperationModal(self))
 
     def _make_toggle(self, label: str):
         async def _toggle(interaction: discord.Interaction):

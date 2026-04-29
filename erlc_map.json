@@ -137,8 +137,8 @@
       "y": 2521
     },
     "south_sandstone": {
-      "x": 650,
-      "y": 2550
+      "x": 669,
+      "y": 2590
     },
     "south_durham": {
       "x": 799,
@@ -259,10 +259,6 @@
     "iron_road_s": {
       "x": 1846,
       "y": 1089
-    },
-    "pineview_e": {
-      "x": 700,
-      "y": 1480
     },
     "emerson_s": {
       "x": 380,
@@ -402,8 +398,8 @@
     },
     "N-220": {
       "label": "INT_CHINATOWN",
-      "x": 699,
-      "y": 2609,
+      "x": 741,
+      "y": 2617,
       "poi": "Chinatown",
       "robable": true,
       "type": "commercial"
@@ -722,8 +718,8 @@
     },
     "N-903": {
       "label": "INT_LAKE_FISHING",
-      "x": 1560,
-      "y": 780,
+      "x": 1607,
+      "y": 788,
       "poi": "Fishing Lake",
       "robable": false,
       "type": "utility"
@@ -773,14 +769,6 @@
       "x": 1729,
       "y": 1082,
       "poi": "County Mid Road",
-      "robable": false,
-      "type": "utility"
-    },
-    "N-1103": {
-      "label": "INT_FAR_E",
-      "x": 2615,
-      "y": 850,
-      "poi": "Far East County",
       "robable": false,
       "type": "utility"
     },
@@ -1110,8 +1098,8 @@
       "robable": false
     },
     "INT_TOOL_STORE": {
-      "x": 890,
-      "y": 1742,
+      "x": 905,
+      "y": 1773,
       "label": "Tool Store",
       "poi": "Tool Store",
       "type": "commercial",
@@ -1386,6 +1374,310 @@
       "y": 1696,
       "label": "Housing N-4056",
       "poi": "Housing N-4056",
+      "type": "residential",
+      "robable": true
+    },
+    "N-2221": {
+      "x": 1011,
+      "y": 2578,
+      "label": "La Mesa",
+      "poi": "La Mesa",
+      "type": "commercial",
+      "robable": true
+    },
+    "N-5044": {
+      "x": 1614,
+      "y": 1584,
+      "label": "Farm Housing N-5044",
+      "poi": "Farm Housing N-5044",
+      "type": "residential",
+      "robable": true
+    },
+    "N-5043": {
+      "x": 1633,
+      "y": 1639,
+      "label": "Farm Housing N-5043",
+      "poi": "Farm Housing N-5043",
+      "type": "residential",
+      "robable": true
+    },
+    "N-5061": {
+      "x": 1669,
+      "y": 1567,
+      "label": "Farm Housing N-5061",
+      "poi": "Farm Housing N-5061",
+      "type": "residential",
+      "robable": true
+    },
+    "N-5042": {
+      "x": 1680,
+      "y": 1647,
+      "label": "Farm Housing N-5042",
+      "poi": "Farm Housing N-5042",
+      "type": "residential",
+      "robable": true
+    },
+    "N-5062": {
+      "x": 1727,
+      "y": 1589,
+      "label": "Farm Housing N-5062",
+      "poi": "Farm Housing N-5062",
+      "type": "residential",
+      "robable": true
+    },
+    "N-5063": {
+      "x": 1790,
+      "y": 1588,
+      "label": "Farm Housing N-5063",
+      "poi": "Farm Housing N-5063",
+      "type": "residential",
+      "robable": true
+    },
+    "N-5052": {
+      "x": 1790,
+      "y": 1648,
+      "label": "Farm Housing N-5052",
+      "poi": "Farm Housing N-5052",
+      "type": "residential",
+      "robable": true
+    },
+    "N-5051": {
+      "x": 1747,
+      "y": 1650,
+      "label": "Farm Housing N-5051",
+      "poi": "Farm Housing N-5051",
+      "type": "residential",
+      "robable": true
+    },
+    "N-5053": {
+      "x": 1731,
+      "y": 1690,
+      "label": "Farm Housing N-5053",
+      "poi": "Farm Housing N-5053",
+      "type": "residential",
+      "robable": true
+    },
+    "N-5054": {
+      "x": 1771,
+      "y": 1702,
+      "label": "Farm Housing N-5054",
+      "poi": "Farm Housing N-5054",
+      "type": "residential",
+      "robable": true
+    },
+    "N-5022": {
+      "x": 1728,
+      "y": 1759,
+      "label": "Farm Housing N-5022",
+      "poi": "Farm Housing N-5022",
+      "type": "residential",
+      "robable": true
+    },
+    "N-11032": {
+      "x": 2600,
+      "y": 841,
+      "label": "Farm Housing N-11032",
+      "poi": "Farm Housing N-11032",
+      "type": "residential",
+      "robable": true
+    },
+    "N-11031": {
+      "x": 2669,
+      "y": 907,
+      "label": "Farm Housing N-11031",
+      "poi": "Farm Housing N-11031",
+      "type": "residential",
+      "robable": true
+    },
+    "N-11091": {
+      "x": 2681,
+      "y": 1053,
+      "label": "Farm Housing N-11091",
+      "poi": "Farm Housing N-11091",
+      "type": "residential",
+      "robable": true
+    },
+    "N-11092": {
+      "x": 2651,
+      "y": 1146,
+      "label": "Farm Housing N-11092",
+      "poi": "Farm Housing N-11092",
+      "type": "residential",
+      "robable": true
+    },
+    "N-11051": {
+      "x": 2519,
+      "y": 993,
+      "label": "Parking Structure (Springfiled)",
+      "poi": "Parking Structure (Springfiled)",
+      "type": "commercial",
+      "robable": false
+    },
+    "N-11122": {
+      "x": 2270,
+      "y": 1425,
+      "label": "Rural Housing N-11122",
+      "poi": "Rural Housing N-11122",
+      "type": "residential",
+      "robable": true
+    },
+    "N-11123": {
+      "x": 2320,
+      "y": 1426,
+      "label": "Rural Housing N-11123",
+      "poi": "Rural Housing N-11123",
+      "type": "residential",
+      "robable": true
+    },
+    "N-11121": {
+      "x": 2331,
+      "y": 1384,
+      "label": "Rural Housing N-11121",
+      "poi": "Rural Housing N-11121",
+      "type": "residential",
+      "robable": true
+    },
+    "N-12021": {
+      "x": 2559,
+      "y": 1854,
+      "label": "Mountain Housing N-12021",
+      "poi": "Mountain Housing N-12021",
+      "type": "residential",
+      "robable": true
+    },
+    "N-12022": {
+      "x": 2631,
+      "y": 1868,
+      "label": "Mountain Housing N-12022",
+      "poi": "Mountain Housing N-12022",
+      "type": "residential",
+      "robable": true
+    },
+    "N-12051": {
+      "x": 2715,
+      "y": 2186,
+      "label": "Mountain Housing N-12051",
+      "poi": "Mountain Housing N-12051",
+      "type": "residential",
+      "robable": true
+    },
+    "N-12052": {
+      "x": 2777,
+      "y": 2206,
+      "label": "Mountain Housing N-12052",
+      "poi": "Mountain Housing N-12052",
+      "type": "residential",
+      "robable": true
+    },
+    "N-12053": {
+      "x": 2814,
+      "y": 2316,
+      "label": "Mountain Housing N-12053",
+      "poi": "Mountain Housing N-12053",
+      "type": "residential",
+      "robable": true
+    },
+    "N-12054": {
+      "x": 2792,
+      "y": 2392,
+      "label": "Mountain Housing N-12054",
+      "poi": "Mountain Housing N-12054",
+      "type": "residential",
+      "robable": true
+    },
+    "N-12055": {
+      "x": 2668,
+      "y": 2419,
+      "label": "Mountain Housing N-12055",
+      "poi": "Mountain Housing N-12055",
+      "type": "residential",
+      "robable": true
+    },
+    "N-12056": {
+      "x": 2729,
+      "y": 2479,
+      "label": "Mountain Housing N-12056",
+      "poi": "Mountain Housing N-12056",
+      "type": "residential",
+      "robable": true
+    },
+    "N-9082": {
+      "x": 1756,
+      "y": 1014,
+      "label": "Mountain Housing N-9082",
+      "poi": "Mountain Housing N-9082",
+      "type": "residential",
+      "robable": true
+    },
+    "N-9073": {
+      "x": 1662,
+      "y": 911,
+      "label": "Mountain Housing N-9073",
+      "poi": "Mountain Housing N-9073",
+      "type": "residential",
+      "robable": true
+    },
+    "N-9071": {
+      "x": 1757,
+      "y": 924,
+      "label": "Mountain Housing N-9071",
+      "poi": "Mountain Housing N-9071",
+      "type": "residential",
+      "robable": true
+    },
+    "N-9072": {
+      "x": 1802,
+      "y": 895,
+      "label": "Mountain Housing N-9072",
+      "poi": "Mountain Housing N-9072",
+      "type": "residential",
+      "robable": true
+    },
+    "N-9041": {
+      "x": 1788,
+      "y": 799,
+      "label": "Mountain Housing N-9041",
+      "poi": "Mountain Housing N-9041",
+      "type": "residential",
+      "robable": true
+    },
+    "N-9042": {
+      "x": 1851,
+      "y": 797,
+      "label": "Mountain Housing N-9042",
+      "poi": "Mountain Housing N-9042",
+      "type": "residential",
+      "robable": true
+    },
+    "N-9043": {
+      "x": 1909,
+      "y": 799,
+      "label": "Mountain Housing N-9043",
+      "poi": "Mountain Housing N-9043",
+      "type": "residential",
+      "robable": true
+    },
+    "N-9044": {
+      "x": 1987,
+      "y": 815,
+      "label": "Mountain Housing N-9044",
+      "poi": "Mountain Housing N-9044",
+      "type": "residential",
+      "robable": true
+    },
+    "N-9061": {
+      "x": 1888,
+      "y": 894,
+      "label": "Mountain Housing N-9061",
+      "poi": "Mountain Housing N-9061",
+      "type": "residential",
+      "robable": true
+    },
+    "N-9062": {
+      "x": 1946,
+      "y": 929,
+      "label": "Mountain Housing N-9062",
+      "poi": "Mountain Housing N-9062",
       "type": "residential",
       "robable": true
     }

@@ -7,7 +7,7 @@ has zero dependency on the bot object and stays easily testable.
 
 import io
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 from typing import List, Dict
 
 from config import MAP_IMAGE_PATH
@@ -122,7 +122,11 @@ def draw_heatmap_overlay(erlc_graph, heatmap_data: Dict[str, int]) -> io.BytesIO
     overlay    = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw       = ImageDraw.Draw(overlay)
     max_count  = max(heatmap_data.values())
-    base_radius = 45
+    
+    # Configuration for high-density "Blob" look
+    # A large base radius ensures points overlap to create "zones"
+    base_radius = 200
+    blur_radius = 60
 
     for node_id, count in heatmap_data.items():
         node_info = erlc_graph.nodes_data.get(node_id)
@@ -130,11 +134,18 @@ def draw_heatmap_overlay(erlc_graph, heatmap_data: Dict[str, int]) -> io.BytesIO
             continue
 
         x, y      = node_info["x"], node_info["y"]
-        intensity = count / max_count
+        intensity = min(count / max_count, 1.0)
+        
+        # Dynamic Radius: Hubs with more crimes physically expand further
+        current_radius = int(base_radius * (0.6 + 0.4 * intensity))
 
-        for r in range(base_radius, 0, -3):
-            alpha = int(140 * intensity * (1 - (r / base_radius) ** 1.5))
+        # Build a "heat cone" for the Gaussian filter to catch and smooth out
+        for r in range(current_radius, 0, -20):
+            alpha = int(130 * intensity * (1 - (r / current_radius) ** 1.8))
             draw.ellipse([x - r, y - r, x + r, y + r], fill=(255, 0, 0, alpha))
+
+    # Apply a large Gaussian blur to transform the circles into a unified, glowing heat map
+    overlay = overlay.filter(ImageFilter.GaussianBlur(radius=blur_radius))
 
     combined = Image.alpha_composite(img, overlay)
     buffer   = io.BytesIO()
