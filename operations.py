@@ -13,7 +13,6 @@ Metropolitan Unit administrative & operational commands:
   - /k9_deploy
 """
 
-import os
 import json
 import time
 import datetime
@@ -28,6 +27,80 @@ from liveops import LiveOpAssignmentView, _embed_setup
 
 OWNER_UID = 613698960133062687
 BASE_DIR = Path(__file__).parent.resolve()
+METRO_ICON_URL = "https://i.imgur.com/qdvbBqe.png"
+METRO_EMOJI = "<:LAPD_Metropolitan:1495867271501975552>"
+DASHBOARD_DIVIDER = "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+
+CHANNEL_LABELS = {
+    "metro_openings": "Openings",
+    "watchlist_auto": "Watchlist Auto-Send",
+    "intelligence_command": "Intelligence Command Channel",
+    "metro_promote": "Promotions",
+    "metro_infract": "Infractions",
+    "metro_announcement": "Announcements",
+    "metro_mass_shift": "Mass Shifts",
+    "request_metro": "Metro Requests",
+    "host_metro_training": "Training Host",
+    "metro_log_training": "Training Results",
+    "after_action": "After Action Reports",
+    "welcome": "Welcome Messages",
+    "k9": "K9 Logs",
+    "archives": "Archives",
+    "metro_shop": "Shop",
+    "metro_cases": "Major Crimes",
+    "raffle_winner": "Raffle Winner Announcement",
+    "live_ops_readiness": "Live Operations Readiness",
+    "aar_screening_alerts": "AAR Screening Alerts",
+}
+
+COMMAND_LABELS = {
+    "metro_predict": "/metro_predict",
+    "metro_suspect_log": "/metro_suspect_log",
+    "metro_promote": "/metro_promote",
+    "metro_infract": "/metro_infract",
+    "metro_mass_shift": "/metro_mass_shift",
+    "request_metro": "/request_metro",
+    "metro_rapid_aar": "-metroAA (Rapid AAR)",
+}
+
+
+def _channel_label(key: str) -> str:
+    return CHANNEL_LABELS.get(key, key.replace("_", " ").title())
+
+
+def _command_label(key: str) -> str:
+    return COMMAND_LABELS.get(key, key)
+
+
+def _dashboard_embed(cog) -> discord.Embed:
+    channels = cog.config_cache.get("channels", {})
+    permissions = cog.config_cache.get("permissions", {})
+
+    embed = discord.Embed(
+        description=(
+            f"## {METRO_EMOJI} | S.I.M.O.N. Command & Control\n"
+            f"{DASHBOARD_DIVIDER}\n"
+            "Configure Metropolitan routing, command access, and organised-crime intelligence from one control surface.\n\n"
+            f"**Configured Channels:** `{len(channels)}`\n"
+            f"**Restricted Commands:** `{len(permissions)}`\n"
+            f"**Route Coverage:** `{len(channels)}/{len(CHANNEL_LABELS)}` systems\n\n"
+            "Select a module below to continue."
+        ),
+        color=discord.Color.from_rgb(36, 99, 235),
+    )
+    embed.set_thumbnail(url=METRO_ICON_URL)
+    embed.set_footer(text="Owner-only administrative dashboard")
+    return embed
+
+
+def _dashboard_panel_embed(title: str, body: str, color: discord.Color) -> discord.Embed:
+    embed = discord.Embed(
+        description=f"## {title}\n{DASHBOARD_DIVIDER}\n{body}",
+        color=color,
+    )
+    embed.set_thumbnail(url=METRO_ICON_URL)
+    embed.set_footer(text="S.I.M.O.N. Command & Control")
+    return embed
 
 # ──────────────────────────────────────────────
 # VEHICLE DATABASE SYSTEM
@@ -84,11 +157,11 @@ class GangConfigView(discord.ui.View):
         self.cog = cog
 
     @discord.ui.select(
-        placeholder="Select a gang to configure...",
+        placeholder="Select an organised-crime profile...",
         options=[
-            discord.SelectOption(label="77th Saints Gang", value="77th"),
-            discord.SelectOption(label="West Coast Cartel", value="WCC"),
-            discord.SelectOption(label="Noche Silente Hermanos", value="NSH"),
+            discord.SelectOption(label="77th Saints Gang", description="Update M.O., vehicles, and clothing identifiers", value="77th", emoji="🟡"),
+            discord.SelectOption(label="West Coast Cartel", description="Update cartel behaviour and vehicle intelligence", value="WCC", emoji="🔵"),
+            discord.SelectOption(label="Noche Silente Hermanos", description="Update NSH profile and field identifiers", value="NSH", emoji="⚫"),
         ]
     )
     async def gang_select(self, interaction: discord.Interaction, select: discord.ui.Select):
@@ -103,11 +176,26 @@ class DashboardView(discord.ui.View):
         self.selected_command = None
 
     @discord.ui.select(
-        placeholder="Select dashboard mode...",
+        placeholder="Select a dashboard module...",
         options=[
-            discord.SelectOption(label="Configure Channels", value="channels"),
-            discord.SelectOption(label="Configure Permissions", value="perms"),
-            discord.SelectOption(label="Configure Gang Intelligence", value="gangs"),
+            discord.SelectOption(
+                label="Channel Routing",
+                description="Choose where operational outputs and logs are posted",
+                value="channels",
+                emoji="📡",
+            ),
+            discord.SelectOption(
+                label="Command Permissions",
+                description="Restrict sensitive commands to selected roles",
+                value="perms",
+                emoji="🛡️",
+            ),
+            discord.SelectOption(
+                label="Gang Intelligence",
+                description="Maintain M.O., vehicle, and clothing records",
+                value="gangs",
+                emoji="🏙️",
+            ),
         ]
     )
     async def mode_select(self, interaction: discord.Interaction, select: discord.ui.Select):
@@ -115,17 +203,32 @@ class DashboardView(discord.ui.View):
 
         if self.mode == "channels":
             await interaction.response.edit_message(
-                content="📡 Select a system to route:",
+                content=None,
+                embed=_dashboard_panel_embed(
+                    "📡 | Channel Routing",
+                    "Select a Metropolitan system, then choose the Discord channel or forum where its output should land.",
+                    discord.Color.from_rgb(56, 189, 248),
+                ),
                 view=ChannelView(self.cog)
             )
         elif self.mode == "perms":
             await interaction.response.edit_message(
-                content="🛡️ Select a command to restrict:",
+                content=None,
+                embed=_dashboard_panel_embed(
+                    "🛡️ | Command Permissions",
+                    "Select a command, then choose the roles allowed to use it. Empty permission sets keep the default behaviour.",
+                    discord.Color.from_rgb(99, 102, 241),
+                ),
                 view=PermissionView(self.cog)
             )
         else:
             await interaction.response.edit_message(
-                content="🏙️ Select a gang to update intelligence records:",
+                content=None,
+                embed=_dashboard_panel_embed(
+                    "🏙️ | Gang Intelligence",
+                    "Select an organised-crime profile to update its M.O., preferred vehicles, and clothing identifiers.",
+                    discord.Color.from_rgb(202, 138, 4),
+                ),
                 view=GangConfigView(self.cog)
             )
 
@@ -137,30 +240,37 @@ class ChannelView(discord.ui.View):
         self.key = None
 
     @discord.ui.select(
-        placeholder="Select feature...",
+        placeholder="Select a system to route...",
         options=[
-            discord.SelectOption(label="Openings", value="metro_openings"),
-            discord.SelectOption(label="Watchlist (Auto-Send)", value="watchlist_auto"),
-            discord.SelectOption(label="Intelligence Command Channel", value="intelligence_command"),
-            discord.SelectOption(label="Promotions", value="metro_promote"),
-            discord.SelectOption(label="Infractions", value="metro_infract"),
-            discord.SelectOption(label="Announcements", value="metro_announcement"),
-            discord.SelectOption(label="Mass Shifts", value="metro_mass_shift"),
-            discord.SelectOption(label="Metro Request", value="request_metro"),
-            discord.SelectOption(label="Training Host", value="host_metro_training"),
-            discord.SelectOption(label="Training Results", value="metro_log_training"),
-            discord.SelectOption(label="After Action", value="after_action"),
-            discord.SelectOption(label="Welcome Messages", value="welcome"),
-            discord.SelectOption(label="K9", value="k9"),
-            discord.SelectOption(label="Archives", value="archives"),
-            discord.SelectOption(label="Shop", value="metro_shop"),
-            discord.SelectOption(label="Major Crimes", value="metro_cases"),
+            discord.SelectOption(label="Openings", description="Rank availability and roster updates", value="metro_openings", emoji="📋"),
+            discord.SelectOption(label="Watchlist Auto-Send", description="Automated suspect and gang intelligence board", value="watchlist_auto", emoji="🛰️"),
+            discord.SelectOption(label="Intel Command Channel", description="Where SIMON intelligence commands are allowed", value="intelligence_command", emoji="🧠"),
+            discord.SelectOption(label="Promotions", description="Promotion announcements and logs", value="metro_promote", emoji="⬆️"),
+            discord.SelectOption(label="Infractions", description="Disciplinary notices", value="metro_infract", emoji="⚠️"),
+            discord.SelectOption(label="Announcements", description="Division-wide announcements", value="metro_announcement", emoji="📣"),
+            discord.SelectOption(label="Mass Shifts", description="Mobilisation alerts", value="metro_mass_shift", emoji="🚨"),
+            discord.SelectOption(label="Metro Requests", description="Cross-division backup requests", value="request_metro", emoji="📞"),
+            discord.SelectOption(label="Training Host", description="Training session posts", value="host_metro_training", emoji="🎓"),
+            discord.SelectOption(label="Training Results", description="Evaluation results and score logs", value="metro_log_training", emoji="📝"),
+            discord.SelectOption(label="After Action", description="AAR routing", value="after_action", emoji="📄"),
+            discord.SelectOption(label="Welcome Messages", description="New officer welcome posts", value="welcome", emoji="👋"),
+            discord.SelectOption(label="K9 Logs", description="K-Platoon deployment logs", value="k9", emoji="🐕"),
+            discord.SelectOption(label="Archives", description="Weekly archive summaries", value="archives", emoji="🗄️"),
+            discord.SelectOption(label="Shop", description="Intel point reward requests", value="metro_shop", emoji="🛒"),
+            discord.SelectOption(label="Major Crimes", description="Case forum/thread routing", value="metro_cases", emoji="🧾"),
+            discord.SelectOption(label="Raffle Winner", description="Weekly raffle winner announcements", value="raffle_winner", emoji="🎟️"),
+            discord.SelectOption(label="Live Ops Readiness", description="Operational readiness boards", value="live_ops_readiness", emoji="📡"),
+            discord.SelectOption(label="AAR Screening Alerts", description="Inappropriate rapid AAR detections", value="aar_screening_alerts", emoji="🚫"),
         ]
     )
     async def feature_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         self.key = select.values[0]
         await interaction.response.send_message(
-            f"Select a channel for **{self.key}**",
+            embed=_dashboard_panel_embed(
+                "📍 | Select Destination",
+                f"Choose the destination for **{_channel_label(self.key)}**.",
+                discord.Color.from_rgb(56, 189, 248),
+            ),
             view=ChannelPicker(self.cog, self.key),
             ephemeral=True
         )
@@ -188,7 +298,11 @@ class ChannelPicker(discord.ui.View):
         await self.cog.load_config()
 
         await interaction.response.send_message(
-            f"✅ {self.key} routed to {channel.mention}",
+            embed=_dashboard_panel_embed(
+                "✅ | Channel Route Updated",
+                f"**{_channel_label(self.key)}** will now post to {channel.mention}.",
+                discord.Color.green(),
+            ),
             ephemeral=True
         )
 
@@ -200,21 +314,25 @@ class PermissionView(discord.ui.View):
         self.cmd = None
 
     @discord.ui.select(
-        placeholder="Select command...",
+        placeholder="Select a command to restrict...",
         options=[
-            discord.SelectOption(label="/metro_predict", value="metro_predict"),
-            discord.SelectOption(label="/metro_suspect_log", value="metro_suspect_log"),
-            discord.SelectOption(label="/metro_promote", value="metro_promote"),
-            discord.SelectOption(label="/metro_infract", value="metro_infract"),
-            discord.SelectOption(label="/metro_mass_shift", value="metro_mass_shift"),
-            discord.SelectOption(label="/request_metro", value="request_metro"),
-            discord.SelectOption(label="-metroAA (Rapid AAR)", value="metro_rapid_aar"),
+            discord.SelectOption(label="/metro_predict", description="SIMON route prediction", value="metro_predict", emoji="🧭"),
+            discord.SelectOption(label="/metro_suspect_log", description="Suspect intelligence logging", value="metro_suspect_log", emoji="🧠"),
+            discord.SelectOption(label="/metro_promote", description="Promotion command", value="metro_promote", emoji="⬆️"),
+            discord.SelectOption(label="/metro_infract", description="Disciplinary command", value="metro_infract", emoji="⚠️"),
+            discord.SelectOption(label="/metro_mass_shift", description="Division mobilisation", value="metro_mass_shift", emoji="🚨"),
+            discord.SelectOption(label="/request_metro", description="Cross-division backup request", value="request_metro", emoji="📞"),
+            discord.SelectOption(label="-metroAA (Rapid AAR)", description="Natural-language AAR parser", value="metro_rapid_aar", emoji="📄"),
         ]
     )
     async def command_select(self, interaction: discord.Interaction, select: discord.ui.Select):
         self.cmd = select.values[0]
         await interaction.response.send_message(
-            f"Select roles allowed for **{self.cmd}**",
+            embed=_dashboard_panel_embed(
+                "🔐 | Select Allowed Roles",
+                f"Choose roles allowed to use **{_command_label(self.cmd)}**.",
+                discord.Color.from_rgb(99, 102, 241),
+            ),
             view=RolePicker(self.cog, self.cmd),
             ephemeral=True
         )
@@ -243,13 +361,26 @@ class RolePicker(discord.ui.View):
         await self.cog.load_config()
 
         await interaction.response.send_message(
-            f"✅ Permissions updated for {self.cmd}",
+            embed=_dashboard_panel_embed(
+                "✅ | Permissions Updated",
+                f"**{_command_label(self.cmd)}** is now restricted to `{len(roles)}` selected role{'s' if len(roles) != 1 else ''}.",
+                discord.Color.green(),
+            ),
             ephemeral=True
         )
 
 # ──────────────────────────────────────────────
 # MODALS
 # ──────────────────────────────────────────────
+
+async def _send_training_embed(interaction: discord.Interaction, embed: discord.Embed):
+    operations_cog = interaction.client.get_cog("Operations") if interaction.client else None
+    if operations_cog:
+        target = await operations_cog._resolve_output_channel(interaction, "metro_log_training")
+    else:
+        target = interaction.channel
+    await target.send(embed=embed)
+
 
 class MetroTrainingModal(discord.ui.Modal):
     """Score entry modal for a Metro entry training session."""
@@ -321,10 +452,84 @@ class MetroTrainingModal(discord.ui.Modal):
             icon_url=self.host.display_avatar.url,
         )
 
-        target = await interaction.client.get_cog("Operations")._resolve_output_channel(interaction, "metro_log_training")
-        await target.send(embed=embed)
+        await _send_training_embed(interaction, embed)
         await interaction.response.send_message(
             "✅ Training log has been posted successfully.", ephemeral=True
+        )
+
+
+class K9TrainingModal(discord.ui.Modal):
+    """Score entry modal for a K9 training session."""
+
+    s1 = discord.ui.TextInput(
+        label="SCENARIO I – Traffic Stop",
+        placeholder="Score (0-10)",
+        min_length=1,
+        max_length=2,
+    )
+    s2 = discord.ui.TextInput(
+        label="SCENARIO II – Searches",
+        placeholder="Score (0-10)",
+        min_length=1,
+        max_length=2,
+    )
+    s3 = discord.ui.TextInput(
+        label="SCENARIO III – Active Robbery",
+        placeholder="Score (0-10)",
+        min_length=1,
+        max_length=2,
+    )
+
+    def __init__(self, host, co_host, trainee, outcome, notes):
+        super().__init__(title="K9 Training Score Entry")
+        self.host    = host
+        self.co_host = co_host
+        self.trainee = trainee
+        self.outcome = outcome
+        self.notes   = notes
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            traffic_stop = int(self.s1.value)
+            searches = int(self.s2.value)
+            active_robbery = int(self.s3.value)
+            total = traffic_stop + searches + active_robbery
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Scores must be valid numbers.", ephemeral=True
+            )
+            return
+
+        desc = (
+            "## <:LAPD_Metropolitan:1495867271501975552> | K9 Training Evaluation\n"
+            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+            f"**Trainee:** {self.trainee.mention}\n\n"
+            f"**K9 Training Officer:** {self.host.mention}\n\n"
+            f"**Co-Host:** {self.co_host.mention if self.co_host else 'None'}\n\n"
+            "### Scenario Performance\n"
+            f"**SCENARIO I | Traffic Stop:** {traffic_stop}/10\n"
+            f"**SCENARIO II | Searches:** {searches}/10\n"
+            f"**SCENARIO III | Active Robbery:** {active_robbery}/10\n"
+            f"**Overall Score:** {total}/30\n"
+            f"**Outcome:** {self.outcome}\n\n"
+            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            "**Notes:**\n"
+            f"> {self.notes or 'No additional notes provided.'}\n\n"
+            "**What's Next?**\n"
+            "If you passed, your K9 training record has been logged for command review.\n"
+            "If you failed, review the marked scenarios before requesting another evaluation.\n"
+        )
+
+        embed = discord.Embed(description=desc, color=discord.Color.from_rgb(34, 197, 94))
+        embed.set_thumbnail(url=METRO_ICON_URL)
+        embed.set_footer(
+            text=f"Issued by {self.host.display_name}",
+            icon_url=self.host.display_avatar.url,
+        )
+
+        await _send_training_embed(interaction, embed)
+        await interaction.response.send_message(
+            "✅ K9 training log has been posted successfully.", ephemeral=True
         )
 
 
@@ -504,24 +709,39 @@ class ShopView(discord.ui.View):
             "quota":      {"label": "Quota Exemption (1 Week)", "cost": 12},
             "ic_shift":   {"label": "1 Shift as Responding Incident Commander", "cost": 30},
             "multiplier": {"label": "24hr Point Multiplier (1.5x)", "cost": 20},
+            "raffle_1":   {"label": "Raffle Ticket (×1)", "cost": 3},
+            "raffle_2":   {"label": "Raffle Tickets (×2)", "cost": 5},
         }
 
     @discord.ui.select(
         placeholder="Select an item to redeem...",
         options=[
-            discord.SelectOption(label="Shift Time (+15m)", description="Cost: 3 Tokens", value="shift_15"),
-            discord.SelectOption(label="Shift Time (+30m)", description="Cost: 6 Tokens", value="shift_30"),
-            discord.SelectOption(label="Next Drill/Hunt Hint", description="Cost: 5 Tokens", value="hint"),
-            discord.SelectOption(label="Quota Exemption (1 Week)", description="Cost: 12 Tokens", value="quota"),
-            discord.SelectOption(label="Shift as Responding IC", description="Cost: 30 Tokens", value="ic_shift"),
-            discord.SelectOption(label="24hr 1.5x Multiplier", description="Cost: 20 Tokens", value="multiplier"),
+            discord.SelectOption(label="Shift Time (+15m)", description="Cost: 3 Tokens", value="shift_15", emoji="⏰"),
+            discord.SelectOption(label="Shift Time (+30m)", description="Cost: 6 Tokens", value="shift_30", emoji="⏰"),
+            discord.SelectOption(label="Next Drill/Hunt Hint", description="Cost: 5 Tokens", value="hint", emoji="📄"),
+            discord.SelectOption(label="Quota Exemption (1 Week)", description="Cost: 12 Tokens", value="quota", emoji="💆"),
+            discord.SelectOption(label="Shift as Responding IC", description="Cost: 30 Tokens", value="ic_shift", emoji="🫡"),
+            discord.SelectOption(label="24hr 1.5x Multiplier", description="Cost: 20 Tokens", value="multiplier", emoji="✖️"),
+            discord.SelectOption(label="View My Raffle Tickets", description="Check your weekly entries and draw odds", value="raffle_status", emoji="🏆"),
+            discord.SelectOption(label="Raffle Ticket ×1", description="3 Tokens • weekly 50 Robux draw", value="raffle_1", emoji="🎟️"),
+            discord.SelectOption(label="Raffle Tickets ×2", description="5 Tokens • best raffle value", value="raffle_2", emoji="🎟️"),
         ]
     )
     async def select_item(self, interaction: discord.Interaction, select: discord.ui.Select):
+        # ── Raffle ticket fast-path (no HC approval needed) ──────────────
+        if select.values[0] in ("raffle_status", "raffle_1", "raffle_2"):
+            raffle_cog = interaction.client.get_cog("RaffleCog")
+            if raffle_cog:
+                if select.values[0] == "raffle_status":
+                    await raffle_cog.show_ticket_status(interaction, edit_message=True)
+                else:
+                    await raffle_cog.purchase_tickets(interaction, self, select.values[0])
+            else:
+                await interaction.response.send_message("Raffle system is currently unavailable.", ephemeral=True)
+            return
+        # ─────────────────────────────────────────────────────────────────
+
         item = self.items[select.values[0]]
-        
-        if self.points < item['cost']:
-            return await interaction.response.send_message(f"❌ You need {item['cost']} Career Tokens for this, but you only have {self.points}.", ephemeral=True)
 
         shop_channel = await self.cog._resolve_output_channel(interaction, "metro_shop")
         
@@ -558,14 +778,20 @@ class WeeklyResetView(discord.ui.View):
 
     @discord.ui.button(label="Confirm Purge & Reset", style=discord.ButtonStyle.danger)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Role check for reset
+        # 1. Authority Check (Should happen before any operational logic)
         allowed = ["Chief Inspector", "Detective Chief Inspector", "Deputy Commanding Officer", "Commanding Officer"]
         if not any(role.name in [f"[𝐌𝐄𝐓] {r}" for r in allowed] or r in role.name for r in allowed for role in interaction.user.roles):
             await interaction.response.send_message("❌ You lack the authority to perform a weekly reset.", ephemeral=True)
             return
 
+        # Acknowledge immediately to avoid 3s timeout (Error 10062)
         await interaction.response.defer()
-        
+
+        # 2. Run Raffle (Correctly call the method on the instance)
+        raffle_cog = interaction.client.get_cog('RaffleCog')
+        if raffle_cog:
+            await raffle_cog.run_raffle(interaction.guild, interaction)
+
         # 1. Resolve Timeframe & Stats
         last_reset = self.cog.config_cache.get("last_reset")
         if isinstance(last_reset, str):
@@ -590,9 +816,9 @@ class WeeklyResetView(discord.ui.View):
             top_text = f"{m.mention} ({top_officer_data[0].get('weekly_points', 0)} pts)" if m else f"ID: {top_officer_data[0]['_id']}"
 
         archive_embed = discord.Embed(
-            title="<:LAPD_Metropolitan:1495867271501975552> Weekly Operational Archive",
+            title="<:LAPD_Metropolitan:1495867271501975552> Weekly Operations Archive",
             description=(
-                f"**Operational Period:** {datetime.datetime.now().strftime('%Y-%m-%d')}\n"
+                f"## **Operational Period:** {datetime.datetime.now().strftime('%Y-%m-%d')}\n"
                 "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
                 f"📝 **AARs Processed:** `{aar_count}`\n"
                 f"🐕 **K9 Deployments:** `{k9_count}`\n"
@@ -600,7 +826,6 @@ class WeeklyResetView(discord.ui.View):
                 f"📂 **Case Logs:** `{case_count}`\n\n"
                 f"🏆 **Weekly Valedictorian:** {top_text}\n"
                 "**━━━━━━━━━━━━━━━━━━━━**\n"
-                "⚠️ *Operational logs cleared. Suspect Intelligence preserved for SIMON training.*"
             ),
             color=discord.Color.dark_grey()
         )
@@ -609,11 +834,9 @@ class WeeklyResetView(discord.ui.View):
         if archive_channel:
             await archive_channel.send(embed=archive_embed)
 
-        # Purge transient collections only. 
-        # NOTE: suspect_logs is EXCLUDED to build the long-term AI dataset.
-        await self.cog.aar_logs.delete_many({})
+        # Purge K9 logs only.
+        # NOTE: AARs, Case Logs, and suspect_logs are preserved for persistent data and AI training.
         await self.cog.k9_logs.delete_many({})
-        await self.cog.case_logs.delete_many({})
         
         # 3. Update Reset Timestamp & Clear Weekly Counters
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -627,7 +850,7 @@ class WeeklyResetView(discord.ui.View):
 
         embed = discord.Embed(
             title="🧹 Weekly Operations Purged",
-            description="All After Action Reports, K9 Deployments, and Case Logs have been cleared from the active database. Officer points have been preserved.",
+            description="K9 Deployments have been cleared. After Action Reports and Case Logs remain persistent. Officer points have been preserved.",
             color=discord.Color.gold()
         )
         await interaction.followup.send(embed=embed)
@@ -784,7 +1007,7 @@ class Operations(commands.Cog):
                 color=discord.Color.red()
             )
             
-            log_channel = await self._resolve_output_channel(None, "metro_infract")
+            log_channel = await self._resolve_output_channel(None, "aar_screening_alerts")
             await log_channel.send(content=" ".join(pings), embed=alert_embed)
             return False
 
@@ -993,12 +1216,8 @@ class Operations(commands.Cog):
     @app_commands.check(lambda i: i.user.id == OWNER_UID)
     async def metro_dashboard(self, interaction: discord.Interaction):
         """Main entry point for owner-only configuration."""
-        embed = discord.Embed(
-            title="<:LAPD_Metropolitan:1495867271501975552> S.I.M.O.N. Command & Control",
-            description="Welcome to the Metropolitan Services Dashboard. Use the components below to configure output routing and command access levels.",
-            color=discord.Color.blue()
-        )
-        await interaction.response.send_message(embed=embed, view=DashboardView(self), ephemeral=True)
+        await self.load_config()
+        await interaction.response.send_message(embed=_dashboard_embed(self), view=DashboardView(self), ephemeral=True)
 
     # ------------------------------------------------------------------ #
     # /metro_link                                                        #
@@ -1086,16 +1305,23 @@ class Operations(commands.Cog):
         name="metro_log_training",
         description="Log results for a Metropolitan Unit training session.",
     )
+    @app_commands.choices(training_format=[
+        app_commands.Choice(name="Entry Training", value="entry"),
+        app_commands.Choice(name="K9 Training", value="k9"),
+    ])
     async def metro_log_training(
         self,
         interaction: discord.Interaction,
         trainee: discord.Member,
         outcome: str,
         notes: str,
+        training_format: app_commands.Choice[str],
         co_host: discord.Member = None,
     ):
+        selected_format = training_format.value if training_format else "entry"
+        modal_cls = K9TrainingModal if selected_format == "k9" else MetroTrainingModal
         await interaction.response.send_modal(
-            MetroTrainingModal(
+            modal_cls(
                 host=interaction.user,
                 co_host=co_host,
                 trainee=trainee,
@@ -1449,7 +1675,8 @@ class Operations(commands.Cog):
         postal="The postal or POI where the operation is focused.",
         operatives="Mention all operatives in the op (e.g. @User1 @User2).",
         start_time="Optional: Set a future time for the operation (e.g. 8:00 PM EST). Defaults to Immediate.",
-        target_gang="The criminal faction targeted by this operation."
+        target_gang="The criminal faction targeted by this operation.",
+        warrant_id="Optional: The warrant ID associated with this operation (e.g. LAPD4512)."
     )
     @app_commands.choices(target_gang=[
         app_commands.Choice(name="None / Unaffiliated", value="None"),
@@ -1458,7 +1685,7 @@ class Operations(commands.Cog):
         app_commands.Choice(name="Noche Silente Hermanos", value="NSH"),
     ])
     async def metro_start_live(
-        self, interaction: discord.Interaction, postal: str, operatives: str, start_time: str = "Immediate", target_gang: str = "None"):
+        self, interaction: discord.Interaction, postal: str, operatives: str, start_time: str = "Immediate", target_gang: str = "None", warrant_id: str = None):
         import re
 
         user_ids = list(set(re.findall(r'\d{17,19}', operatives)))
@@ -1477,10 +1704,10 @@ class Operations(commands.Cog):
                 ephemeral=True,
             )
 
-        embed = _embed_setup(interaction.user, postal, {}, members, start_time, target_gang)
+        embed = _embed_setup(interaction.user, postal, {}, members, start_time, target_gang, warrant_id)
         await interaction.response.send_message(
             embed=embed,
-            view=LiveOpAssignmentView(self, interaction.user, postal, members, start_time, target_gang),
+            view=LiveOpAssignmentView(self, interaction.user, postal, members, start_time, target_gang, warrant_id),
             ephemeral=True,
         )
     # ------------------------------------------------------------------ #
@@ -2118,9 +2345,9 @@ class Operations(commands.Cog):
             description=(
                 "Staff must review the following logged activity before purging. Use `/metro_modify_points` "
                 "to award additional credit for high-quality reports now.\n\n"
-                f"**AARs Pending Purge:** `{aar_count}`\n"
+                f"**AARs Logged (Persistent):** `{aar_count}`\n"
                 f"**K9 Logs Pending Purge:** `{k9_count}`\n"
-                f"**Case Logs Pending Purge:** `{case_count}`\n\n"
+                f"**Case Logs (Persistent):** `{case_count}`\n\n"
                 f"💡 *Note: `{intel_weekly}` Suspect Logs were added this week. All `{intel_total}` logs are preserved for AI training.*\n\n"
                 "**Click below to finalize the purge.** This action cannot be undone."
             ),

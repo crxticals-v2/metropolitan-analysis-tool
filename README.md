@@ -46,6 +46,7 @@ Beyond intelligence, the bot serves as the central administrative hub for the Me
 | `-metroAA [text]` | **Rapid AAR:** Generates a full report from unstructured text input. |
 | `/metro_dashboard` | Master control panel for routing and permissions (Owner Only). |
 | `/metro_shop` | Opens the rewards menu to redeem Intel Points. |
+| `/metro_raffle` | Shows your current weekly raffle tickets and draw odds. |
 | `/metro_start_case` | Initializes a major crimes case thread in the division forum. |
 | `/metro_active_cases`| Directory of all ongoing Major Crimes investigations. |
 | `/metro_case_log` | Appends evidence, photos, and notes to an active Case ID. |
@@ -53,6 +54,7 @@ Beyond intelligence, the bot serves as the central administrative hub for the Me
 | `/k9_deploy` | Logs K9 deployments with evidence attachments. |
 | `/metro_openings` | Displays current rank availability and member list. |
 | `/metro_link` | Links/Unlinks personal reporting threads for AAR/K9 routing. |
+| `/metro_start_live` | Builds a live operation plan and posts the readiness board to the configured channel. |
 | `/metro_log_training`| Opens a score-entry modal for evaluating trainees. |
 | `/host_metro_training`| Announces and handles reactions for a training session. |
 | `/metro_weekly_stats`| Division-wide analytics for the current operational period. |
@@ -122,5 +124,5 @@ python main.py
 ## 🧪 Testing
 The project includes a robust suite of over 100 tests covering graph loading, routing accuracy, ETA calculations, and embed construction.
 ```bash
-pytest tests/ --tb=short -v
+pytest --tb=short -v
 ```

@@ -6,8 +6,9 @@ has zero dependency on the bot object and stays easily testable.
 """
 
 import io
+import math
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 from typing import List, Dict
 
 from config import MAP_IMAGE_PATH
@@ -45,7 +46,6 @@ def draw_map_path(erlc_graph, paths_to_draw: List[List[str]]) -> io.BytesIO:
     except Exception as e:
         raise RuntimeError(f"Failed to load base map for path drawing: {e}")
     draw = ImageDraw.Draw(img)
-    print("[MAP DEBUG] Drawing map with", len(paths_to_draw), "paths")
 
     # primary = solid red, others = semi-transparent orange
     colors = [
@@ -55,14 +55,12 @@ def draw_map_path(erlc_graph, paths_to_draw: List[List[str]]) -> io.BytesIO:
     ]
 
     for idx, path_nodes in enumerate(paths_to_draw[:3]):
-        print(f"[MAP DEBUG] Drawing path {idx}:", path_nodes)
         color      = colors[0] if idx == 0 else colors[1]
         line_width = 8 if idx == 0 else 4
 
         for i in range(len(path_nodes) - 1):
             a = path_nodes[i]
             b = path_nodes[i + 1]
-            print(f"[MAP DEBUG] Segment: {a} -> {b}")
 
             edge_data = erlc_graph.graph.get_edge_data(a, b)
             if edge_data:
@@ -97,6 +95,34 @@ def draw_map_path(erlc_graph, paths_to_draw: List[List[str]]) -> io.BytesIO:
 # HEATMAP OVERLAY
 # ------------------------------------------------------------------
 
+def _lerp(a: int, b: int, t: float) -> int:
+    return round(a + (b - a) * t)
+
+
+def _heat_color(value: int) -> tuple[int, int, int, int]:
+    """Weather-map ramp: transparent low end, blue low, yellow mid, white hot."""
+    if value <= 0:
+        return (0, 0, 0, 0)
+
+    t = value / 255
+    stops = [
+        (0.00, (0, 0, 0, 0)),
+        (0.08, (24, 82, 214, 85)),
+        (0.42, (20, 168, 245, 145)),
+        (0.68, (255, 222, 68, 190)),
+        (1.00, (255, 255, 255, 235)),
+    ]
+
+    for idx in range(len(stops) - 1):
+        left_t, left_color = stops[idx]
+        right_t, right_color = stops[idx + 1]
+        if t <= right_t:
+            local_t = (t - left_t) / (right_t - left_t)
+            return tuple(_lerp(left_color[i], right_color[i], local_t) for i in range(4))
+
+    return stops[-1][1]
+
+
 def draw_heatmap_overlay(erlc_graph, heatmap_data: Dict[str, int]) -> io.BytesIO:
     """
     Draw a crime-frequency heatmap on the ER:LC map image.
@@ -119,35 +145,89 @@ def draw_heatmap_overlay(erlc_graph, heatmap_data: Dict[str, int]) -> io.BytesIO
         buffer.seek(0)
         return buffer
 
-    overlay    = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    draw       = ImageDraw.Draw(overlay)
-    max_count  = max(heatmap_data.values())
-    
-    # Configuration for high-density "Blob" look
-    # A large base radius ensures points overlap to create "zones"
-    base_radius = 200
-    blur_radius = 60
-
+    valid_points = []
     for node_id, count in heatmap_data.items():
         node_info = erlc_graph.nodes_data.get(node_id)
         if not node_info or "x" not in node_info or "y" not in node_info:
             continue
+        valid_points.append((node_info, count))
 
-        x, y      = node_info["x"], node_info["y"]
-        intensity = min(count / max_count, 1.0)
-        
-        # Dynamic Radius: Hubs with more crimes physically expand further
-        current_radius = int(base_radius * (0.6 + 0.4 * intensity))
+    if not valid_points:
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+        return buffer
 
-        # Build a "heat cone" for the Gaussian filter to catch and smooth out
-        for r in range(current_radius, 0, -20):
-            alpha = int(130 * intensity * (1 - (r / current_radius) ** 1.8))
-            draw.ellipse([x - r, y - r, x + r, y + r], fill=(255, 0, 0, alpha))
+    max_count = max(count for _, count in valid_points)
+    if max_count <= 0:
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+        return buffer
 
-    # Apply a large Gaussian blur to transform the circles into a unified, glowing heat map
-    overlay = overlay.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+    # Cool the base map down slightly so the heat layer reads like a weather chart.
+    base_tint = Image.new("RGBA", img.size, (8, 25, 45, 60))
+    img = Image.alpha_composite(img, base_tint)
+
+    density = Image.new("L", img.size, 0)
+    max_log = math.log1p(max_count)
+
+    for node_info, count in valid_points:
+        x, y = node_info["x"], node_info["y"]
+        intensity = math.log1p(max(0, count)) / max_log
+        radius = int(170 + 150 * intensity)
+        peak = int(95 + 160 * intensity)
+
+        spot = Image.new("L", img.size, 0)
+        spot_draw = ImageDraw.Draw(spot)
+        for r in range(radius, 0, -18):
+            falloff = 1 - (r / radius) ** 1.75
+            value = int(peak * falloff)
+            if value <= 0:
+                continue
+            spot_draw.ellipse([x - r, y - r, x + r, y + r], fill=value)
+        density = ImageChops.add(density, spot, scale=1.0, offset=0)
+
+    density = density.filter(ImageFilter.GaussianBlur(radius=52))
+    density = density.point(lambda p: min(255, int(p * 1.35)))
+
+    palette = [_heat_color(i) for i in range(256)]
+    overlay = Image.merge(
+        "RGBA",
+        (
+            density.point([color[0] for color in palette]),
+            density.point([color[1] for color in palette]),
+            density.point([color[2] for color in palette]),
+            density.point([color[3] for color in palette]),
+        ),
+    )
 
     combined = Image.alpha_composite(img, overlay)
+
+    legend = Image.new("RGBA", combined.size, (0, 0, 0, 0))
+    legend_draw = ImageDraw.Draw(legend)
+    margin = 34
+    bar_w = 340
+    bar_h = 16
+    x0 = margin
+    y0 = combined.height - margin - 42
+
+    legend_draw.rounded_rectangle(
+        [x0 - 14, y0 - 12, x0 + bar_w + 14, y0 + 44],
+        radius=10,
+        fill=(6, 13, 24, 150),
+        outline=(255, 255, 255, 55),
+        width=1,
+    )
+    for i in range(bar_w):
+        color = _heat_color(round(i / (bar_w - 1) * 255))
+        legend_draw.line([x0 + i, y0, x0 + i, y0 + bar_h], fill=color)
+    legend_draw.rectangle([x0, y0, x0 + bar_w, y0 + bar_h], outline=(255, 255, 255, 120), width=1)
+    legend_draw.text((x0, y0 + 22), "LOW", fill=(210, 230, 255, 230))
+    legend_draw.text((x0 + bar_w // 2 - 16, y0 + 22), "MID", fill=(255, 232, 120, 235))
+    legend_draw.text((x0 + bar_w - 34, y0 + 22), "HIGH", fill=(255, 255, 255, 240))
+
+    combined = Image.alpha_composite(combined, legend)
     buffer   = io.BytesIO()
     combined.save(buffer, format="PNG")
     buffer.seek(0)

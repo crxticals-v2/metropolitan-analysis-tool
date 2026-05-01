@@ -1,4 +1,3 @@
-import pytest
 from simon import normalize_postal, vehicle_speed_model
 from unittest.mock import MagicMock
 

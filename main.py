@@ -3,8 +3,6 @@ main.py – Metropolitan Services Bot
 Entry point. Assembles the bot, mounts all cogs, starts the client.
 """
 
-import asyncio
-
 import certifi
 import discord
 from discord.ext import commands
@@ -54,6 +52,7 @@ class MetroBot(commands.Bot):
         await self.load_extension("simon")
         await self.load_extension("operations")
         await self.load_extension("handbook")
+        await self.load_extension("raffle")
         await self.tree.sync()
         print("✅ Slash commands synced.")
 

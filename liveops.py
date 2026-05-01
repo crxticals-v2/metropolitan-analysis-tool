@@ -1,20 +1,4 @@
-"""
-REDESIGN: /metro_start_live — Live Operation Components
-========================================================
-Drop these replacements into operations.py:
-
-  1. Place the helper functions + class block below the "LIVE OPERATION COMPONENTS"
-     section header (replacing the old LiveOpAssignmentView & LiveOpReadinessView).
-
-  2. Replace the metro_start_live command body inside the Operations cog.
-
-Components v2 note
-------------------
-The LiveOpReadinessView uses Components v2 (discord.py 2.5 / API flag 1<<15).
-If your installed version of discord.py does NOT expose discord.ui.Container or
-discord.MessageFlags(is_components_v2=True), set USE_COMPONENTS_V2 = False and
-the view falls back gracefully to a standard embed.
-"""
+"""Live operation planning and readiness board components."""
 
 import time
 import asyncio
@@ -23,12 +7,8 @@ import json
 import discord
 import datetime
 import hashlib
-from discord import app_commands
 from PIL import Image, ImageDraw
 from pathlib import Path
-import discord
-print([x for x in dir(discord) if 'allery' in x or 'edia' in x])
-print([x for x in dir(discord.ui) if 'allery' in x or 'edia' in x])
 
 # ── Components v2 is always on — requires discord.py 2.7+ ────────────────────
 USE_COMPONENTS_V2 = True
@@ -57,7 +37,7 @@ _OVERWATCH = {"Sniper", "Drone Operator", "Stakeout 1", "Stakeout 2"}
 
 def _get_zoomed_map(graph, postal: str) -> io.BytesIO | None:
     if not MAP_PATH.exists():
-        print("[MAP CROP] fall_postals.png not found")
+        print("[MAP CROP] fall_postals.jpg not found")
         return None
 
     node_id = graph.resolve_target(postal)
@@ -129,15 +109,16 @@ def _group_assignments(assignments: dict) -> dict[str, dict]:
 
 # ── Embed builders ─────────────────────────────────────────────────────────────
 
-def _embed_setup(ic: discord.Member, postal: str, assignments: dict, members: list, start_time: str = "Immediate", target_gang: str = "None") -> discord.Embed:
+def _embed_setup(ic: discord.Member, postal: str, assignments: dict, members: list, start_time: str = "Immediate", target_gang: str = "None", warrant_id: str = None) -> discord.Embed:
     """Ephemeral 'Operation Setup' embed shown while the IC assigns roles."""
+    warrant_str = f"**Warrant ID:** `{warrant_id}`\n" if warrant_id else ""
     desc_lines = [
         f"## {METRO_EMOJI} | Operation Tactical Planning",
         DIVIDER,
         f"**Incident Commander:** {ic.mention}",
         f"**Operation Zone:** Postal `{postal}`",
         f"**Target Faction:** `{target_gang}`",
-        f"**Scheduled Start:** `{start_time}`",
+        f"{warrant_str}**Scheduled Start:** `{start_time}`",
         f"**Operative Pool:** `{len(members)}` personnel",
         DIVIDER,
         "",
@@ -162,15 +143,16 @@ def _embed_setup(ic: discord.Member, postal: str, assignments: dict, members: li
     return embed
 
 
-def _embed_briefing(ic: discord.Member, postal: str, assignments: dict, start_time: str = "Immediate", target_gang: str = "None") -> discord.Embed:
+def _embed_briefing(ic: discord.Member, postal: str, assignments: dict, start_time: str = "Immediate", target_gang: str = "None", warrant_id: str = None) -> discord.Embed:
     """Public-facing operation briefing embed (red = hot)."""
+    warrant_str = f"**Warrant ID:** `{warrant_id}`\n" if warrant_id else ""
     desc_lines = [
         f"## {METRO_EMOJI} | LIVE OPERATION BRIEFING",
         DIVIDER,
         f"**Incident Commander:** {ic.mention}",
         f"**Operation Zone:** Postal `{postal}`",
         f"**Target Faction:** `{target_gang}`",
-        f"**Scheduled Start:** `{start_time}`",
+        f"{warrant_str}**Scheduled Start:** `{start_time}`",
         f"**Timestamp:** <t:{int(time.time())}:F>",
         DIVIDER,
         "",
@@ -188,12 +170,13 @@ def _embed_briefing(ic: discord.Member, postal: str, assignments: dict, start_ti
     return embed
 
 
-def _embed_readiness(ic: discord.Member, postal: str, assignments: dict, states: dict, start_time: str = "Immediate", target_gang: str = "None", image_url: str = None) -> discord.Embed:
+def _embed_readiness(ic: discord.Member, postal: str, assignments: dict, states: dict, start_time: str = "Immediate", target_gang: str = "None", image_url: str = None, warrant_id: str = None) -> discord.Embed:
     """Readiness board embed — updates live as IC toggles elements."""
     ready_count = sum(1 for v in states.values() if v)
     total_count  = len(states)
     all_ready    = ready_count == total_count
     
+    warrant_str = f"  ·  **Warrant:** `{warrant_id}`" if warrant_id else ""
     status_lines: list[str] = []
     for group, roles in _group_assignments(assignments).items():
         status_lines.append(f"**{group}**")
@@ -213,7 +196,7 @@ def _embed_readiness(ic: discord.Member, postal: str, assignments: dict, states:
         f"## {METRO_EMOJI} | OPERATIONAL READINESS BOARD",
         DIVIDER,
         f"**Start Time:** `{start_time}`",
-        f"**Target:** `{target_gang}`",
+        f"**Target:** `{target_gang}`{warrant_str}",
         f"**IC:** {ic.mention}  ·  **Zone:** Postal `{postal}`  ·  <t:{int(time.time())}:R>",
         DIVIDER,
         "",
@@ -230,15 +213,16 @@ def _embed_readiness(ic: discord.Member, postal: str, assignments: dict, states:
     return embed
 
 
-def _embed_initiated(ic: discord.Member, postal: str, assignments: dict, target_gang: str = "None", image_url: str = None) -> discord.Embed:
+def _embed_initiated(ic: discord.Member, postal: str, assignments: dict, target_gang: str = "None", image_url: str = None, warrant_id: str = None) -> discord.Embed:
     """Final 'Operation Initiated' embed (gold = go)."""
+    warrant_str = f"**Warrant ID:** `{warrant_id}`\n" if warrant_id else ""
     desc_lines = [
         f"## ⚡ | OPERATION INITIATED",
         DIVIDER,
         f"**Incident Commander:** {ic.mention}",
         f"**Operation Zone:** Postal `{postal}`",
         f"**Target Faction:** `{target_gang}`",
-        f"**Initiated:** <t:{int(time.time())}:F>",
+        f"{warrant_str}**Initiated:** <t:{int(time.time())}:F>",
         DIVIDER,
         "",
         "### 📋 Final Element Manifest",
@@ -258,6 +242,85 @@ def _embed_initiated(ic: discord.Member, postal: str, assignments: dict, target_
         icon_url=ic.display_avatar.url if ic.display_avatar else None,
     )
     return embed
+
+
+def _classify_termination(reason: str) -> tuple[str, discord.Color, str]:
+    """Infer the final operation outcome from the IC's termination note."""
+    text = reason.casefold()
+
+    failed_terms = (
+        "failed", "failure", "unsuccessful", "lost", "no arrest", "no arrests",
+        "suspect escaped", "target escaped", "compromised and failed",
+        "not successful", "did not succeed", "didn't succeed", "no success",
+        "could not complete", "couldn't complete", "unable to complete",
+    )
+    aborted_terms = (
+        "abort", "aborted", "cancelled", "canceled", "called off", "stood down",
+        "stand down", "no longer viable", "leak", "leaked", "compromised",
+        "postponed", "rescheduled",
+    )
+    success_terms = (
+        "success", "successful", "completed", "complete", "concluded", "done",
+        "secured", "mission accomplished", "target arrested", "suspect arrested",
+        "arrest made", "arrests made", "objective met",
+    )
+
+    if any(term in text for term in failed_terms):
+        return "Failed", discord.Color.red(), "❌"
+    if any(term in text for term in aborted_terms):
+        return "Aborted", discord.Color.dark_grey(), "🛑"
+    if any(term in text for term in success_terms):
+        return "Success", discord.Color.green(), "✅"
+    return "Terminated", discord.Color.orange(), "⏹️"
+
+
+def _terminated_report_view(
+    ic: discord.Member,
+    postal: str,
+    assignments: dict,
+    reason: str,
+    outcome: str,
+    color: discord.Color,
+    emoji: str,
+    target_gang: str = "None",
+    start_time: str = "Immediate",
+    warrant_id: str = None,
+) -> discord.ui.LayoutView:
+    """Final Components v2 report that replaces the live readiness board."""
+    warrant_str = f"**Warrant ID:** `{warrant_id}`\n" if warrant_id else ""
+    desc_lines = [
+        f"## {emoji} | OPERATION {outcome.upper()}",
+        DIVIDER,
+        f"**Incident Commander:** {ic.mention}",
+        f"**Operation Zone:** Postal `{postal}`",
+        f"**Target Faction:** `{target_gang}`",
+        f"{warrant_str}**Scheduled Start:** `{start_time}`",
+        f"**Finalized:** <t:{int(time.time())}:F>",
+        DIVIDER,
+        "",
+        "### 📋 Final Element Manifest",
+    ]
+
+    for group, roles in _group_assignments(assignments).items():
+        desc_lines.append(f"**{group}**")
+        for role, member in roles.items():
+            desc_lines.append(f"> `{role}` — {member.mention}")
+        desc_lines.append("")
+
+    desc_lines += [
+        DIVIDER,
+        "### 📝 Termination Notes",
+        reason,
+    ]
+
+    container = discord.ui.Container(accent_colour=color)
+    container.add_item(discord.ui.TextDisplay("\n".join(desc_lines)))
+    container.add_item(discord.ui.Separator())
+    container.add_item(discord.ui.TextDisplay(f"*Closed by {ic.display_name}*"))
+
+    view = discord.ui.LayoutView()
+    view.add_item(container)
+    return view
 
 
 # _try_build_v2_readiness removed — layout is now owned by LiveOpReadinessView._rebuild()
@@ -282,13 +345,14 @@ class LiveOpAssignmentView(discord.ui.View):
         "TL Charlie", "Breacher C", "Driver C", "Negotiator C", "Point C", "Cover C", "Rear C",
     ]
 
-    def __init__(self, cog, ic: discord.Member, postal: str, members: list[discord.Member], start_time: str = "Immediate", target_gang: str = "None"):
+    def __init__(self, cog, ic: discord.Member, postal: str, members: list[discord.Member], start_time: str = "Immediate", target_gang: str = "None", warrant_id: str = None):
         super().__init__(timeout=600)
         self.cog         = cog
         self.ic          = ic
         self.postal      = postal
         self.start_time  = start_time
         self.target_gang = target_gang
+        self.warrant_id  = warrant_id
         self.members     = members
         self.assignments: dict[str, discord.Member] = {}
         self._refresh()
@@ -341,14 +405,14 @@ class LiveOpAssignmentView(discord.ui.View):
             member = discord.utils.get(self.members, id=uid)
             self.assignments[role] = member
             self._refresh()
-            embed = _embed_setup(self.ic, self.postal, self.assignments, self.members, self.start_time, self.target_gang)
+            embed = _embed_setup(self.ic, self.postal, self.assignments, self.members, self.start_time, self.target_gang, self.warrant_id)
             await inter.response.edit_message(embed=embed, view=self)
 
         sel.callback = _member_picked
         member_view.add_item(sel)
 
         # Keep the embed visible while picking
-        embed = _embed_setup(self.ic, self.postal, self.assignments, self.members, self.start_time, self.target_gang)
+        embed = _embed_setup(self.ic, self.postal, self.assignments, self.members, self.start_time, self.target_gang, self.warrant_id)
         await interaction.response.edit_message(embed=embed, view=member_view)
 
     async def _finalize(self, interaction: discord.Interaction):
@@ -368,6 +432,7 @@ class LiveOpAssignmentView(discord.ui.View):
                 "postal": self.postal,
                 "start_time": self.start_time,
                 "target_gang": self.target_gang,
+                "warrant_id": self.warrant_id,
                 "assignments": {role: m.id for role, m in self.assignments.items()},
                 "status": "Planning",
                 "timestamp": datetime.datetime.now(datetime.timezone.utc),
@@ -383,11 +448,9 @@ class LiveOpAssignmentView(discord.ui.View):
         map_file = discord.utils.MISSING
         loop = asyncio.get_running_loop()
         buf = await loop.run_in_executor(None, _get_zoomed_map, self.cog.bot.erlc_graph, self.postal)
-        print(f"[MAP DEBUG] buf returned: {buf}")
 
         if buf:
             map_file = discord.File(fp=buf, filename="op_map.png")
-            print(f"[MAP DEBUG] map_file created: {map_file}")
 
         # Pre-build manifest string for notifications
         manifest_text = "\n".join([f"> `{role}` — {m.display_name}" for role, m in self.assignments.items()])
@@ -395,14 +458,11 @@ class LiveOpAssignmentView(discord.ui.View):
         # ── 1. Prepare Readiness Board ────────────────────────────────────────
         # The LiveOpReadinessView Container includes all briefing info + per-assignment
         # status rows, so no separate briefing embed is needed alongside it.
-        readiness_view = LiveOpReadinessView(self.cog, self.ic, self.assignments, self.postal, self.start_time, db_id=db_id, target_gang=self.target_gang)
+        readiness_view = LiveOpReadinessView(self.cog, self.ic, self.assignments, self.postal, self.start_time, db_id=db_id, target_gang=self.target_gang, warrant_id=self.warrant_id)
         if buf:
             readiness_view._map_buf = buf
             readiness_view.image_url = "attachment://op_map.png"
             readiness_view._rebuild()
-            print(f"[MAP DEBUG] image_url set on view: {readiness_view.image_url}")
-        else:
-            print(f"[MAP DEBUG] buf is None/falsy — map will NOT appear")
 
         kwargs: dict = dict(
             content=None,
@@ -411,16 +471,51 @@ class LiveOpAssignmentView(discord.ui.View):
         if map_file is not discord.utils.MISSING:
             kwargs["file"] = map_file
 
-        # ── 2. Post Operation Readiness Board to Channel ──────────────────────
-        await interaction.followup.send(**kwargs)
+        # ── 2. Post Operation Readiness Board to configured channel ────────────
+        readiness_channel = await self.cog._resolve_output_channel(interaction, "live_ops_readiness")
+        if not hasattr(readiness_channel, "send"):
+            readiness_channel = interaction.channel
+
+        try:
+            readiness_message = await readiness_channel.send(**kwargs)
+        except (discord.Forbidden, discord.HTTPException):
+            readiness_channel = interaction.channel
+            readiness_message = await readiness_channel.send(**kwargs)
+
+        if db_id:
+            await self.cog.live_ops.update_one(
+                {"_id": db_id},
+                {
+                    "$set": {
+                        "status": "Readiness",
+                        "readiness_channel_id": readiness_channel.id,
+                        "readiness_message_id": readiness_message.id,
+                    }
+                }
+            )
+
+        channel_label = getattr(readiness_channel, "mention", f"`{readiness_channel}`")
+        await interaction.followup.send(
+            f"✅ Operational readiness board posted in {channel_label}.",
+            ephemeral=True,
+        )
 
         # ── 3. Dispatch Notifications (Background) ─────────────────────────────
         # We run the DM loop in a background task so it doesn't block the IC
         # or prevent the readiness board from appearing if a DM fails.
         async def _dispatch_dms():
+            assignments_by_member: dict[int, dict] = {}
             for role, member in self.assignments.items():
+                bucket = assignments_by_member.setdefault(member.id, {"member": member, "roles": []})
+                bucket["roles"].append(role)
+
+            for data in assignments_by_member.values():
+                member = data["member"]
+                roles = data["roles"]
                 m_hash = hashlib.md5(str(member.id).encode()).hexdigest()[:4].upper()
                 discrete_serial = f"METOPERATION-{op_id}-{m_hash}"
+                role_lines = "\n".join(f"> `{role}`" for role in roles)
+                role_header = "Assigned Roles" if len(roles) > 1 else "Assigned Role"
 
                 try:
                     dm_embed = discord.Embed(
@@ -428,12 +523,13 @@ class LiveOpAssignmentView(discord.ui.View):
                             f"## {METRO_EMOJI} | CONFIDENTIAL BRIEFING: {self.postal}\n"
                             f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
                             f"You have been assigned to a live operation. Your briefing is available here\n"
+                            f"{f'**Warrant:** `{self.warrant_id}`' if self.warrant_id else ''}\n"
                             f"**AO:** `{self.postal}` · **Start:** `{self.start_time}`\n\n"
                             f"**Target:** `{self.target_gang}`\n\n"
                             f"### 📋 Strategic Manifest\n{manifest_text}\n\n"
-                            f"**Your Assigned Role:** `{role}`\n\n"
+                            f"### {role_header}\n{role_lines}\n\n"
                             f"**Incident Commander:** {self.ic.mention}\n"
-                            f"**Convene with your Incident Commander prior to operation initiation.**"
+                            f"**Convene with your Incident Commander prior to operation initiation.**\n"
                             f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
                             f"Review the manifest above. Maintain operational security."
                         ),
@@ -459,7 +555,7 @@ class LiveOpAssignmentView(discord.ui.View):
 class TerminateOperationModal(discord.ui.Modal):
     reason = discord.ui.TextInput(
         label="Reason for Termination",
-        placeholder="Provide the reason for terminating the operation... (Can be that operation is completed, or the operation is no longer viable due to leaks, etc.)",
+        placeholder="Reason for termination (e.g., operation completed, no longer viable, leaks, etc.)",
         style=discord.TextStyle.paragraph,
         required=True,
         max_length=500
@@ -470,27 +566,38 @@ class TerminateOperationModal(discord.ui.Modal):
         self.view = view
 
     async def on_submit(self, interaction: discord.Interaction):
-        await self.view.cog.live_ops.update_one(
-            {"_id": self.view.db_id},
-            {"$set": {"status": "Aborted", "abort_reason": self.reason.value, "aborted_at": datetime.datetime.now(datetime.timezone.utc)}}
+        outcome, color, emoji = _classify_termination(self.reason.value)
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        if self.view.db_id:
+            await self.view.cog.live_ops.update_one(
+                {"_id": self.view.db_id},
+                {
+                    "$set": {
+                        "status": outcome,
+                        "termination_reason": self.reason.value,
+                        "terminated_at": now,
+                    }
+                }
+            )
+
+        final_view = _terminated_report_view(
+            self.view.ic,
+            self.view.postal,
+            self.view.assignments,
+            self.reason.value,
+            outcome,
+            color,
+            emoji,
+            self.view.target_gang,
+            self.view.start_time,
+            self.view.warrant_id,
         )
-
-        container = discord.ui.Container(accent_colour=discord.Color.dark_grey())
-        container.add_item(discord.ui.TextDisplay(
-            f"## 🛑  OPERATION Terminated — Postal `{self.view.postal}`\n"
-            f"{DIVIDER}\n"
-            f"The operation has been stood down by {self.view.ic.mention}.\n\n"
-            f"**Reason:** {self.reason.value}\n\n"
-            f"**Aborted:** <t:{int(time.time())}:F>"
-        ))
-
-        abort_view = discord.ui.LayoutView()
-        abort_view.add_item(container)
 
         await interaction.response.edit_message(
             content=None,
             embed=None,
-            view=abort_view,
+            view=final_view,
             attachments=[],
         )
 
@@ -499,7 +606,7 @@ class LiveOpReadinessView(discord.ui.LayoutView):
     """
     Public-facing readiness board — Components v2 (discord.py 2.7+)."""
 
-    def __init__(self, cog, ic: discord.Member, assignments: dict, postal: str, start_time: str = "Immediate", db_id=None, target_gang: str = "None"):
+    def __init__(self, cog, ic: discord.Member, assignments: dict, postal: str, start_time: str = "Immediate", db_id=None, target_gang: str = "None", warrant_id: str = None):
         super().__init__(timeout=None)
         self.cog         = cog
         self.ic          = ic
@@ -507,7 +614,8 @@ class LiveOpReadinessView(discord.ui.LayoutView):
         self.postal      = postal
         self.start_time  = start_time
         self.target_gang = target_gang
-        self.status      = "Planning"
+        self.warrant_id  = warrant_id
+        self.status      = "Readiness"
         self.db_id       = db_id
         self.image_url   = None  # kept for API compatibility; image now sent as attachment
         self.states      = {label: False for label in assignments}
@@ -538,6 +646,7 @@ class LiveOpReadinessView(discord.ui.LayoutView):
         container = discord.ui.Container(accent_colour=accent)
 
         # ── Header ───────────────────────────────────────────────────────────
+        warrant_str = f"  ·  **Warrant:** `{self.warrant_id}`" if self.warrant_id else ""
         if is_active:
             phase_line = f"## ⚡  OPERATION ACTIVE — Postal `{self.postal}`"
         elif all_ready:
@@ -549,16 +658,14 @@ class LiveOpReadinessView(discord.ui.LayoutView):
             f"{phase_line}\n"
             f"{DIVIDER}\n"
             f"**IC:** {self.ic.mention}  ·  "
-            f"**Target:** `{self.target_gang}`  ·  "
+            f"**Target:** `{self.target_gang}`{warrant_str}  ·  "
             f"**Start:** `{self.start_time}`  ·  "
             f"<t:{int(time.time())}:R>"
         ))
         container.add_item(discord.ui.Separator())
 
         # ── Tactical map ──────────────────────────────────────────────────────
-        print(f"[MAP DEBUG] _rebuild called, image_url={self.image_url}")
         if self.image_url:
-            print(f"[MAP DEBUG] _rebuild: inserting MediaGallery")
             container.add_item(discord.ui.MediaGallery(
                 discord.MediaGalleryItem(media=discord.UnfurledMediaItem(url=self.image_url))
             ))
@@ -661,10 +768,11 @@ class LiveOpReadinessView(discord.ui.LayoutView):
                 "❌ Only the Incident Commander can initiate.", ephemeral=True
             )
 
-        await self.cog.live_ops.update_one(
-            {"_id": self.db_id},
-            {"$set": {"status": "Active", "initiated_at": datetime.datetime.now(datetime.timezone.utc)}}
-        )
+        if self.db_id:
+            await self.cog.live_ops.update_one(
+                {"_id": self.db_id},
+                {"$set": {"status": "Active", "initiated_at": datetime.datetime.now(datetime.timezone.utc)}}
+            )
 
         self.status = "Active"
         self._rebuild()  # Rebuilds with gold accent + removes initiate button; abort remains

@@ -27,7 +27,6 @@ from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
 import json
 
-from config import ROBLOX_API_KEY
 from llm import call_llm
 from map_renderer import draw_heatmap_overlay, draw_map_path
 
@@ -1536,13 +1535,26 @@ Return ONLY JSON in this format:
             )
 
             file  = discord.File(fp=buffer, filename="heatmap.png")
+            total_logs = sum(heatmap_data.values())
+            top_locations = sorted(heatmap_data.items(), key=lambda item: item[1], reverse=True)[:5]
+            hotspot_text = "\n".join(
+                f"> `{postal}` — **{count}** log{'s' if count != 1 else ''}"
+                for postal, count in top_locations
+            )
+
             embed = discord.Embed(
                 title="<:LAPD_Metropolitan:1495867271501975552> Metropolitan Crime Heatmap",
-                description="Visual representation of spatial criminal density based on historical intelligence logs.",
-                color=discord.Color.red(),
+                description=(
+                    "**Spatial intelligence weather chart** generated from historical suspect logs.\n\n"
+                    "Blue indicates low activity, yellow indicates mid-density activity, and white marks the hottest crime zones."
+                ),
+                color=discord.Color.from_rgb(36, 167, 240),
             )
+            embed.add_field(name="Logs Mapped", value=f"`{total_logs}`", inline=True)
+            embed.add_field(name="Mapped Zones", value=f"`{len(heatmap_data)}`", inline=True)
+            embed.add_field(name="Top Hotspots", value=hotspot_text or "No ranked hotspots.", inline=False)
             embed.set_image(url="attachment://heatmap.png")
-            embed.set_footer(text="S.I.M.O.N. v2.1 • Spatial Intelligence")
+            embed.set_footer(text="S.I.M.O.N. v2.1 • Crime Weather Layer")
 
             await interaction.followup.send(embed=embed, file=file)
 

@@ -1,6 +1,6 @@
 import json
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox
 from PIL import Image, ImageTk, ImageDraw
 
 # ==========================================

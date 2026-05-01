@@ -11,9 +11,8 @@ gateway) to verify:
   • /metro_link store & retrieve
 """
 
-import datetime
 import time
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
@@ -23,7 +22,6 @@ from conftest import (
     make_guild,
     make_interaction,
     make_member,
-    make_mongo_collection,
     make_role,
 )
 
@@ -587,3 +585,22 @@ class TestMetroLogTraining:
         from operations import MetroTrainingModal
         modal_arg = interaction.response.send_modal.call_args[0][0]
         assert isinstance(modal_arg, MetroTrainingModal)
+
+    @pytest.mark.asyncio
+    async def test_opens_k9_modal(self, operations_cog):
+        interaction = make_interaction()
+        training_format = MagicMock(value="k9")
+
+        await operations_cog.metro_log_training.callback(
+            operations_cog, interaction,
+            trainee=make_member(display_name="Recruit"),
+            outcome="PASSED",
+            notes="Strong K9 performance.",
+            training_format=training_format,
+            co_host=None,
+        )
+
+        interaction.response.send_modal.assert_called_once()
+        from operations import K9TrainingModal
+        modal_arg = interaction.response.send_modal.call_args[0][0]
+        assert isinstance(modal_arg, K9TrainingModal)

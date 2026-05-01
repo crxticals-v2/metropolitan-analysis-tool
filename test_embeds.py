@@ -6,13 +6,10 @@ test_embeds.py  –  Verifies that every Discord embed builds with the right
 All embed construction is tested synchronously or via pytest-asyncio.
 """
 
-import datetime
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
-import pytest_asyncio
 
 # conftest supplies make_* helpers automatically
 from conftest import (
@@ -20,7 +17,6 @@ from conftest import (
     make_guild,
     make_interaction,
     make_member,
-    make_mongo_collection,
     make_role,
 )
 
@@ -335,11 +331,11 @@ class TestOperationModals:
 
         interaction = make_interaction(user=host)
         ch          = make_channel()
+        interaction.channel = ch
         interaction.client = MagicMock()
         interaction.client.get_cog = MagicMock(return_value=None)
 
-        with patch("operations.resolve_output_channel", return_value=ch):
-            await modal.on_submit(interaction)
+        await modal.on_submit(interaction)
 
         ch.send.assert_called_once()
         embed = ch.send.call_args.kwargs["embed"]
@@ -367,6 +363,36 @@ class TestOperationModals:
         assert "❌" in str(interaction.response.send_message.call_args)
 
     @pytest.mark.asyncio
+    async def test_k9_training_modal_valid_scores(self):
+        from operations import K9TrainingModal
+
+        host    = make_member(display_name="K9 Trainer")
+        trainee = make_member(display_name="K9 Recruit")
+        modal   = K9TrainingModal(
+            host=host, co_host=None,
+            trainee=trainee, outcome="PASSED", notes="Handled the scenarios well."
+        )
+        modal.s1._value = "9"
+        modal.s2._value = "8"
+        modal.s3._value = "7"
+
+        interaction = make_interaction(user=host)
+        ch          = make_channel()
+        interaction.channel = ch
+        interaction.client = MagicMock()
+        interaction.client.get_cog = MagicMock(return_value=None)
+
+        await modal.on_submit(interaction)
+
+        ch.send.assert_called_once()
+        embed = ch.send.call_args.kwargs["embed"]
+        assert "K9 Training Evaluation" in embed.description
+        assert "Traffic Stop:** 9/10" in embed.description
+        assert "Searches:** 8/10" in embed.description
+        assert "Active Robbery:** 7/10" in embed.description
+        assert "24/30" in embed.description
+
+    @pytest.mark.asyncio
     async def test_announcement_modal_with_ping(self):
         from operations import MetroAnnouncementModal
 
@@ -376,9 +402,12 @@ class TestOperationModals:
 
         interaction = make_interaction()
         ch          = make_channel()
+        operations_cog = MagicMock()
+        operations_cog._resolve_output_channel = AsyncMock(return_value=ch)
+        interaction.client = MagicMock()
+        interaction.client.get_cog = MagicMock(return_value=operations_cog)
 
-        with patch("operations.resolve_output_channel", return_value=ch):
-            await modal.on_submit(interaction)
+        await modal.on_submit(interaction)
 
         ch.send.assert_called_once()
         call_kwargs = ch.send.call_args.kwargs
@@ -397,9 +426,12 @@ class TestOperationModals:
 
         interaction = make_interaction()
         ch          = make_channel()
+        operations_cog = MagicMock()
+        operations_cog._resolve_output_channel = AsyncMock(return_value=ch)
+        interaction.client = MagicMock()
+        interaction.client.get_cog = MagicMock(return_value=operations_cog)
 
-        with patch("operations.resolve_output_channel", return_value=ch):
-            await modal.on_submit(interaction)
+        await modal.on_submit(interaction)
 
         call_kwargs = ch.send.call_args.kwargs
         assert call_kwargs.get("content") is None  # no ping

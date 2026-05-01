@@ -8,7 +8,7 @@ so config.py never raises RuntimeError during testing.
 import os
 import sys
 import datetime
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
