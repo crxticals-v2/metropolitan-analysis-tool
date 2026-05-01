@@ -648,9 +648,9 @@ class LiveOpReadinessView(discord.ui.LayoutView):
         # ── Header ───────────────────────────────────────────────────────────
         warrant_str = f"  ·  **Warrant:** `{self.warrant_id}`" if self.warrant_id else ""
         if is_active:
-            phase_line = f"## ⚡  OPERATION ACTIVE — Postal `{self.postal}`"
+            phase_line = f"## {METRO_EMOJI}︱OPERATION IS ACTIVE — Postal `{self.postal}`"
         elif all_ready:
-            phase_line = f"## ✅  ALL ELEMENTS GREEN — Postal `{self.postal}`"
+            phase_line = f"## {METRO_EMOJI}︱ ALL ELEMENTS GREEN — Postal `{self.postal}`"
         else:
             phase_line = f"## {METRO_EMOJI}  OPERATIONAL READINESS BOARD — Postal `{self.postal}`"
 

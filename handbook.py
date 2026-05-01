@@ -12,6 +12,9 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import aiohttp
+import asyncio
+
+from config import TOKEN
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DISCORD COMPONENTS V2  ·  LOW-LEVEL PAYLOAD HELPERS
@@ -72,18 +75,20 @@ def _row(buttons: list) -> dict:
 _THUMB = "https://i.imgur.com/qdvbBqe.png"   # Metro logo — swap if needed
 
 _NAV: list[tuple[str, str]] = [
-    ("intro",       "S-I"),
-    ("command",     "S-II"),
-    ("personnel",   "S-III"),
-    ("deployment",  "S-IV"),
-    ("tactical",    "S-V"),
-    ("majorcrime",  "S-VI"),
-    ("incident",    "S-VII"),
-    ("logistics",   "S-VIII"),
-    ("cqb",         "S-IX"),
+    ("intro",       "S-I Purpose"),
+    ("command",     "S-II Command"),
+    ("personnel",   "S-III Personnel"),
+    ("deployment",  "S-IV Deployment"),
+    ("tactical",    "S-V Tactical"),
+    ("majorcrime",  "S-VI Major Crimes"),
+    ("incident",    "S-VII Incident"),
+    ("logistics",   "S-VIII Logistics"),
+    ("cqb_theory",  "S-IX CQB Theory"),
+    ("cqb_tactics", "S-X CQB Entry"),
 ]
 
 _COLORS: dict[str, int] = {
+    "menu":        0x2563EB,   # Command Blue
     "intro":       0xB41E1E,   # LAPD Red
     "command":     0xC8A84B,   # Gold
     "personnel":   0x1A3A7A,   # Navy
@@ -92,13 +97,43 @@ _COLORS: dict[str, int] = {
     "majorcrime":  0x4A0072,   # Purple
     "incident":    0x0D47A1,   # Royal Blue
     "logistics":   0x37474F,   # Slate
-    "cqb":         0xBF360C,   # Burnt Orange
+    "cqb_theory":  0xBF360C,   # Burnt Orange
+    "cqb_tactics": 0xDD2C00,   # Deep Orange-Red
 }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION CONTENT BUILDERS
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _s_menu() -> list:
+    return [
+        _section(
+            "## LAPD Metropolitan Division\n### Standard Operations Handbook\n"
+            "-# Select a labelled section button below to open that part of the handbook.",
+            _THUMB,
+        ),
+        _sep(spacing=2),
+        _text(
+            "### Main Menu\n"
+            "Use this control panel to move between every handbook section."
+        ),
+        _sep(),
+        _text(
+            "**Available Sections**\n"
+            "- `S-I` Purpose, jurisdiction, quota, and callsign requirements\n"
+            "- `S-II` Command structure and specialisations\n"
+            "- `S-III` Personnel standards, vehicles, uniforms, and equipment\n"
+            "- `S-IV` Deployment doctrine and response criteria\n"
+            "- `S-V` Tactical operations, K-9, and protection procedures\n"
+            "- `S-VI` Major Crimes Section\n"
+            "- `S-VII` Incident Command\n"
+            "- `S-VIII` Internal logistics and Intel Points\n"
+            "- `S-IX` CQB Theory & Fundamentals\n"
+            "- `S-X` CQB Breaching & Maneuvers"
+        ),
+    ]
+
 
 def _s_intro() -> list:
     return [
@@ -121,7 +156,7 @@ def _s_intro() -> list:
             "Metropolitan Unit is a specialised unit within LAPD tasked with handling high-risk operations, organised crime, "
             "and violent offenders across Los Angeles. We focus on **proactive enforcement** — targeting armed criminals, "
             "repeat offenders, and coordinated criminal groups through the active use of **pattern recognition**. "
-            "The Unit suppresses serious crime through operational deployments, tactical actions, and support to patrol units."
+            "The Unit suppresses serious crime through operational deployments, tactical actions, and the **S.I.M.O.N. Predictive Engine**."
         ),
         _sep(),
         _text(
@@ -145,7 +180,8 @@ def _s_intro() -> list:
             "### 📅  Weekly Quota Requirements\n"
             "| Role | Requirement |\n"
             "|---|---|\n"
-            "| Metro Operatives | 1 hour on-duty activity |\n"
+            "| Metro Operatives | 1 hour on-duty activity + Active Intelligence Logging |\n"
+            "| Reporting | All field activity must be logged via `/metro_after_action` or `-metroAA` |\n"
             "| Senior Officer+ (incl. MCS) | 1 Mass Training Session (host or co-host; waived if <5 trainees) |\n"
             "| Metro Inspectors | 30 minutes HR Quota |\n"
             "| Promotional | 2 hours · Double Promotion = 7 hours *(B/C Platoon only)* |"
@@ -264,14 +300,17 @@ def _s_deployment() -> list:
             "- ⚠️  **High-Risk Calls** — Any situation involving 2–3+ suspects or heavy weaponry.\n"
             "- 🎯  **Barricaded / Active Shooters** — Response as first responders; SWAT may take over mid-scene at their discretion.\n"
             "- 🌟  **High-Value Targets** — Arresting individuals with 3–4+ Stars for transport and interrogation.\n"
-            "- 🏴  **Gang / Mafia Activity** — Any scene involving known criminal organisations or escalating tensions between crime families."
+            "- 🏴  **Gang / Mafia Activity** — Any scene involving known criminal organisations or escalating tensions between crime families.\n\n"
+            "### 🚦 Live Operations\n"
+            "For planned raids or high-risk warrants, the Incident Commander (IC) should utilize `/metro_start_live`. "
+            "This initializes a **Readiness Board** that synchronizes all elements before initiation."
         ),
         _sep(),
         _text(
             "### 🗺️  Patrol & Deployment\n"
             "Unlike standard patrol units, Metro members are granted significantly greater operational freedom:\n\n"
             "- **Proactive Hunting** — You are not required to wait at the PD for calls. Actively patrol 'hot spots' with "
-            "high fugitive/gang activity — housing suburbs, the Jewelry Store, or any known criminal drop spots.\n\n"
+            "high fugitive/gang activity. Utilize the **Hourly Watchlist** to identify active threats.\n\n"
             "- **Self-Dispatch** — You have the authority to self-attach to calls that meet Metro criteria without waiting for dispatch."
         ),
         _sep(),
@@ -279,7 +318,8 @@ def _s_deployment() -> list:
             "### 🎙️  Field Conduct\n\n"
             "**Interrogation** — When a high-level suspect is apprehended, prioritise securing them for questioning. "
             "Metro focuses on **long-term intelligence-gathering** over arrest logging.\n\n"
-            "**Communication** — Always announce when you are 'jumping' a call so standard patrol knows Metro is taking point."
+            "**Rapid AAR Engine** — For quick reporting, use `-metroAA [summary]` to automatically generate and route reports. "
+            "This also feeds the S.I.M.O.N. predictive model."
         ),
         _sep(),
         _text(
@@ -372,13 +412,18 @@ def _s_majorcrime() -> list:
         _sep(spacing=2),
         _text(
             "The **Major Crimes Section** operates under Gold Command and handles investigative response operations, "
-            "coordinated mafia suppression, and Counter-Terrorism Command activities.\n\n"
-            "Specific operational details, active cases, and intelligence files are maintained in **restricted channels** "
-            "accessible to authorised Gold Command personnel+ only."
+            "coordinated mafia suppression, and Counter-Terrorism Command activities."
         ),
         _sep(),
         _text(
-            "### 📝  Joining Major Crimes\n"
+            "### 📂 Case Management\n"
+            "Detectives initialize investigations via `/metro_start_case`. All evidence, including photos and logs, "
+            "is appended to the case file using `/metro_case_log [Case ID]`. "
+            "Active cases are tracked in the **Major Crimes Directory**."
+        ),
+        _sep(),
+        _text(
+            "### �  Joining Major Crimes\n"
             "Any **Junior Metro Operative+** may apply to switch to the investigative branch. "
             "They will still be permitted to patrol as B/C Platoon, but will now:\n\n"
             "- Hold significantly more investigative powers\n"
@@ -392,13 +437,10 @@ def _s_majorcrime() -> list:
         _sep(),
         _text(
             "### 🔬  What Major Crimes Does\n"
-            "One of their primary works is **analysing criminal activity patterns** of high-risk suspects online. "
-            "For example, suspects like *Marrabelle* have defined patterns in their robberies:\n\n"
-            "> She robs jewelry, tool stores, housing suburbs, and the county gas station — "
-            "then when police catch on, she circles back, heads to the end of Freedom Avenue, "
-            "uses the shortcut to county jail, circles the farms, and goes down Riverside.\n\n"
-            "Building these profiles enables **direct arrests** through effective predictive analysis on future suspect "
-            "behaviours — anticipating possible events **before** they even begin their robbery spree."
+            "One of their primary works is **analysing criminal activity patterns** of high-risk suspects using S.I.M.O.N.\n\n"
+            "By logging suspect names, vehicles, and behaviors into the database, we build a **digital footprint** of their "
+            "movement corridors. When a suspect is spotted, `/metro_predict` calculates their most likely destination based on "
+            "historical behavior, travel costs, and 'Panic Factors' from unwhitelisted unit presence."
         ),
     ]
 
@@ -448,7 +490,7 @@ def _s_logistics() -> list:
         _sep(spacing=2),
         _text(
             "### 💎  Intel Point System (IP System)\n"
-            "Officers earn **Intel Points (IP)** based on the quality and value of intelligence provided to the Unit. "
+            "Officers earn **Weekly Score** and **Career Tokens** based on the value of intelligence provided. "
             "The High Ranking / Senior High Ranking team awards **1–3 points per submission** depending on operational impact. "
             "IP can be exchanged in the **Metro Intel Rewards Shop**."
         ),
@@ -459,8 +501,17 @@ def _s_logistics() -> list:
             "|---|---|\n"
             "| After Action Reports (Raids, stakeouts, etc.) | 2–4 Points |\n"
             "| Field Reports | 1–2 Points |\n"
-            "| Mafia Sightings | 1–3 Points |\n"
-            "| 5× Logs on 1× Repeat Offender *(server-frequent suspects)* | 1–2 Points |"
+            "| Intelligence Logs (`/metro_suspect_log`) | 1 Point |\n"
+            "| Repeat Offender Tracking (Every 5th log) | +1 Bonus |"
+        ),
+        _sep(),
+        _text(
+            "### 🎟️  Weekly Raffle\n"
+            "Operatives can spend Career Tokens to enter the weekly **Metropolitan Raffle** for a chance to win "
+            "**50 Robux**. Use `/metro_raffle` to check your entries.\n"
+            "- `1` Ticket: `3` Tokens\n"
+            "- `2` Tickets: `5` Tokens *(Best Value)*\n\n"
+            "The draw is conducted during the **Weekly Reset** by High Command."
         ),
         _sep(),
         _text(
@@ -470,22 +521,23 @@ def _s_logistics() -> list:
             "| Shift Time Extension (+15 minutes) | 3 Points |\n"
             "| Shift Time Extension (+30 minutes) | 6 Points |\n"
             "| Hint on next Drill/Hunt | 5 Points |\n"
-            "| Quota Exemption (1 Week) | 12 Points |"
+            "| Quota Exemption (1 Week) | 12 Points |\n"
+            "| 24hr Point Multiplier (1.5x) | 20 Points |\n"
+            "| Shift as Responding IC | 30 Points |"
         ),
         _sep(),
         _text(
-            "### 📋  Duty Logging\n"
-            "All Metro officers are required to log any significant findings and activity when on duty in their designated logging channel.\n\n"
-            "If you notice any **repeat offender's pattern**, logging it is extremely beneficial — it directly feeds the unit's "
-            "predictive analysis pipeline on suspects.\n\n"
-            "> **K-9 handlers** must additionally log every K-9 deployment after deploying dogs during their shift."
+            "### 📋  Profile Linking\n"
+            "Every operative must link their personal reporting threads to the S.I.M.O.N. database. "
+            "Use `/metro_link` to map your After Action Report and K9 threads. This ensures your logs "
+            "are properly routed and IP is correctly awarded."
         ),
     ]
 
 
-def _s_cqb() -> list:
+def _s_cqb_theory() -> list:
     return [
-        _section("## [S-IX]  Basic Close Quarter Combat Tactics\n-# LAPD Metropolitan Unit", _THUMB),
+        _section("## [S-IX]  CQB Theory & Fundamentals\n-# LAPD Metropolitan Unit", _THUMB),
         _sep(spacing=2),
         _text(
             "Close-Quarters Battle **(CQB)** is high-intensity and rapid — it requires quick decisions and decisive actions "
@@ -499,6 +551,27 @@ def _s_cqb() -> list:
             "- **Teamwork** — Non-negotiable. If operators do not know what teammates are doing, the entire operation can collapse instantly.\n"
             "- **Speed & Surprise** — Move quickly and use the element of surprise against suspects. Always brief your team before executing.\n"
             "- **Aim Control** — Control your aim at all times — confined spaces may contain hostages or civilians behind or near suspects."
+        ),
+        _sep(),
+        _text(
+            "### 💡  Tactical Principles\n"
+            "- **Situational Awareness** — Always scan: exits, cover positions, teammate locations, and obstacles.\n"
+            "- **Communication** — Keep callouts clear, concise, and quick.\n"
+            "- **Fatal Funnel** — The doorway is the most dangerous area. Do not linger — move through fast to a corner.\n"
+            "- **Target Identification** — Quickly assess suspect threat level and weapon status."
+        ),
+    ]
+
+
+def _s_cqb_tactics() -> list:
+    return [
+        _section("## [S-X]  CQB Breaching & Maneuvers\n-# LAPD Metropolitan Unit", _THUMB),
+        _sep(spacing=2),
+        _text(
+            "### �  Room Clearing Process\n\n"
+            "**1. Exterior Clear** — Clear as much of the room as possible from the outside.\n"
+            "**2. Assessment** — Identify the breach technique (J-Hook, Cross, or Slicing).\n"
+            "**3. Execution** — Move with controlled speed. *Slow is smooth, smooth is fast.*"
         ),
         _sep(),
         _text(
@@ -556,6 +629,7 @@ def _s_cqb() -> list:
 # ─────────────────────────────────────────────────────────────────────────────
 
 _BUILDERS = {
+    "menu":        _s_menu,
     "intro":       _s_intro,
     "command":     _s_command,
     "personnel":   _s_personnel,
@@ -564,7 +638,8 @@ _BUILDERS = {
     "majorcrime":  _s_majorcrime,
     "incident":    _s_incident,
     "logistics":   _s_logistics,
-    "cqb":         _s_cqb,
+    "cqb_theory":  _s_cqb_theory,
+    "cqb_tactics": _s_cqb_tactics,
 }
 
 
@@ -572,30 +647,43 @@ _BUILDERS = {
 # MESSAGE ASSEMBLER
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_message(active: str) -> list:
+def _navigation_rows(active: str) -> list:
+    """Build labelled navigation controls that live inside the handbook container."""
+    menu = _row([
+        _btn("Main Menu", "hb_menu", style=1 if active == "menu" else 2),
+    ])
+    nav1 = _row([
+        _btn(label, f"hb_{key}", style=1 if key == active else 2)
+        for key, label in _NAV[:5]
+    ])
+    nav2 = _row([
+        _btn(label, f"hb_{key}", style=1 if key == active else 2)
+        for key, label in _NAV[5:]
+    ])
+    return [menu, nav1, nav2]
+
+
+def build_message(active: str = "menu") -> list:
     """
     Assemble the full Components V2 payload for the handbook viewer.
 
     Returns a list of top-level component dicts ready to be sent via
     the Discord REST API with IS_COMPONENTS_V2 flag (1 << 15).
     """
+    if active not in _BUILDERS:
+        active = "menu"
+
     # ── Main content container ───────────────────────────────────────────────
     content_children = _BUILDERS[active]()
+    content_children.extend([
+        _sep(spacing=2),
+        _text("### Handbook Navigation"),
+        *_navigation_rows(active),
+    ])
+
     main = _container(content_children, color=_COLORS[active])
 
-    # ── Navigation — Row 1: S-I → S-V  (5 buttons max per row) ──────────────
-    nav1 = _row([
-        _btn(label, f"hb_{key}", style=1 if key == active else 2)
-        for key, label in _NAV[:5]
-    ])
-
-    # ── Navigation — Row 2: S-VI → S-IX  (4 buttons) ────────────────────────
-    nav2 = _row([
-        _btn(label, f"hb_{key}", style=1 if key == active else 2)
-        for key, label in _NAV[5:]
-    ])
-
-    return [main, nav1, nav2]
+    return [main]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -638,7 +726,7 @@ async def _update_respond(interaction: discord.Interaction, components: list) ->
     payload = {
         "type": 7,
         "data": {
-            "flags": _V2_FLAG | 64,
+            "flags": _V2_FLAG,
             "components": components,
         },
     }
@@ -647,6 +735,23 @@ async def _update_respond(interaction: discord.Interaction, components: list) ->
         if resp.status not in (200, 204):
             text = await resp.text()
             raise RuntimeError(f"Discord API error {resp.status}: {text}")
+
+
+async def _send_channel_message(channel_id: int, components: list) -> dict:
+    """Send a public Components V2 message to a channel using the Discord REST API."""
+    url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
+    payload = {
+        "flags": _V2_FLAG,
+        "components": components,
+    }
+    headers = {"Authorization": f"Bot {TOKEN}"}
+
+    async with aiohttp.ClientSession(headers=headers) as session:
+        resp = await session.post(url, json=payload)
+        text = await resp.text()
+        if resp.status not in (200, 201):
+            raise RuntimeError(f"Discord API error {resp.status}: {text}")
+        return await resp.json()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -661,6 +766,69 @@ class HandbookCog(commands.Cog, name="Handbook"):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self.settings = self.bot.mongo_client["erlc_database"]["settings"]
+        self._auto_publish_done = False
+        self._publish_lock = asyncio.Lock()
+
+    async def _configured_channel_id(self) -> int | None:
+        doc = await self.settings.find_one({"_id": "guild_config"})
+        if not doc:
+            return None
+        channel_id = (doc.get("channels") or {}).get("metro_handbook")
+        return int(channel_id) if channel_id else None
+
+    async def publish_to_channel(self, channel: discord.abc.GuildChannel) -> int:
+        """Replace the last auto-posted handbook message with a fresh menu message."""
+        async with self._publish_lock:
+            state = await self.bot.bot_state.find_one({"_id": "handbook_state"}) or {}
+            old_channel_id = state.get("channel_id")
+            old_message_id = state.get("message_id")
+
+            if old_channel_id and old_message_id:
+                old_channel = self.bot.get_channel(int(old_channel_id))
+                if old_channel and hasattr(old_channel, "fetch_message"):
+                    try:
+                        old_message = await old_channel.fetch_message(int(old_message_id))
+                        await old_message.delete()
+                    except (discord.NotFound, discord.Forbidden):
+                        pass
+                    except Exception as exc:
+                        print(f"[HANDBOOK] Could not delete previous handbook message: {exc!r}")
+
+            data = await _send_channel_message(channel.id, build_message("menu"))
+            message_id = int(data["id"])
+            await self.bot.bot_state.update_one(
+                {"_id": "handbook_state"},
+                {"$set": {"channel_id": channel.id, "message_id": message_id}},
+                upsert=True,
+            )
+            print(f"[HANDBOOK] Auto-posted handbook menu in #{getattr(channel, 'name', channel.id)}.")
+            return message_id
+
+    async def publish_configured_handbook(self) -> int | None:
+        channel_id = await self._configured_channel_id()
+        if not channel_id:
+            return None
+
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            print(f"[HANDBOOK] Configured handbook channel {channel_id} was not found.")
+            return None
+        if not hasattr(channel, "fetch_message"):
+            print(f"[HANDBOOK] Configured handbook destination {channel_id} cannot hold a handbook message.")
+            return None
+
+        return await self.publish_to_channel(channel)
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        if self._auto_publish_done:
+            return
+        self._auto_publish_done = True
+        try:
+            await self.publish_configured_handbook()
+        except Exception as exc:
+            print(f"[HANDBOOK] Auto-publish failed: {exc!r}")
 
     # ── Slash command ─────────────────────────────────────────────────────────
 
@@ -669,7 +837,7 @@ class HandbookCog(commands.Cog, name="Handbook"):
         description="Open the LAPD Metropolitan Standard Operations Handbook.",
     )
     async def metro_handbook(self, interaction: discord.Interaction) -> None:
-        components = build_message("intro")
+        components = build_message("menu")
         await _initial_respond(interaction, components)
 
     # ── Button interaction handler ────────────────────────────────────────────

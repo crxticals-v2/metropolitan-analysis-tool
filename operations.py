@@ -33,6 +33,7 @@ DASHBOARD_DIVIDER = "**━━━━━━━━━━━━━━━━━━━
 
 CHANNEL_LABELS = {
     "metro_openings": "Openings",
+    "metro_handbook": "Handbook Auto-Send",
     "watchlist_auto": "Watchlist Auto-Send",
     "intelligence_command": "Intelligence Command Channel",
     "metro_promote": "Promotions",
@@ -125,7 +126,7 @@ for v in VEHICLE_DB:
 
 
 # ──────────────────────────────────────────────
-# DASHBOARD UI COMPONENTS (V2 - SIMPLIFIED)
+# DASHBOARD UI COMPONENTS
 # ──────────────────────────────────────────────
 
 class GangMOModal(discord.ui.Modal):
@@ -243,6 +244,7 @@ class ChannelView(discord.ui.View):
         placeholder="Select a system to route...",
         options=[
             discord.SelectOption(label="Openings", description="Rank availability and roster updates", value="metro_openings", emoji="📋"),
+            discord.SelectOption(label="Handbook Auto-Send", description="Interactive handbook menu destination", value="metro_handbook", emoji="📘"),
             discord.SelectOption(label="Watchlist Auto-Send", description="Automated suspect and gang intelligence board", value="watchlist_auto", emoji="🛰️"),
             discord.SelectOption(label="Intel Command Channel", description="Where SIMON intelligence commands are allowed", value="intelligence_command", emoji="🧠"),
             discord.SelectOption(label="Promotions", description="Promotion announcements and logs", value="metro_promote", emoji="⬆️"),
@@ -289,6 +291,17 @@ class ChannelPicker(discord.ui.View):
     async def pick_channel(self, interaction: discord.Interaction, select: discord.ui.ChannelSelect):
         channel = select.values[0]
 
+        if self.key == "metro_handbook" and isinstance(channel, discord.ForumChannel):
+            await interaction.response.send_message(
+                embed=_dashboard_panel_embed(
+                    "⚠️ | Text Channel Required",
+                    "The handbook is a live component message, so it must be routed to a normal text channel.",
+                    discord.Color.orange(),
+                ),
+                ephemeral=True,
+            )
+            return
+
         await self.cog.bot.mongo_client["erlc_database"]["settings"].update_one(
             {"_id": "guild_config"},
             {"$set": {f"channels.{self.key}": channel.id}},
@@ -305,6 +318,21 @@ class ChannelPicker(discord.ui.View):
             ),
             ephemeral=True
         )
+
+        if self.key == "metro_handbook":
+            handbook = self.cog.bot.get_cog("Handbook")
+            if handbook:
+                try:
+                    await handbook.publish_to_channel(channel)
+                    await interaction.followup.send(
+                        "✅ Handbook menu auto-sent to the configured channel.",
+                        ephemeral=True,
+                    )
+                except Exception as exc:
+                    await interaction.followup.send(
+                        f"⚠️ Route saved, but the handbook could not be auto-sent: `{exc}`",
+                        ephemeral=True,
+                    )
 
 
 class PermissionView(discord.ui.View):
@@ -553,7 +581,7 @@ class MetroAnnouncementModal(discord.ui.Modal):
         content = self.role.mention if self.ping_role and self.role else None
 
         embed = discord.Embed(
-            title="<:LAPD_Metropolitan:1495867271501975552> Division Announcement",
+            title="<:LAPD_Metropolitan:1495867271501975552> | Division Announcement",
             description=f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n{self.announcement.value}\n\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**",
             color=discord.Color.blue(),
         )

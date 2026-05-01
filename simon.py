@@ -1554,7 +1554,7 @@ Return ONLY JSON in this format:
             embed.add_field(name="Mapped Zones", value=f"`{len(heatmap_data)}`", inline=True)
             embed.add_field(name="Top Hotspots", value=hotspot_text or "No ranked hotspots.", inline=False)
             embed.set_image(url="attachment://heatmap.png")
-            embed.set_footer(text="S.I.M.O.N. v2.1 • Crime Weather Layer")
+            embed.set_footer(text="S.I.M.O.N. v2.1 • Crime Heatmap Module")
 
             await interaction.followup.send(embed=embed, file=file)
 
