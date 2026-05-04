@@ -23,13 +23,15 @@ from discord.ext import commands
 import asyncio
 from pathlib import Path
 
+import aiohttp
+
 from liveops import LiveOpAssignmentView, _embed_setup
 
 OWNER_UID = 613698960133062687
 BASE_DIR = Path(__file__).parent.resolve()
 METRO_ICON_URL = "https://i.imgur.com/qdvbBqe.png"
 METRO_EMOJI = "<:LAPD_Metropolitan:1495867271501975552>"
-DASHBOARD_DIVIDER = "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+DASHBOARD_DIVIDER = "<:line:1500739607568842865>" * 16
 
 CHANNEL_LABELS = {
     "metro_openings": "Openings",
@@ -44,7 +46,6 @@ CHANNEL_LABELS = {
     "host_metro_training": "Training Host",
     "metro_log_training": "Training Results",
     "after_action": "After Action Reports",
-    "welcome": "Welcome Messages",
     "k9": "K9 Logs",
     "archives": "Archives",
     "metro_shop": "Shop",
@@ -52,6 +53,7 @@ CHANNEL_LABELS = {
     "raffle_winner": "Raffle Winner Announcement",
     "live_ops_readiness": "Live Operations Readiness",
     "aar_screening_alerts": "AAR Screening Alerts",
+    "training_tracker": "Training Tracker",
 }
 
 COMMAND_LABELS = {
@@ -255,7 +257,6 @@ class ChannelView(discord.ui.View):
             discord.SelectOption(label="Training Host", description="Training session posts", value="host_metro_training", emoji="🎓"),
             discord.SelectOption(label="Training Results", description="Evaluation results and score logs", value="metro_log_training", emoji="📝"),
             discord.SelectOption(label="After Action", description="AAR routing", value="after_action", emoji="📄"),
-            discord.SelectOption(label="Welcome Messages", description="New officer welcome posts", value="welcome", emoji="👋"),
             discord.SelectOption(label="K9 Logs", description="K-Platoon deployment logs", value="k9", emoji="🐕"),
             discord.SelectOption(label="Archives", description="Weekly archive summaries", value="archives", emoji="🗄️"),
             discord.SelectOption(label="Shop", description="Intel point reward requests", value="metro_shop", emoji="🛒"),
@@ -263,6 +264,7 @@ class ChannelView(discord.ui.View):
             discord.SelectOption(label="Raffle Winner", description="Weekly raffle winner announcements", value="raffle_winner", emoji="🎟️"),
             discord.SelectOption(label="Live Ops Readiness", description="Operational readiness boards", value="live_ops_readiness", emoji="📡"),
             discord.SelectOption(label="AAR Screening Alerts", description="Inappropriate rapid AAR detections", value="aar_screening_alerts", emoji="🚫"),
+            discord.SelectOption(label="Training Tracker", description="Live trainee availability counter (auto-refreshes every 24h)",value="training_tracker",emoji="🎓"),
         ]
     )
     async def feature_select(self, interaction: discord.Interaction, select: discord.ui.Select):
@@ -318,6 +320,20 @@ class ChannelPicker(discord.ui.View):
             ),
             ephemeral=True
         )
+        if self.key == "training_tracker":
+            ops = self.cog.bot.get_cog("Operations")
+            if ops:
+                try:
+                    await ops._post_training_tracker(channel.id)
+                    await interaction.followup.send(
+                        "✅ Training Tracker posted and will refresh every 24 hours.",
+                        ephemeral=True,
+                    )
+                except Exception as exc:
+                    await interaction.followup.send(
+                        f"⚠️ Route saved, but the tracker could not be auto-sent: `{exc}`",
+                        ephemeral=True,
+                    )
 
         if self.key == "metro_handbook":
             handbook = self.cog.bot.get_cog("Handbook")
@@ -454,7 +470,7 @@ class MetroTrainingModal(discord.ui.Modal):
 
         desc = (
             "## <:LAPD_Metropolitan:1495867271501975552> | Training Evaluation\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+            f"{DASHBOARD_DIVIDER}\n"
             f"**Trainee:** {self.trainee.mention}\n\n"
             f"**Field Training Officer:** {self.host.mention}\n\n"
             f"**Co-Host:** {self.co_host.mention if self.co_host else 'None'}\n\n"
@@ -464,7 +480,7 @@ class MetroTrainingModal(discord.ui.Modal):
             f"**SECT. III | Specialist Protection:** {score3}/10\n"
             f"**Overall Score:** {total}/30\n"
             f"**Outcome:** {self.outcome}\n\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            f"{DASHBOARD_DIVIDER}\n\n"
             "**Notes:**\n"
             f"> {self.notes}\n\n"
             "**What's Next?**\n"
@@ -530,7 +546,7 @@ class K9TrainingModal(discord.ui.Modal):
 
         desc = (
             "## <:LAPD_Metropolitan:1495867271501975552> | K9 Training Evaluation\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+            f"{DASHBOARD_DIVIDER}\n"
             f"**Trainee:** {self.trainee.mention}\n\n"
             f"**K9 Training Officer:** {self.host.mention}\n\n"
             f"**Co-Host:** {self.co_host.mention if self.co_host else 'None'}\n\n"
@@ -540,7 +556,7 @@ class K9TrainingModal(discord.ui.Modal):
             f"**SCENARIO III | Active Robbery:** {active_robbery}/10\n"
             f"**Overall Score:** {total}/30\n"
             f"**Outcome:** {self.outcome}\n\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            f"{DASHBOARD_DIVIDER}\n\n"
             "**Notes:**\n"
             f"> {self.notes or 'No additional notes provided.'}\n\n"
             "**What's Next?**\n"
@@ -582,7 +598,7 @@ class MetroAnnouncementModal(discord.ui.Modal):
 
         embed = discord.Embed(
             title="<:LAPD_Metropolitan:1495867271501975552> | Division Announcement",
-            description=f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n{self.announcement.value}\n\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**",
+            description=f"{DASHBOARD_DIVIDER}\n\n{self.announcement.value}\n\n{DASHBOARD_DIVIDER}",
             color=discord.Color.blue(),
         )
         embed.set_footer(
@@ -617,7 +633,7 @@ class IntelHistoryView(discord.ui.View):
         
         desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Intel Audit: {self.member.display_name}\n"
         desc += f"Showing entries {start+1}–{min(end, len(self.history))} of {len(self.history)}\n"
-        desc += "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+        desc += f"{DASHBOARD_DIVIDER}\n"
         
         for item in chunk:
             ts = item['timestamp']
@@ -783,7 +799,7 @@ class ShopView(discord.ui.View):
         embed = discord.Embed(
             description=(
                 "## 🎉 | Metro Shop Rewards\n"
-                "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+                f"{DASHBOARD_DIVIDER}\n"
                 f"**Officer:** {interaction.user.mention}\n"
                 f"**Item:** {item['label']}\n"
                 f"**Cost:** `{item['cost']}` Career Tokens\n"
@@ -847,7 +863,7 @@ class WeeklyResetView(discord.ui.View):
             title="<:LAPD_Metropolitan:1495867271501975552> Weekly Operations Archive",
             description=(
                 f"## **Operational Period:** {datetime.datetime.now().strftime('%Y-%m-%d')}\n"
-                "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+                f"{DASHBOARD_DIVIDER}\n"
                 f"📝 **AARs Processed:** `{aar_count}`\n"
                 f"🐕 **K9 Deployments:** `{k9_count}`\n"
                 f"🔍 **Suspect Intelligence:** `{intel_count}` logs\n"
@@ -916,9 +932,16 @@ class Operations(commands.Cog):
         self.suspect_logs = self.bot.mongo_client["erlc_database"]["suspect_logs"]
         
         self.config_cache = {}
+        self._tracker_task: asyncio.Task | None = None
 
     async def cog_load(self):
         await self.load_config()
+        # Start the 24-hour training tracker refresh loop
+        self._tracker_task = asyncio.create_task(self._training_tracker_loop())
+    
+    async def cog_unload(self):
+        if self._tracker_task:
+            self._tracker_task.cancel()
 
     def _normalize_gang_shorthand(self, text: str) -> str | None:
         """Maps full names or shorthands to the principle gang tags."""
@@ -1050,10 +1073,13 @@ class Operations(commands.Cog):
         rank = self._get_user_rank(message.author)
         time_display = f"<t:{int(time.time())}:F>"
 
+        secondary_mentions = [m.mention for m in message.mentions if m.id != message.author.id and not m.bot]
+        secondary_str = f", {', '.join(secondary_mentions)}" if secondary_mentions else ""
+
         desc = (
             "## <:LAPD_Metropolitan:1495867271501975552> | Rapid After Action Report\n"
             "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
-            f"**Officer(s):** {data.get('officers', message.author.display_name)}\n"
+            f"**Officer(s):** {data.get('officers', message.author.display_name)}{secondary_str}\n"
             f"**Patrol Area:** {data.get('patrol_area', 'Unknown')}\n"
             f"**Reported On:** {time_display}\n\n"
             "**Suspicious Activity Observed:**\n"
@@ -1235,7 +1261,222 @@ class Operations(commands.Cog):
             },
             upsert=True
         )
+    TRAINEE_ROLE_NAME = "[𝐌𝐄𝐓] Awaiting Training Ping"
 
+    def _count_trainees(self) -> int:
+        """Count guild members currently holding the trainee role."""
+        for guild in self.bot.guilds:
+            role = discord.utils.get(guild.roles, name=self.TRAINEE_ROLE_NAME)
+            if role:
+                return len(role.members)
+        return 0
+
+    def _build_tracker_components(self, trainee_count: int) -> list:
+        """Build the Components V2 payload for the training tracker."""
+        import datetime as _dt
+
+        # Threshold check for the footer note
+        threshold_note = (
+            "> ⚠️  **Exception active** — fewer than 4 trainees are available. "
+            "Training sessions are **not required** this week."
+            if trainee_count < 4
+            else
+            "> ✅  4 or more trainees are available — all training personnel "
+            "are **required** to host at least **1 session this week**."
+        )
+
+        last_refresh = _dt.datetime.now(_dt.timezone.utc).strftime("%d %b %Y • %H:%M UTC")
+
+        return [
+            {
+                "type": 17,                     # Container
+                "accent_color": 0x1a1aff,       # Metro blue
+                "components": [
+
+                    # Banner image
+                    {
+                        "type": 12,             # Media Gallery
+                        "items": [{"media": {"url": "attachment://met-training.png"}}]
+                    },
+
+                    {"type": 14, "divider": True, "spacing": 1},
+
+                    # Title
+                    {
+                        "type": 10,
+                        "content": "## 📋  Training Personnel — Weekly Requirements"
+                    },
+
+                    {"type": 14, "divider": False, "spacing": 1},
+
+                    # Trainee counter
+                    {
+                        "type": 10,
+                        "content": (
+                            f"### 👥  Available Trainees\n"
+                            f"**`{trainee_count}`** member{'s' if trainee_count != 1 else ''} "
+                            f"currently hold the **{self.TRAINEE_ROLE_NAME}** role.\n\n"
+                            f"{threshold_note}\n\n"
+                            "All training personnel are **required to host a minimum of "
+                            "1 training session per week**, unless fewer than 4 trainees "
+                            "are available."
+                        )
+                    },
+
+                    {"type": 14, "divider": True, "spacing": 1},
+
+                    # Footer row: last refresh + docs button
+                    {
+                        "type": 10,
+                        "content": f"-# 🔄  Last refreshed: {last_refresh}"
+                    },
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 2,
+                                "style": 5,
+                                "label": "📄  View Training Guidelines",
+                                "url": (
+                                    "https://docs.google.com/document/d/"
+                                    "1nSrMkEKAcb4Yt-VPxInViR4ajw_8rMeEvHlCs84e_8s"
+                                    "/edit?tab=t.jwm7dfvvi2e4"
+                                )
+                            }
+                        ]
+                    }
+
+                ]
+            }
+        ]
+
+    async def _post_training_tracker(self, channel_id: int):
+        """
+        Delete any previously stored tracker message, then post a fresh one.
+        Stores the new message ID in MongoDB so the next refresh can delete it.
+        Uses raw HTTP because discord.py has no native Components V2 support.
+        """
+        bot_token = self.bot.http.token
+
+        headers = {
+            "Authorization": f"Bot {bot_token}",
+            "Content-Type": "application/json",   # overridden for multipart below
+        }
+
+        # ── 1. Delete old message if we have one ──────────────────────
+        doc = await self.settings.find_one({"_id": "guild_config"})
+        old_msg_id = doc.get("training_tracker_message_id") if doc else None
+
+        if old_msg_id:
+            delete_url = (
+                f"https://discord.com/api/v10/channels/{channel_id}"
+                f"/messages/{old_msg_id}"
+            )
+            async with aiohttp.ClientSession() as session:
+                async with session.delete(delete_url, headers={"Authorization": f"Bot {bot_token}"}) as resp:
+                    if resp.status not in (200, 204, 404):
+                        print(f"[tracker] Could not delete old message: {resp.status}")
+
+        # ── 2. Build payload ──────────────────────────────────────────
+        trainee_count = self._count_trainees()
+        components = self._build_tracker_components(trainee_count)
+
+        payload = {
+            "flags": 32768,         # IS_COMPONENTS_V2
+            "components": components,
+        }
+
+        post_url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
+
+        # ── 3. Try to attach image, fall back to text-only if missing ─
+        try:
+            with open("met-training.png", "rb") as f:
+                image_bytes = f.read()
+
+            async with aiohttp.ClientSession() as session:
+                form = aiohttp.FormData()
+                form.add_field(
+                    "payload_json",
+                    json.dumps(payload),
+                    content_type="application/json",
+                )
+                form.add_field(
+                    "files[0]",
+                    image_bytes,
+                    filename="met-training.png",
+                    content_type="image/png",
+                )
+                async with session.post(
+                    post_url,
+                    data=form,
+                    headers={"Authorization": f"Bot {bot_token}"},
+                ) as resp:
+                    if resp.status in (200, 201):
+                        data = await resp.json()
+                        new_msg_id = data["id"]
+                    else:
+                        print(f"[tracker] POST failed: {resp.status} – {await resp.text()}")
+                        return
+
+        except FileNotFoundError:
+            # No banner image on disk — strip the Media Gallery component and send text-only
+            text_only_components = [
+                {
+                    **payload["components"][0],
+                    "components": [
+                        c for c in payload["components"][0]["components"]
+                        if c.get("type") != 12
+                    ],
+                }
+            ]
+            text_only_payload = {**payload, "components": text_only_components}
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    post_url,
+                    json=text_only_payload,
+                    headers={
+                        "Authorization": f"Bot {bot_token}",
+                        "Content-Type": "application/json",
+                    },
+                ) as resp:
+                    if resp.status in (200, 201):
+                        data = await resp.json()
+                        new_msg_id = data["id"]
+                    else:
+                        print(f"[tracker] fallback POST failed: {resp.status}")
+                        return
+
+        # ── 4. Persist new message ID ─────────────────────────────────
+        await self.settings.update_one(
+            {"_id": "guild_config"},
+            {"$set": {"training_tracker_message_id": new_msg_id}},
+            upsert=True,
+        )
+        await self.load_config()
+        print(f"[tracker] Posted training tracker (msg {new_msg_id}, {trainee_count} trainees)")
+
+    async def _training_tracker_loop(self):
+        """Background task: refresh the training tracker every 24 hours."""
+        await self.bot.wait_until_ready()
+
+        while not self.bot.is_closed():
+            try:
+                channels = self.config_cache.get("channels", {})
+                channel_id = channels.get("training_tracker")
+
+                if channel_id:
+                    await self._post_training_tracker(int(channel_id))
+                else:
+                    print("[tracker] No training_tracker channel configured — skipping refresh.")
+
+            except asyncio.CancelledError:
+                return
+            except Exception as exc:
+                print(f"[tracker] Refresh error: {exc}")
+
+            # Wait 24 hours before the next refresh
+            await asyncio.sleep(86400)
     # ------------------------------------------------------------------ #
     # /metro_dashboard                                                   #
     # ------------------------------------------------------------------ #
@@ -1375,23 +1616,27 @@ class Operations(commands.Cog):
         notes: str,
         signed: str,
     ):
+        await interaction.response.defer(ephemeral=True)
+
         if not self._check_permission(interaction, "metro_promote"):
-            await interaction.response.send_message("❌ You do not have the required Metropolitan roles to issue promotions.", ephemeral=True)
+            await interaction.followup.send("❌ You do not have the required Metropolitan roles to issue promotions.", ephemeral=True)
             return
 
         desc = (
             "## <:LAPD_Metropolitan:1495867271501975552> | Metropolitan Promotion\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            f"{DASHBOARD_DIVIDER}\n\n"
             f"**Metro Operative:** {officer.mention}\n\n"
             f"**Old Rank:** {previous_rank}\n\n"
             f"**New Rank:** {new_rank}\n\n"
             f"**Notes:** {notes}\n\n"
             f"**Signed:** {signed}\n\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+            f"{DASHBOARD_DIVIDER}\n"
         )
 
         embed = discord.Embed(description=desc, color=discord.Color.blue())
         embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
+        file = discord.File(BASE_DIR / "promotion.png", filename="promotion.png")
+        embed.set_image(url="attachment://promotion.png")
         embed.set_footer(
             text=f"Issued by {interaction.user.display_name}",
             icon_url=(
@@ -1402,8 +1647,8 @@ class Operations(commands.Cog):
         )
 
         channel = await self._resolve_output_channel(interaction, "metro_promote")
-        await channel.send(content=officer.mention, embed=embed)
-        await interaction.response.send_message(
+        await channel.send(content=officer.mention, embed=embed, file=file)
+        await interaction.followup.send(
             "✅ Promotion successfully logged!", ephemeral=True
         )
 
@@ -1454,23 +1699,27 @@ class Operations(commands.Cog):
         appealable: str,
         signed: str,
     ):
+        await interaction.response.defer(ephemeral=True)
+
         if not self._check_permission(interaction, "metro_infract"):
-            await interaction.response.send_message("❌ You do not have permission to issue infractions.", ephemeral=True)
+            await interaction.followup.send("❌ You do not have permission to issue infractions.", ephemeral=True)
             return
 
         desc = (
-            "## <:LAPD_Metropolitan:1495867271501975552> | Disciplinary Infraction\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            "## <:LAPD_Metropolitan:1495867271501975552> | Metropolitan Infraction\n"
+            f"{DASHBOARD_DIVIDER}\n\n"
             f"**Officer:** {officer.mention}\n\n"
             f"**Punishment:** {punishment}\n\n"
             f"**Reason:** {reason}\n\n"
             f"**Appealable:** {appealable}\n\n"
             f"**Signed:** {signed}\n\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+            f"{DASHBOARD_DIVIDER}\n"
         )
 
         embed = discord.Embed(description=desc, color=discord.Color.red())
         embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
+        file = discord.File(BASE_DIR / "infraction.png", filename="infraction.png")
+        embed.set_image(url="attachment://infraction.png")
         embed.set_footer(
             text=f"Issued by {interaction.user.display_name}",
             icon_url=(
@@ -1481,8 +1730,8 @@ class Operations(commands.Cog):
         )
 
         channel = await self._resolve_output_channel(interaction, "metro_infract")
-        await channel.send(content=officer.mention, embed=embed)
-        await interaction.response.send_message(
+        await channel.send(content=officer.mention, embed=embed, file=file)
+        await interaction.followup.send(
             "✅ Infraction has been posted successfully.", ephemeral=True
         )
 
@@ -1500,36 +1749,38 @@ class Operations(commands.Cog):
         co_host: discord.Member = None,
         notes: str = None,
     ):
+        await interaction.response.defer(ephemeral=True)
+
         metro_role = discord.utils.get(
             interaction.guild.roles, name="[𝐋𝐀𝐏𝐃] Metropolitan Unit"
         )
         if not metro_role:
-            await interaction.response.send_message(
-                "Metropolitan Unit role not found.", ephemeral=True
+            await interaction.followup.send(
+                "❌ Metropolitan Unit role not found.", ephemeral=True
             )
             return
 
         host = interaction.user
         desc = (
-            "## <:LAPD_Metropolitan:1495867271501975552> ︱ Metro Mass Shift\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+            "## <:LAPD_Metropolitan:1495867271501975552> ︱ Metropolitan Mass Shift\n"
+            f"{DASHBOARD_DIVIDER}\n"
             "Metropolitan Operatives are needed in-game. Join up, gear-up, and set up for a fun shift!\n\n"
             f"**Hosted By:** {host.mention}\n\n"
             f"**Co-Host:** {co_host.mention if co_host else 'None'}\n"
             f"**Notes:** {notes}\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+            f"{DASHBOARD_DIVIDER}\n"
             "**Reactions:**\n✅ = Coming\n❔ = Maybe\n❌ = Unable\n"
         )
 
-        embed = discord.Embed(description=desc, color=discord.Color.red())
+        embed = discord.Embed(description=desc, color=discord.Color.blue())
         embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
         embed.set_footer(
             text=f"Issued by {host.display_name}",
             icon_url=host.display_avatar.url if host.display_avatar else None,
         )
 
-        await interaction.response.send_message(
-            content="✅ Mass Shift Issued", ephemeral=True
+        await interaction.followup.send(
+            "✅ Mass Shift Issued", ephemeral=True
         )
         channel = await self._resolve_output_channel(interaction, "metro_mass_shift")
         msg = await channel.send(content=metro_role.mention, embed=embed)
@@ -1554,19 +1805,21 @@ class Operations(commands.Cog):
         co_host: discord.Member = None,
         start_time: str = "TBD",
     ):
+        await interaction.response.defer(ephemeral=True)
+
         ping_role = discord.utils.get(
             interaction.guild.roles, name="[𝐌𝐄𝐓] Awaiting Training Ping"
         )
         if not ping_role:
-            await interaction.response.send_message(
-                "Metropolitan Unit role not found.", ephemeral=True
+            await interaction.followup.send(
+                "❌ Metropolitan Unit role not found.", ephemeral=True
             )
             return
 
         host = interaction.user
         desc = (
             "## <:LAPD_Metropolitan:1495867271501975552> | Metropolitan Entry Training\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            f"{DASHBOARD_DIVIDER}\n\n"
             f"**Host:** {host.mention}\n\n"
             f"**Co-Host:** {co_host.mention if co_host else 'N/A'}\n\n"
             f"**Starting Time:** {start_time}\n\n"
@@ -1578,21 +1831,23 @@ class Operations(commands.Cog):
             "• Active Shooter Exercise\n"
             "• Undercover (UC) Exercise\n"
             "• Protection Detail Exercise\n\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+            f"{DASHBOARD_DIVIDER}\n"
         )
 
         embed = discord.Embed(description=desc, color=discord.Color.blue())
         embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
+        file = discord.File(BASE_DIR / "training-sesh.png", filename="training-sesh.png")
+        embed.set_image(url="attachment://training-sesh.png")
         embed.set_footer(
             text=f"Announced by {host.display_name}",
             icon_url=host.display_avatar.url if host.display_avatar else None,
         )
 
-        await interaction.response.send_message(
-            content="✅ Host training issued.", ephemeral=True
+        await interaction.followup.send(
+            "✅ Host training issued.", ephemeral=True
         )
         channel = await self._resolve_output_channel(interaction, "host_metro_training")
-        msg = await channel.send(content=ping_role.mention, embed=embed)
+        msg = await channel.send(content=ping_role.mention, embed=embed, file=file)
 
         try:
             for emoji in ("✅", "❔", "❌"):
@@ -1620,32 +1875,32 @@ class Operations(commands.Cog):
             await guild.chunk()
 
         rank_groups = [
-            ("     [MD] Directorate     ", [
+            ("     [MET] Directorate     ", [
                 ("[𝐌𝐄𝐓] Commanding Officer",1),
                 ("[𝐌𝐄𝐓] Deputy Commanding Officer",4),
             ]),
-            (" [MD] Command Inspector General ", [
+            (" [MET] Command Inspector General ", [
                 ("[𝐌𝐄𝐓] Detective Chief Inspector",4),
                 ("[𝐌𝐄𝐓] Chief Inspector",4),
             ]),
-            ("[MD] General Supervisory Staff", [
+            ("[MET] General Supervisory Staff", [
                 ("[𝐌𝐄𝐓] Supervisory Sergeant", 5),
             ]),
             ("  [MCS] Major Crimes Detectives  ", [
                 ("[𝐌𝐄𝐓] Senior Detective", 7),
                 ("[𝐌𝐄𝐓] Junior Detective", 20),
             ]),
-            ("   [MD] B/C Platoon Operatives  ", [
+            ("   [MET] B/C Platoon Operatives  ", [
                 ("[𝐌𝐄𝐓] Senior Officer", 20),
                 ("[𝐌𝐄𝐓] Junior Officer", 20),
             ]),
-            ("[MD] Probationary Rank Openings", [
+            ("[MET] Probationary Rank Openings", [
                 ("[𝐌𝐄𝐓] Probationary Officer", 20),
             ]),
         ]
 
         seal          = "<:LAPD_Metropolitan:1495867271501975552>"
-        divider       = "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+        divider       = f"<:line:1500739607568842865>" * 22
         embed_color   = discord.Color.from_rgb(5, 164, 232)
         embed_list    = []
 
@@ -1684,7 +1939,9 @@ class Operations(commands.Cog):
 
         channel = await self._resolve_output_channel(interaction, "metro_openings")
 
-        await channel.send(embeds=embed_list)
+        for embed in embed_list:
+            await channel.send(embed=embed)
+            await asyncio.sleep(0.5)
 
         await interaction.followup.send(
             "✅ Openings have been updated successfully.",
@@ -1738,6 +1995,155 @@ class Operations(commands.Cog):
             view=LiveOpAssignmentView(self, interaction.user, postal, members, start_time, target_gang, warrant_id),
             ephemeral=True,
         )
+    # ==========================================
+    # TRAINING INFO COMMAND (Components V2)
+    # ==========================================
+    @app_commands.command(name="metro_training_info", description="Display training requirements for personnel.")
+    async def metro_training_info(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+ 
+        components = [
+            {
+                "type": 17,                     # Container
+                "accent_color": 0x1a1aff,       # Metro blue stripe
+                "components": [
+ 
+                    # ── Banner image ──
+                    {
+                        "type": 12,             # Media Gallery
+                        "items": [
+                            {
+                                "media": {
+                                    "url": "attachment://met-training.png"
+                                }
+                            }
+                        ]
+                    },
+ 
+                    # ── Separator ──
+                    {
+                        "type": 14,             # Separator
+                        "divider": True,
+                        "spacing": 1
+                    },
+ 
+                    # ── Title ──
+                    {
+                        "type": 10,             # Text Display
+                        "content": "## 📋  Training Personnel — Requirements"
+                    },
+ 
+                    # ── Spacer ──
+                    {
+                        "type": 14,
+                        "divider": False,
+                        "spacing": 1
+                    },
+ 
+                    # ── Body copy ──
+                    {
+                        "type": 10,
+                        "content": (
+                            "All training personnel are **required to host a minimum of "
+                            "1 training session per week**.\n\n"
+                            "> ⚠️  **Exception:** If there are **fewer than 4 available trainees**, "
+                            "you are **not** required to host that week. Document the shortfall "
+                            "in the training log so command is aware."
+                        )
+                    },
+ 
+                    # ── Separator before button ──
+                    {
+                        "type": 14,
+                        "divider": True,
+                        "spacing": 1
+                    },
+ 
+                    # ── Google Docs link button ──
+                    {
+                        "type": 1,              # Action Row
+                        "components": [
+                            {
+                                "type": 2,      # Button
+                                "style": 5,     # LINK
+                                "label": "📄  View Training Guidelines",
+                                "url": "https://docs.google.com/document/d/1nSrMkEKAcb4Yt-VPxInViR4ajw_8rMeEvHlCs84e_8s/edit?tab=t.jwm7dfvvi2e4"
+                            }
+                        ]
+                    }
+ 
+                ]
+            }
+        ]
+ 
+        # ── discord.py has no native Components V2 support, so we hit the
+        #    REST API directly via the followup webhook URL. ──────────────
+        webhook_url = (
+            f"https://discord.com/api/v10/webhooks/"
+            f"{interaction.application_id}/{interaction.token}"
+        )
+ 
+        payload = {
+            "flags": 32768,             # IS_COMPONENTS_V2  (1 << 15)
+            "components": components
+        }
+ 
+        try:
+            with open("met-training.png", "rb") as f:
+                image_bytes = f.read()
+ 
+            async with aiohttp.ClientSession() as session:
+                form = aiohttp.FormData()
+                form.add_field(
+                    "payload_json",
+                    json.dumps(payload),
+                    content_type="application/json"
+                )
+                form.add_field(
+                    "files[0]",
+                    image_bytes,
+                    filename="met-training.png",
+                    content_type="image/png"
+                )
+ 
+                async with session.post(webhook_url, data=form) as resp:
+                    if resp.status not in (200, 204):
+                        body = await resp.text()
+                        print(f"[training_info] Discord API error {resp.status}: {body}")
+                        await interaction.followup.send(
+                            "❌ Failed to send training info. Check bot logs.",
+                            ephemeral=True
+                        )
+ 
+        except FileNotFoundError:
+            # Image missing — send without it
+            payload_no_image = {
+                "flags": 32768,
+                "components": [
+                    {
+                        "type": 17,
+                        "accent_color": 0x1a1aff,
+                        "components": [
+                            comp for comp in components[0]["components"]
+                            if comp.get("type") != 12   # strip Media Gallery
+                        ]
+                    }
+                ]
+            }
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    webhook_url,
+                    json=payload_no_image
+                ) as resp:
+                    if resp.status not in (200, 204):
+                        print(f"[training_info] fallback error {resp.status}: {await resp.text()}")
+ 
+        except Exception as e:
+            print(f"[training_info] Unexpected error: {e}")
+            await interaction.followup.send(
+                "❌ Unexpected error sending training info.",
+                ephemeral=True
+            )
     # ------------------------------------------------------------------ #
     # /metro_after_action                                                 #
     # ------------------------------------------------------------------ #
@@ -1746,7 +2152,10 @@ class Operations(commands.Cog):
         name="metro_after_action",
         description="Create a Metropolitan After Action Report.",
     )
-    @app_commands.describe(vehicle="Select suspect vehicle (searchable by brand/model/real car)")
+    @app_commands.describe(
+        officers="Name(s) or mention(s) of involved officers",
+        vehicle="Select suspect vehicle (searchable by brand/model/real car)"
+    )
     @app_commands.choices(gang=[
         app_commands.Choice(name="None / Unaffiliated", value="none"),
         app_commands.Choice(name="77th Saints Gang (77th)", value="77th"),
@@ -1825,7 +2234,7 @@ class Operations(commands.Cog):
 
         desc = (
             "## <:LAPD_Metropolitan:1495867271501975552> | After Action Report\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            f"{DASHBOARD_DIVIDER}\n\n"
             f"**Officer(s):** {officers}\n"
             f"**Patrol Area:** {patrol_area}\n"
             f"**Reported At:** {time_display}\n\n"
@@ -1843,7 +2252,7 @@ class Operations(commands.Cog):
             f"> {additional_notes}\n\n"
             "**Signed,**\n"
             f"{interaction.user.mention} - <:LAPD_Metropolitan:1495867271501975552> | {rank}\n\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+            f"{DASHBOARD_DIVIDER}"
         )
 
         embed = discord.Embed(description=desc, color=discord.Color.dark_blue())
@@ -1901,8 +2310,10 @@ class Operations(commands.Cog):
     async def request_metro(
         self, interaction: discord.Interaction, reason: str
     ):
+        await interaction.response.defer(ephemeral=True)
+
         if not self._check_permission(interaction, "request_metro"):
-            await interaction.response.send_message("❌ You do not have permission to request Metropolitan assistance.", ephemeral=True)
+            await interaction.followup.send("❌ You do not have permission to request Metropolitan assistance.", ephemeral=True)
             return
 
         now        = time.time()
@@ -1915,7 +2326,7 @@ class Operations(commands.Cog):
             remaining = int(43_200 - (now - last_used))
             hours     = remaining // 3600
             minutes   = (remaining % 3600) // 60
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"⏳ Command on cooldown for this server. "
                 f"Try again in {hours}h {minutes}m.",
                 ephemeral=True,
@@ -1931,8 +2342,8 @@ class Operations(commands.Cog):
         )
 
         if not metro_role or not swat_role:
-            await interaction.response.send_message(
-                "No valid response roles found.", ephemeral=True
+            await interaction.followup.send(
+                "❌ No valid response roles found.", ephemeral=True
             )
             return
 
@@ -1954,7 +2365,7 @@ class Operations(commands.Cog):
             icon_url=host.display_avatar.url if host.display_avatar else None,
         )
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "✅ Request sent.", ephemeral=True
         )
         channel = await self._resolve_output_channel(interaction, "request_metro")
@@ -1980,7 +2391,7 @@ class Operations(commands.Cog):
         result: str,
         evidence: discord.Attachment = None,
     ):
-
+        await interaction.response.defer(ephemeral=True)
 
         evidence_text = evidence.url if evidence else "None"
         desc = (
@@ -2019,7 +2430,7 @@ class Operations(commands.Cog):
         })
         await self._award_intel_points(interaction.user.id, 1, "K9 Deployment")
 
-        await interaction.response.send_message("✅ K9 deployment logged.", ephemeral=True)
+        await interaction.followup.send("✅ K9 deployment logged.", ephemeral=True)
 
     # ------------------------------------------------------------------ #
     # /metro_start_case                                                  #
@@ -2062,10 +2473,10 @@ class Operations(commands.Cog):
         embed = discord.Embed(
             description=(
                 f"## <:LAPD_Metropolitan:1495867271501975552> | Case Initialized\n"
-                "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+                f"{DASHBOARD_DIVIDER}\n\n"
                 f"Case has been made on **{organised_crime_group_name}**. You can now log evidence using `/metro_case_log` "
                 "along with anyone else who produces evidence.\n\n"
-                "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+                f"{DASHBOARD_DIVIDER}"
             ),
             color=discord.Color.dark_red()
         )
@@ -2131,7 +2542,7 @@ class Operations(commands.Cog):
         
         desc = (
             "## <:LAPD_Metropolitan:1495867271501975552> | Major Crimes Evidence\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            f"{DASHBOARD_DIVIDER}\n\n"
             f"**Detective(s):**\n> {detectives}\n\n"
             f"**Suspect Description:**\n> {suspect_description}\n\n"
             f"**Vehicle(s) Used:**\n> {vehicles_used}\n\n"
@@ -2139,7 +2550,7 @@ class Operations(commands.Cog):
             f"**Criminal Activities:**\n> {criminal_activities}\n\n"
             f"**Area:**\n> {area}\n\n"
             f"**Notes:**\n> {notes}\n\n"
-            "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+            f"{DASHBOARD_DIVIDER}\n"
             f"**Signed,**\n"
             f"{interaction.user.mention} - {rank}\n"
         )
@@ -2206,7 +2617,7 @@ class Operations(commands.Cog):
             await interaction.followup.send("No active cases found.", ephemeral=True)
             return
             
-        desc = "## <:LAPD_Metropolitan:1495867271501975552> | Major Crimes Directory\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+        desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Major Crimes Directory\n{DASHBOARD_DIVIDER}\n"
         for c in cases:
             thread = self.bot.get_channel(c["thread_id"])
             mention = thread.mention if thread else f"`ID: {c['thread_id']}`"
@@ -2228,7 +2639,7 @@ class Operations(commands.Cog):
             await interaction.followup.send("No points have been recorded yet.")
             return
 
-        desc = "## <:LAPD_Metropolitan:1495867271501975552> | Weekly Operational Standings\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+        desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Weekly Operational Standings\n{DASHBOARD_DIVIDER}\n"
         for i, data in enumerate(top_officers, 1):
             member = interaction.guild.get_member(data["_id"])
             name = member.mention if member else f"Unknown ({data['_id']})"
@@ -2264,7 +2675,7 @@ class Operations(commands.Cog):
             color=discord.Color.blue(),
             description=(
                 f"**Points Earned This Cycle:** `{total_points}`\n"
-                "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+                f"{DASHBOARD_DIVIDER}\n"
                 f"🔍 **Weekly Suspect Logs:** `{intel_count}`\n"
                 f"📁 **Case Logs:** `{case_count}`\n"
                 f"📝 **After Action Reports:** `{aar_count}`\n"
@@ -2272,64 +2683,6 @@ class Operations(commands.Cog):
             )
         )
         await interaction.followup.send(embed=embed)
-
-    # ------------------------------------------------------------------ #
-    # /metro_welcome                                                     #
-    # ------------------------------------------------------------------ #
-
-    @app_commands.command(
-        name="metro_welcome",
-        description="Welcome a new officer to the Metropolitan Unit.",
-    )
-    async def metro_welcome(self, interaction: discord.Interaction, officer: discord.Member):
-        """Sends a structured welcome message to a new Metro Operative."""
-        await interaction.response.defer(ephemeral=True)
-
-        target_channel = await self._resolve_output_channel(interaction, "welcome")
-
-        desc = (
-            f"## 👋 | **Welcome, Fellow Operative!**\n"
-            f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
-            f"{officer.mention}, welcome to the **Metropolitan Unit**! As a member of this elite "
-            f"division, you now hold the responsibility of being the LAPD's primary arm for "
-            f"high-risk suppression, gang disruption, and tactical response. \n\n"
-            f"### 🚀 The Next Steps in your journey\n"
-            f"**1. Link your intelligence threads!**\n"
-            f"> Every operative is required to maintain their own field reporting logs. Use the `/metro_link` "
-            f"command to map your Discord threads to the S.I.M.O.N. database. This allows you to use the "
-            f"`–metroAA` rapid-log engine and earn Intel Points for your service.\n\n"
-            f"**2. Pass your Trial!**\n"
-            f"> You must first pass your intensive training regiment, which grants both the Assault Rifle Certificate and the Undercover Certificate."
-            f"As a Probationary Operative, you must exhibit proficiency in high-stress environments. "
-            f"Participate in active deployments or trainings where Command can evaluate your tactics. "
-            f"Once certified, you will be cleared for independent specialist assignments.\n\n"
-            f"**3. Master the Doctrine!**\n"
-            f"> Success in Metro is built on knowledge. We recommend you familiarize yourself with our "
-            f"Standard Operations handbook and the Intelligence Point (IP) rewards shop. Your journey starts now.\n\n"
-            f"### 💡 Essential Information\n"
-            f"1️⃣ Use `/metro_handbook` to read the Standard Operations Handbook.\n"
-            f"2️⃣ Wait for a training session to be hosted to be fully trained\n"
-            f"3️⃣ Always utilize an unmarked configuration for patrol unless authorized for specific raids.\n\n"
-            f"Good luck, Operative! If you have inquiries, our High Command and veterans are ready to assist.\n"
-            f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
-            f"You have been welcomed by {interaction.user.mention}."
-        )
-
-        embed = discord.Embed(description=desc, color=discord.Color.blue())
-        embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
-        embed.set_footer(
-            text=f"Metropolitan Unit • Recruitment & Induction",
-            icon_url=interaction.user.display_avatar.url if interaction.user.display_avatar else None,
-        )
-
-        # Send the ping and the embed to the configured channel
-        await target_channel.send(content=officer.mention, embed=embed)
-
-        # Feedback for the person executing the command
-        await interaction.followup.send(
-            f"✅ {officer.display_name} has been welcomed.", 
-            ephemeral=True
-        )
 
     @app_commands.command(name="metro_shop", description="Redeem your intelligence points for various rewards.")
     async def metro_shop(self, interaction: discord.Interaction):
@@ -2341,7 +2694,7 @@ class Operations(commands.Cog):
         embed = discord.Embed(
             description=(
                 "## 🎉 | Metro Shop Rewards\n"
-                "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+                f"{DASHBOARD_DIVIDER}\n"
                 f"Welcome, Operative. Your hard work has earned you **{points}** Career Intel Tokens. Choose a reward below to redeem them."
             ),
             color=discord.Color.blue()

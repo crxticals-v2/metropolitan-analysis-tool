@@ -25,7 +25,7 @@ PRIZE_DESCRIPTION  = "**50 Robux**"
 TICKET_EMOJI       = "🎟️"
 RAFFLE_EMOJI       = "🏆"
 METRO_ICON_URL     = "https://i.imgur.com/qdvbBqe.png"
-DIVIDER            = "**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**"
+DIVIDER            = "<:line:1500739607568842865>" * 20
 
 TICKET_TIERS = {
     "raffle_1": {"tickets": 1, "cost": 3},

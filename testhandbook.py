@@ -8,9 +8,6 @@ Drop into your cogs/ folder and add to your setup_hook:
     await bot.load_extension("cogs.handbook")
 """
 
-import pathlib
-import json
-
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -36,7 +33,7 @@ def _sep(spacing: int = 1, divider: bool = True) -> dict:
 
 def _sep_emoji() -> dict:
     """Emoji divider line — used on the main menu only."""
-    return _text("<:line:1500739607568842865>" * 29)
+    return _text("<:line:1500739607568842865>" * 20)
 
 def _thumbnail(url: str) -> dict:
     """Type 11 — Thumbnail accessory (used inside Section)."""
@@ -104,18 +101,6 @@ def _select_menu(custom_id: str = "hb_select",
     }
 
 
-# Path to the main-menu banner graphic (sits next to this file in the cogs/ folder).
-_IMAGE_PATH: pathlib.Path = pathlib.Path(__file__).parent / "information.png"
-
-
-def _media_gallery(filename: str) -> dict:
-    """Type 12 — MediaGallery. Full-width image resolved from a multipart attachment."""
-    return {
-        "type": 12,
-        "items": [{"media": {"url": f"attachment://{filename}"}}],
-    }
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # SECTION META
 # ─────────────────────────────────────────────────────────────────────────────
@@ -171,11 +156,10 @@ _SELECT_DESCRIPTIONS: dict[str, str] = {
 def _s_menu() -> list:
     return [
         _section(
-            "## LAPD Metropolitan Division\n### Information Desk\n"
+            "## LAPD Metropolitan Division\n### Standard Operations Handbook\n"
             "-# Select a labelled section button below to open that part of the handbook.",
             _THUMB,
         ),
-        _media_gallery("information.png"),
         _sep_emoji(),
         _text(
             "### Main Menu\n"
@@ -241,11 +225,13 @@ def _s_intro() -> list:
         _sep(),
         _text(
             "### 📅  Weekly Quota Requirements\n"
-            "- **Metro Operatives:** 1 hour on-duty activity + Active Intelligence Logging\n"
-            "- **Reporting:** All field activity must be logged via `/metro_after_action` or `-metroAA`\n"
-            "- **Senior Officer+ (incl. MCS):** 1 Mass Training Session (host or co-host; waived if <5 trainees)\n"
-            "- **Metro Inspectors:** 30 minutes HR Quota\n"
-            "- **Promotional:** 2 hours · Double Promotion = 7 hours *(B/C Platoon only)*"
+            "| Role | Requirement |\n"
+            "|---|---|\n"
+            "| Metro Operatives | 1 hour on-duty activity + Active Intelligence Logging |\n"
+            "| Reporting | All field activity must be logged via `/metro_after_action` or `-metroAA` |\n"
+            "| Senior Officer+ (incl. MCS) | 1 Mass Training Session (host or co-host; waived if <5 trainees) |\n"
+            "| Metro Inspectors | 30 minutes HR Quota |\n"
+            "| Promotional | 2 hours · Double Promotion = 7 hours *(B/C Platoon only)* |"
         ),
         _sep(),
         _text(
@@ -430,18 +416,20 @@ def _s_tactical() -> list:
         _sep(),
         _text(
             "### 🛡️  Principal Protection Procedures\n"
-            "Deployment details are issued per-operation by Gold/High Command. Standard close-protection terminology:\n"
-            "- **Principal:** Individual being protected\n"
-            "- **Motorcade:** The convoy of vehicles\n"
-            "- **PPO:** Principal Protection Officer — lead officer\n"
-            "- **PO:** Protection Officer — supporting personnel\n"
-            "- **Lead Car:** Clears and scouts the route ahead\n"
-            "- **Trail Car:** Positioned behind the principal\n"
-            "- **Flankers:** Agents positioned to the sides (on foot)\n"
-            "- **Bubble:** Immediate protective space around the principal\n"
-            "- **Shadow:** Discreet nearby positioning without drawing attention\n"
-            "- **Diamond/Box Formation:** Standard close-protection formation\n"
-            "- **Sitrep:** Shorthand for situation report"
+            "Deployment details are issued per-operation by Gold/High Command. Standard close-protection terminology:\n\n"
+            "| Term | Definition |\n"
+            "|---|---|\n"
+            "| **Principal** | Individual being protected |\n"
+            "| **Motorcade** | The convoy of vehicles |\n"
+            "| **PPO** | Principal Protection Officer — lead officer |\n"
+            "| **PO** | Protection Officer — supporting personnel |\n"
+            "| **Lead Car** | Clears and scouts the route ahead |\n"
+            "| **Trail Car** | Positioned behind the principal |\n"
+            "| **Flankers** | Agents positioned to the sides (on foot) |\n"
+            "| **Bubble** | Immediate protective space around the principal |\n"
+            "| **Shadow** | Discreet nearby positioning without drawing attention |\n"
+            "| **Diamond/Box Formation** | Standard close-protection formation |\n"
+            "| **Sitrep** | Shorthand for situation report |"
         ),
         _sep(),
         _text(
@@ -556,10 +544,12 @@ def _s_logistics() -> list:
         _sep(),
         _text(
             "**Intel Point Earnings**\n"
-            "- **After Action Reports (Raids, stakeouts, etc.):** 2–4 Points\n"
-            "- **Field Reports:** 1–2 Points\n"
-            "- **Intelligence Logs (`/metro_suspect_log`):** 1 Point\n"
-            "- **Repeat Offender Tracking (Every 5th log):** +1 Bonus"
+            "| Activity | Points Awarded |\n"
+            "|---|---|\n"
+            "| After Action Reports (Raids, stakeouts, etc.) | 2–4 Points |\n"
+            "| Field Reports | 1–2 Points |\n"
+            "| Intelligence Logs (`/metro_suspect_log`) | 1 Point |\n"
+            "| Repeat Offender Tracking (Every 5th log) | +1 Bonus |"
         ),
         _sep(),
         _text(
@@ -573,12 +563,14 @@ def _s_logistics() -> list:
         _sep(),
         _text(
             "**Intel Rewards Shop**\n"
-            "- **Shift Time Extension (+15 minutes):** 3 Points\n"
-            "- **Shift Time Extension (+30 minutes):** 6 Points\n"
-            "- **Hint on next Drill/Hunt:** 5 Points\n"
-            "- **Quota Exemption (1 Week):** 12 Points\n"
-            "- **24hr Point Multiplier (1.5x):** 20 Points\n"
-            "- **Shift as Responding IC:** 30 Points"
+            "| Reward | Cost |\n"
+            "|---|---|\n"
+            "| Shift Time Extension (+15 minutes) | 3 Points |\n"
+            "| Shift Time Extension (+30 minutes) | 6 Points |\n"
+            "| Hint on next Drill/Hunt | 5 Points |\n"
+            "| Quota Exemption (1 Week) | 12 Points |\n"
+            "| 24hr Point Multiplier (1.5x) | 20 Points |\n"
+            "| Shift as Responding IC | 30 Points |"
         ),
         _sep(),
         _text(
@@ -755,17 +747,10 @@ def build_message(active: str = "menu") -> list:
 # These bypass discord.py's response tracking so we can set IS_COMPONENTS_V2.
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def _initial_respond(
-    interaction: discord.Interaction,
-    components: list,
-    image_bytes: bytes | None = None,
-    image_filename: str = "information.png",
-) -> None:
+async def _initial_respond(interaction: discord.Interaction, components: list) -> None:
     """
     Type-4 interaction callback (CHANNEL_MESSAGE_WITH_SOURCE) with V2 flag.
     Called for the initial /metro_handbook slash command.
-    When image_bytes is provided, sends as multipart so Discord resolves
-    the 'attachment://<filename>' URL inside the components.
     """
     url = (
         f"https://discord.com/api/v10/interactions/"
@@ -776,17 +761,10 @@ async def _initial_respond(
         "data": {
             "flags": _V2_FLAG | 64,
             "components": components,
-            **({"attachments": [{"id": 0, "filename": image_filename}]} if image_bytes else {}),
         },
     }
     async with aiohttp.ClientSession() as session:
-        if image_bytes:
-            form = aiohttp.FormData()
-            form.add_field("payload_json", json.dumps(payload), content_type="application/json")
-            form.add_field("files[0]", image_bytes, filename=image_filename, content_type="image/png")
-            resp = await session.post(url, data=form)
-        else:
-            resp = await session.post(url, json=payload)
+        resp = await session.post(url, json=payload)
         if resp.status not in (200, 204):
             text = await resp.text()
             raise RuntimeError(f"Discord API error {resp.status}: {text}")
@@ -839,37 +817,21 @@ async def _ephemeral_respond(interaction: discord.Interaction, components: list)
             raise RuntimeError(f"Discord API error {resp.status}: {text}")
 
 
-async def _send_channel_message(
-    channel_id: int,
-    components: list,
-    image_bytes: bytes | None = None,
-    image_filename: str = "information.png",
-) -> dict:
-    """
-    Send a public Components V2 message to a channel using the Discord REST API.
-    When image_bytes is provided, sends as multipart so Discord resolves
-    the 'attachment://<filename>' URL inside the components.
-    """
+async def _send_channel_message(channel_id: int, components: list) -> dict:
+    """Send a public Components V2 message to a channel using the Discord REST API."""
     url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
     payload = {
         "flags": _V2_FLAG,
         "components": components,
-        **({"attachments": [{"id": 0, "filename": image_filename}]} if image_bytes else {}),
     }
     headers = {"Authorization": f"Bot {TOKEN}"}
 
     async with aiohttp.ClientSession(headers=headers) as session:
-        if image_bytes:
-            form = aiohttp.FormData()
-            form.add_field("payload_json", json.dumps(payload), content_type="application/json")
-            form.add_field("files[0]", image_bytes, filename=image_filename, content_type="image/png")
-            resp = await session.post(url, data=form)
-        else:
-            resp = await session.post(url, json=payload)
+        resp = await session.post(url, json=payload)
         text = await resp.text()
         if resp.status not in (200, 201):
             raise RuntimeError(f"Discord API error {resp.status}: {text}")
-        return json.loads(text)
+        return await resp.json()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -913,11 +875,7 @@ class HandbookCog(commands.Cog, name="Handbook"):
                     except Exception as exc:
                         print(f"[HANDBOOK] Could not delete previous handbook message: {exc!r}")
 
-            data = await _send_channel_message(
-                channel.id,
-                build_message("menu"),
-                image_bytes=_IMAGE_PATH.read_bytes() if _IMAGE_PATH.exists() else None,
-            )
+            data = await _send_channel_message(channel.id, build_message("menu"))
             message_id = int(data["id"])
             await self.bot.bot_state.update_one(
                 {"_id": "handbook_state"},
@@ -960,11 +918,7 @@ class HandbookCog(commands.Cog, name="Handbook"):
     )
     async def metro_handbook(self, interaction: discord.Interaction) -> None:
         components = build_message("menu")
-        await _initial_respond(
-            interaction,
-            components,
-            image_bytes=_IMAGE_PATH.read_bytes() if _IMAGE_PATH.exists() else None,
-        )
+        await _initial_respond(interaction, components)
 
     # ── Button interaction handler ────────────────────────────────────────────
 

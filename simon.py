@@ -33,6 +33,7 @@ from map_renderer import draw_heatmap_overlay, draw_map_path
 BASE_DIR = Path(__file__).parent.resolve()
 ARREST_BG_PATH = BASE_DIR / "arrest_background.jpg"
 VEHICLE_DB_PATH = BASE_DIR / "erlc_vehicles.json"
+DIVIDER = "<:line:1500739607568842865>" * 21
 
 # ==========================================
 # VEHICLE DATABASE
@@ -639,13 +640,13 @@ class Simon(commands.Cog):
             pages = []
             for i in range(0, len(logs), 5):
                 chunk = logs[i:i + 5]
-                desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Intelligence Profile: {roblox_username}\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+                desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Intelligence Profile: {roblox_username}\n{DIVIDER}\n"
 
                 for log in chunk:
                     desc += (
                         f"\n**Crime:** {log.get('crimes', 'Unknown')}\n"
                     f"**Location:** {log.get('poi') or log.get('postal') or log.get('location_raw') or 'Unknown'}\n"
-                        "**━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+                        f"{DIVIDER}\n"
                     )
 
                 embed = discord.Embed(description=desc, color=discord.Color.dark_red())
@@ -776,7 +777,7 @@ class Simon(commands.Cog):
             f"## ️ TACTICAL INTELLIGENCE BRIEFING\n"
             f"**Faction:** `{gang_shorthand}`\n"
             f"**Status:** `ACTIVE / UNDER SURVEILLANCE`\n"
-            f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n\n"
+            f"{DIVIDER}\n\n"
             f"### 📋 Operational Analysis (M.O.)\n"
             f"> {analysis}\n\n"
             f"🚘 **Tactical Vehicles:** {vehicles}\n"
@@ -842,7 +843,7 @@ class Simon(commands.Cog):
 
         embed = discord.Embed(
             title="<:LAPD_Metropolitan:1495867271501975552> Metropolitan Division | Organised Crime Analytics",
-            description="## 🏙️ GANG ACTIVITY MONITOR\nTracking the activity of known criminal factions within the city.\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**",
+            description=f"## 🏙️ GANG ACTIVITY MONITOR\nTracking the activity of known criminal factions within the city.\n{DIVIDER}",
             color=discord.Color.dark_grey()
         )
 
@@ -921,7 +922,7 @@ class Simon(commands.Cog):
         # 3. Compose main embed
         embed = discord.Embed(
             title="<:LAPD_Metropolitan:1495867271501975552> Metropolitan Division | Crime Analytics",
-            description="## 🚨 ACTIVE WATCHLIST\nThe predictive engine has identified the following high-frequency offenders. Tactical profiling is available via the components below.\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**",
+            description=f"## 🚨 ACTIVE WATCHLIST\nThe predictive engine has identified the following high-frequency offenders. Tactical profiling is available via the components below.\n{DIVIDER}",
             color=discord.Color.from_rgb(18, 20, 28)
         )
         for suspect in top_suspects:
@@ -1441,7 +1442,7 @@ Return ONLY JSON in this format:
 
         embed = discord.Embed(
             title="<:LAPD_Metropolitan:1495867271501975552> S.I.M.O.N. Predictive Engine",
-            description=f"**Target Analysis:** LKL `{postal}` | Vehicle: `{vehicle}`\n**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**",
+            description=f"**Target Analysis:** LKL `{postal}` | Vehicle: `{vehicle}`\n{DIVIDER}",
             
             color=embed_color,
         )

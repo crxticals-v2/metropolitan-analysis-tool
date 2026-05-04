@@ -1,6 +1,5 @@
 """
 main.py – Metropolitan Services Bot
-Entry point. Assembles the bot, mounts all cogs, starts the client.
 """
 
 import certifi
