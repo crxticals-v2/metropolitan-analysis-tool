@@ -29,6 +29,7 @@ from liveops import LiveOpAssignmentView, _embed_setup
 
 OWNER_UID = 613698960133062687
 BASE_DIR = Path(__file__).parent.resolve()
+RESOURCE_DIR = BASE_DIR / "resources"
 METRO_ICON_URL = "https://i.imgur.com/qdvbBqe.png"
 METRO_EMOJI = "<:LAPD_Metropolitan:1495867271501975552>"
 DASHBOARD_DIVIDER = "<:line:1500739607568842865>" * 16
@@ -912,7 +913,7 @@ class WeeklyResetView(discord.ui.View):
 class Operations(commands.Cog):
     """Metropolitan Unit administrative commands."""
 
-    HIGH_COMMAND_RANKS = {"[𝐌𝐄𝐓] Chief Inspector", "[𝐌𝐄𝐓] Detective Chief Inspector", "[𝐌𝐄𝐓] Deputy Commanding Officer", "[𝐌𝐄𝐓] Commanding Officer"}
+    HIGH_COMMAND_RANKS = {"[𝐌𝐄𝐓] Chief Inspector", "[𝐌𝐄𝐓] Deputy Commanding Officer", "[𝐌𝐄𝐓] Commanding Officer"}
     SENIOR_HIGH_COMMAND_RANKS = {"[𝐌𝐄𝐓] Deputy Commanding Officer", "[𝐌𝐄𝐓] Commanding Officer"}
 
     def __init__(self, bot):
@@ -1214,8 +1215,6 @@ class Operations(commands.Cog):
         if member.id == OWNER_UID: return True
         if "[𝐌𝐄𝐓] Chief Inspector" in [r.name for r in member.roles]:
             return True
-        if "[𝐌𝐄𝐓] Detective Chief Inspector" in [r.name for r in member.roles]:
-            return True
         return any(any(rank in role.name for rank in self.HIGH_COMMAND_RANKS) for role in member.roles)
 
     def _is_senior_high_command(self, member: discord.Member) -> bool:
@@ -1390,7 +1389,7 @@ class Operations(commands.Cog):
 
         # ── 3. Try to attach image, fall back to text-only if missing ─
         try:
-            with open("met-training.png", "rb") as f:
+            with open(RESOURCE_DIR / "met-training.png", "rb") as f:
                 image_bytes = f.read()
 
             async with aiohttp.ClientSession() as session:
@@ -1635,7 +1634,7 @@ class Operations(commands.Cog):
 
         embed = discord.Embed(description=desc, color=discord.Color.blue())
         embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
-        file = discord.File(BASE_DIR / "promotion.png", filename="promotion.png")
+        file = discord.File(RESOURCE_DIR / "promotion.png", filename="promotion.png")
         embed.set_image(url="attachment://promotion.png")
         embed.set_footer(
             text=f"Issued by {interaction.user.display_name}",
@@ -1718,7 +1717,7 @@ class Operations(commands.Cog):
 
         embed = discord.Embed(description=desc, color=discord.Color.red())
         embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
-        file = discord.File(BASE_DIR / "infraction.png", filename="infraction.png")
+        file = discord.File(RESOURCE_DIR / "infraction.png", filename="infraction.png")
         embed.set_image(url="attachment://infraction.png")
         embed.set_footer(
             text=f"Issued by {interaction.user.display_name}",
@@ -1836,7 +1835,7 @@ class Operations(commands.Cog):
 
         embed = discord.Embed(description=desc, color=discord.Color.blue())
         embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
-        file = discord.File(BASE_DIR / "training-sesh.png", filename="training-sesh.png")
+        file = discord.File(RESOURCE_DIR / "training-sesh.png", filename="training-sesh.png")
         embed.set_image(url="attachment://training-sesh.png")
         embed.set_footer(
             text=f"Announced by {host.display_name}",
@@ -1880,11 +1879,14 @@ class Operations(commands.Cog):
                 ("[𝐌𝐄𝐓] Deputy Commanding Officer",4),
             ]),
             (" [MET] Command Inspector General ", [
-                ("[𝐌𝐄𝐓] Detective Chief Inspector",4),
                 ("[𝐌𝐄𝐓] Chief Inspector",4),
             ]),
+            (" ▬▬ [𝐌𝐄𝐓] Major Crimes Staff ▬▬▬▬▬▬▬▬▬▬ ", [
+                ("▬▬ [𝐌𝐄𝐓] Major Crimes Staff ▬▬▬▬▬▬▬▬▬▬", 0), # Divider role
+                ("[𝐌𝐄𝐓] Detective Supervisory Sergeant", 2),
+            ]),
             ("[MET] General Supervisory Staff", [
-                ("[𝐌𝐄𝐓] Supervisory Sergeant", 5),
+                ("[𝐌𝐄𝐓] Supervisory Sergeant", 4),
             ]),
             ("  [MCS] Major Crimes Detectives  ", [
                 ("[𝐌𝐄𝐓] Senior Detective", 7),
@@ -1919,17 +1921,24 @@ class Operations(commands.Cog):
                 role    = discord.utils.get(guild.roles, name=rank_name)
                 members = role.members if role else []
                 count   = len(members)
+                
+                # Skip counting for the structural divider role
+                is_divider = "▬▬" in rank_name
 
                 desc_parts.append(f"{divider}\n**{rank_name}**\n{divider}\n")
                 if not members:
-                    desc_parts.append("• No officers currently hold this rank.\n")
+                    if is_divider:
+                        desc_parts.append("• *Departmental Identifier Role*\n")
+                    else:
+                        desc_parts.append("• No officers currently hold this rank.\n")
                 else:
                     desc_parts.append("\n".join(f"• {m.mention}" for m in members) + "\n")
 
-                desc_parts.append(
-                    f"→ **Closed Spots:** {count}/{quota}\n"
-                    f"→ **Open Spots:** {max(0, quota - count)}/{quota}\n\n"
-                )
+                if not is_divider:
+                    desc_parts.append(
+                        f"→ **Closed Spots:** {count}/{quota}\n"
+                        f"→ **Open Spots:** {max(0, quota - count)}/{quota}\n\n"
+                    )
 
             desc_parts.append(divider)
             embed_list.append(
@@ -2089,7 +2098,7 @@ class Operations(commands.Cog):
         }
  
         try:
-            with open("met-training.png", "rb") as f:
+            with open(RESOURCE_DIR / "met-training.png", "rb") as f:
                 image_bytes = f.read()
  
             async with aiohttp.ClientSession() as session:

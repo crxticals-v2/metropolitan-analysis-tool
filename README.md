@@ -64,6 +64,7 @@ Beyond intelligence, the bot serves as the central administrative hub for the Me
 | `/metro_infract` | Formally logs and pings a disciplinary action. |
 | `/request_metro` | Cross-division request for Metro/SWAT backup. |
 | `/metro_modify_points`| Manually adjust officer points (High Command Only). |
+| `/metro_feedback`| Used as a method to rate how accurate predicitons are to improve data sets. |
 
 ## 🛠️ Technical Architecture
 
@@ -111,7 +112,7 @@ WATCHLIST_CHANNEL_ID=your_discord_channel_id
 ### 3. Installation
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/ai-suspect.git
+git clone https://github.com/crxticals-v2/metropolitan-analysis-tool.git
 cd ai-suspect
 
 # Install dependencies

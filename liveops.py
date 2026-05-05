@@ -21,7 +21,7 @@ USE_COMPONENTS_V2 = True
 METRO_ICON   = "https://i.imgur.com/qdvbBqe.png"
 METRO_EMOJI  = "<:LAPD_Metropolitan:1495867271501975552>"
 DIVIDER      = "<:line:1500739607568842865>" * 20
-MAP_PATH     = Path(__file__).parent / "fall_postals.jpg"
+MAP_PATH     = Path(__file__).parent / "resources" / "fall_postals.jpg"
 
 # Load erlc_map.json for pixel coordinates — keyed by node ID (e.g. "N-205")
 _MAP_DB_PATH = Path(__file__).parent / "erlc_map.json"

@@ -14,7 +14,7 @@ LLM_API_URL  = (
 WATCHLIST_CHANNEL_ID = int(os.getenv("WATCHLIST_CHANNEL_ID", "1496911809918140426"))
 
 MAP_JSON_PATH  = "erlc_map.json"
-MAP_IMAGE_PATH = "fall_postals.jpg"
+MAP_IMAGE_PATH = "resources/fall_postals.jpg"
 
 if not TOKEN or not MONGO_URI or not LLM_API_KEY or not WATCHLIST_CHANNEL_ID:
     raise RuntimeError(

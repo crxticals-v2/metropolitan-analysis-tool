@@ -8,6 +8,8 @@ Drop into your cogs/ folder and add to your setup_hook:
     await bot.load_extension("cogs.handbook")
 """
 
+import pathlib
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -99,6 +101,9 @@ def _select_menu(custom_id: str = "hb_select",
             }
         ],
     }
+
+# Path to the main-menu banner graphic (sits next to this file in the cogs/ folder).
+_IMAGE_PATH: pathlib.Path = pathlib.Path(__file__).parent / "resources" / "information.png"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

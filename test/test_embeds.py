@@ -12,7 +12,7 @@ import discord
 import pytest
 
 # conftest supplies make_* helpers automatically
-from conftest import (
+from test.conftest import (
     make_channel,
     make_guild,
     make_interaction,

@@ -105,7 +105,7 @@ def _select_menu(custom_id: str = "hb_select",
 
 
 # Path to the main-menu banner graphic (sits next to this file in the cogs/ folder).
-_IMAGE_PATH: pathlib.Path = pathlib.Path(__file__).parent / "information.png"
+_IMAGE_PATH: pathlib.Path = pathlib.Path(__file__).parent / "resources" / "information.png"
 
 
 def _media_gallery(filename: str) -> dict:
@@ -272,14 +272,13 @@ def _s_command() -> list:
             "### 👥  Command Hierarchy\n"
             "- 🔴  **Director** — `7L-100` | crxticals\n"
             "- 🟠  **Deputy Director** — Vacant *(×4)*\n"
-            "- 🟡  **Chief Inspector — Bronze Command** — Vacant *(×2)*\n"
-            "- 🟡  **Chief Inspector — Gold Command** — Vacant *(×2)*"
+            "- 🟡  **Chief Inspector** — Vacant *(×4)*"
         ),
         _sep(),
         _text(
             "### 🏅  Unit Breakdown\n\n"
             "**Gold Command — Investigative Response (Major Crimes)**\n"
-            "Supervisory Sergeant ×2  ·  Senior Detective ×4  ·  Junior Detective *(unlimited)*\n\n"
+            "Detective Supervisory Sergeant ×2  ·  Senior Detective ×4  ·  Junior Detective *(unlimited)*\n\n"
             "**Gold Command — Specialist Assignments**\n"
             "Confidential Informant Program ×3  ·  Gang Impact ×4"
         ),

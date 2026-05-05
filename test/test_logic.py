@@ -50,10 +50,10 @@ class TestOperationsPermissions:
         from operations import Operations
         cog = Operations(MagicMock())
         
-        # DCI is High Command but NOT Senior High Command
+        # CI is High Command but NOT Senior High Command
         dci_member = MagicMock()
         dci_role = MagicMock()
-        dci_role.name = "[𝐌𝐄𝐓] Detective Chief Inspector"
+        dci_role.name = "[𝐌𝐄𝐓] Chief Inspector"
         dci_member.roles = [dci_role]
         dci_member.id = 789
         

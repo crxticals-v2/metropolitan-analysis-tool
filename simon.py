@@ -28,10 +28,12 @@ from PIL import Image, ImageDraw, ImageFont
 import json
 
 from llm import call_llm
+from suspect_profile import SuspectProfile
 from map_renderer import draw_heatmap_overlay, draw_map_path
 
 BASE_DIR = Path(__file__).parent.resolve()
-ARREST_BG_PATH = BASE_DIR / "arrest_background.jpg"
+RESOURCE_DIR = BASE_DIR / "resources"
+ARREST_BG_PATH = RESOURCE_DIR / "arrest_background.jpg"
 VEHICLE_DB_PATH = BASE_DIR / "erlc_vehicles.json"
 DIVIDER = "<:line:1500739607568842865>" * 21
 
@@ -352,9 +354,9 @@ async def build_gang_logo_grid(gang_shorthands: list) -> io.BytesIO | None:
     for shorthand in gang_shorthands:
         # Linux is case-sensitive. Check multiple variants to be safe.
         potential_paths = [
-            BASE_DIR / f"{shorthand.lower()}.png",
-            BASE_DIR / f"{shorthand.upper()}.png",
-            BASE_DIR / f"{shorthand}.png"
+            RESOURCE_DIR / f"{shorthand.lower()}.png",
+            RESOURCE_DIR / f"{shorthand.upper()}.png",
+            RESOURCE_DIR / f"{shorthand}.png"
         ]
         
         target_path = next((p for p in potential_paths if p.exists()), None)
@@ -367,7 +369,7 @@ async def build_gang_logo_grid(gang_shorthands: list) -> io.BytesIO | None:
                 print(f"[GANG LOGO] Error loading {target_path}: {e}")
                 continue
         else:
-            print(f"[GANG LOGO] File missing: {shorthand}. Checked variations in {BASE_DIR}")
+            print(f"[GANG LOGO] File missing: {shorthand}. Checked variations in {RESOURCE_DIR}")
     
     if not logos:
         return None
@@ -733,9 +735,9 @@ class Simon(commands.Cog):
         # Load Gang Logo File
         logo_file = None
         potential_paths = [
-            BASE_DIR / f"{gang_shorthand.lower()}.png",
-            BASE_DIR / f"{gang_shorthand.upper()}.png",
-            BASE_DIR / f"{gang_shorthand}.png"
+            RESOURCE_DIR / f"{gang_shorthand.lower()}.png",
+            RESOURCE_DIR / f"{gang_shorthand.upper()}.png",
+            RESOURCE_DIR / f"{gang_shorthand}.png"
         ]
         target_path = next((p for p in potential_paths if p.exists()), None)
         if target_path:
@@ -907,7 +909,13 @@ class Simon(commands.Cog):
             postal_id = freq_map.get(suspect["_id"])
             if postal_id:
                 node_info = self.bot.erlc_graph.nodes_data.get(postal_id)
-                suspect["most_frequent_location"] = node_info.get("poi") if node_info else postal_id
+                if node_info:
+                    # Prioritize POI, then Label, then normalized postal_id
+                    location_display = node_info.get("poi") or node_info.get("label") or normalize_postal(postal_id)
+                else:
+                    # If node_info is not found, just normalize the postal_id
+                    location_display = normalize_postal(postal_id)
+                suspect["most_frequent_location"] = location_display
             else:
                 suspect["most_frequent_location"] = "UNK"
 
@@ -1154,6 +1162,14 @@ Return ONLY JSON in this format:
         if extracted_node not in self.bot.erlc_graph.nodes_data:
             extracted_node = None
 
+        # ── Enrich with poi_type from the graph ─────────────────────────────────
+        poi_type = None
+        if extracted_node:
+            node_info = self.bot.erlc_graph.nodes_data.get(extracted_node, {})
+            poi_type  = node_info.get("type")
+            if not location_data.get("poi"):
+                location_data["poi"] = node_info.get("poi")
+
         log_entry = {
             "suspect_name": suspect_key,
             "gang":         gang.value if gang.value != "none" else None,
@@ -1162,6 +1178,7 @@ Return ONLY JSON in this format:
             "location_raw": location,
             "postal":       extracted_node,
             "poi":          location_data.get("poi"),
+            "poi_type":     poi_type,
             "confidence":   location_data.get("confidence", 0.0),
             "entry_type":   entry_type.lower(),
             "timestamp":    now,
@@ -1169,12 +1186,29 @@ Return ONLY JSON in this format:
 
         try:
             await self.bot.suspect_logs.insert_one(log_entry)
-            
+
+            # ── Rebuild + persist the behavioral profile ──────────────────────
+            cursor = (
+                self.bot.suspect_logs
+                .find({"suspect_name": suspect_key})
+                .sort("timestamp", 1)
+                .limit(50)
+            )
+            all_logs = await cursor.to_list(length=50)
+
+            profile = SuspectProfile()
+            profile.build_from_logs(all_logs, self.bot.erlc_graph.nodes_data)
+
+            await self.bot.mongo_client["erlc_database"]["suspect_profiles"].update_one(
+                {"_id": suspect_key},
+                {"$set": {**profile.to_dict(), "last_updated": now}},
+                upsert=True,
+            )
+
             # Intel Point Logic
-            points = 1 # Default for Crime/Sighting
+            points = 1
             reason = "Suspect Log"
-            
-            # Repeat Offender Bonus (Every 5th log for this suspect)
+
             suspect_count = await self.bot.suspect_logs.count_documents({"suspect_name": suspect_key})
             if suspect_count % 5 == 0:
                 points += 1
@@ -1186,7 +1220,7 @@ Return ONLY JSON in this format:
 
             await interaction.followup.send(f"✅ Logged suspect **{suspect_name}**. (+{points} Intel Points)")
         except Exception:
-            fallback = {**log_entry, "postal": None, "poi": None, "confidence": 0.0}
+            fallback = {**log_entry, "postal": None, "poi": None, "poi_type": None, "confidence": 0.0}
             await self.bot.suspect_logs.insert_one(fallback)
             await interaction.followup.send("⚠️ Logged with fallback due to database or parsing issue.")
 
@@ -1257,8 +1291,6 @@ Return ONLY JSON in this format:
                     crime_texts.append(h.get("crimes", ""))
             history_text = "; ".join(crime_texts + sighting_texts)
 
-        self.bot.crime_heatmap.build_from_logs(crime_logs)
-
         modified_graph = self.bot.erlc_graph.apply_weights(vehicle, unwl_units)
         resolved_postal = postal
 
@@ -1283,43 +1315,69 @@ Return ONLY JSON in this format:
             )
             return
 
+        # ── Build behavioral profile ───────────────────────────────────────────
+        # Attempt to load the pre-built persisted profile first (built by
+        # metro_suspect_log on every new log entry).  Fall back to building
+        # from raw logs for suspects who were logged before this update.
+        profile = SuspectProfile()
+
+        if crime_logs:
+            cached = await self.bot.mongo_client["erlc_database"]["suspect_profiles"].find_one(
+                {"_id": suspect_name.lower()}
+            )
+            if cached:
+                profile = SuspectProfile.from_dict(cached)
+            else:
+                sorted_logs = sorted(crime_logs, key=lambda x: x.get("timestamp") or "")
+                profile.build_from_logs(sorted_logs, self.bot.erlc_graph.nodes_data)
+
+        # ── Score destinations using behavioral model ─────────────────────────
         scored_dests = []
         for d in raw_dests:
             node_data = self.bot.erlc_graph.nodes_data.get(d["postal"])
             if not node_data:
                 continue
-            heat           = self.bot.crime_heatmap.score_node(node_data)
-            d["heat_score"] = heat
-            d["final_score"] = d["distance_score"] / heat
+
+            behavioral_score = profile.score_destination(
+                node_data,
+                last_poi=profile.last_poi,
+                node_x=node_data.get("x"),
+                node_y=node_data.get("y"),
+            )
+
+            d["behavioral_score"] = round(behavioral_score, 3)
+            d["final_score"]      = d["distance_score"] / behavioral_score
             scored_dests.append(d)
 
         scored_dests.sort(key=lambda x: x["final_score"])
         top_dests = scored_dests[:7]
 
-        dest_lines   = [
+        dest_lines = [
             f"- {d['postal']} | POI: {d['poi']} | "
-            f"dist={d['distance_score']} | heat={d['heat_score']} | "
+            f"dist={d['distance_score']} | behavioral={d['behavioral_score']} | "
             f"final={d['final_score']}"
             for d in top_dests
         ]
-        dest_summary = "DIJKSTRA + BEHAVIOURAL MODEL TOP RESULTS:\n" + "\n".join(
-            dest_lines
-        )
+        dest_summary = "DIJKSTRA + BEHAVIOURAL MODEL TOP RESULTS:\n" + "\n".join(dest_lines)
+
         llm_prompt = f"""
     CURRENT SITUATION:
     - Last Known Postal: {postal}
     - Suspect Vehicle: {vehicle}
-    - Suspect History: {history_text}
-    - Un-Whitelisted (unWL) Units active: {unwl_units} (Creates 'Chaos/Flush Factor')
+    - Un-Whitelisted (unWL) Units active: {unwl_units}
     - Optional Tags: {optional_tags or "None"}
     - Live Incident Context: {live_context or "None"}
 
+    SUSPECT BEHAVIORAL PROFILE (derived from {profile.total_crimes} logged incidents):
+    {profile.summary()}
+
     {dest_summary}
 
-    TASK: Provide predictive analysis focusing on spatial POI patterns. 
-    Prioritize the suspect's historical movement corridors and origin points over the specific type of crime. 
-    Analyze if the current LKL suggests a sequence progression from a known origin or a return to a specific territory.
-    Output strictly follows the system instruction schema with no conversational filler.
+    TASK:
+    Weight the transition matrix prediction heavily if a next-POI probability > 0.4 exists.
+    If the profile has fewer than 3 logged crimes, treat graph distance as the dominant factor.
+    Prioritize the suspect's historical movement corridors and territory over raw proximity, especially if the profile indicates strong location loyalty (e.g., frequently returns to the same POIs).
+    Output strictly follows the system instruction schema.
     """
 
         prediction_data = await call_llm(llm_prompt)
@@ -1503,6 +1561,142 @@ Return ONLY JSON in this format:
         else:
             await interaction.followup.send(embed=embed)
 
+
+
+    # ------------------------------------------------------------------ #
+    # /metro_feedback                                                      #
+    # ------------------------------------------------------------------ #
+    @app_commands.command(
+        name="metro_feedback",
+        description="Mark a prediction as correct/incorrect to improve future predictions.",
+    )
+    @app_commands.describe(
+        suspect_name   = "The suspect name used in the original /metro_predict call.",
+        predicted_node = "Node ID S.I.M.O.N. predicted (e.g. N-205).",
+        actual_node    = "Node ID the suspect actually went to (e.g. N-401).",
+        was_correct    = "Was the primary prediction correct?",
+        notes          = "Optional — extra context about the incident.",
+    )
+    @app_commands.choices(was_correct=[
+        app_commands.Choice(name="✅ Correct",   value="correct"),
+        app_commands.Choice(name="❌ Incorrect", value="incorrect"),
+        app_commands.Choice(name="🟡 Partial",   value="partial"),
+    ])
+    async def metro_feedback(
+        self,
+        interaction:    discord.Interaction,
+        suspect_name:   str,
+        predicted_node: str,
+        actual_node:    str,
+        was_correct:    app_commands.Choice[str],
+        notes:          str = None,
+    ):
+        await interaction.response.defer(ephemeral=True)
+
+        predicted_node = normalize_postal(predicted_node)
+        actual_node    = normalize_postal(actual_node)
+
+        resolved_predicted = self.bot.erlc_graph.resolve_target(predicted_node)
+        resolved_actual    = self.bot.erlc_graph.resolve_target(actual_node)
+
+        if not resolved_actual or resolved_actual not in self.bot.erlc_graph.nodes_data:
+            await interaction.followup.send(
+                f"❌ Could not resolve actual node **{actual_node}** in the graph.",
+                ephemeral=True,
+            )
+            return
+
+        actual_node_data    = self.bot.erlc_graph.nodes_data.get(resolved_actual, {})
+        predicted_node_data = self.bot.erlc_graph.nodes_data.get(resolved_predicted or "", {})
+
+        # ── Store feedback ────────────────────────────────────────────────────
+        feedback_entry = {
+            "suspect_name":    suspect_name.lower(),
+            "predicted_node":  resolved_predicted,
+            "predicted_poi":   predicted_node_data.get("poi"),
+            "actual_node":     resolved_actual,
+            "actual_poi":      actual_node_data.get("poi"),
+            "actual_poi_type": actual_node_data.get("type"),
+            "outcome":         was_correct.value,
+            "officer_id":      interaction.user.id,
+            "notes":           notes,
+            "timestamp":       interaction.created_at,
+        }
+        await self.bot.mongo_client["erlc_database"]["prediction_feedback"].insert_one(
+            feedback_entry
+        )
+
+        # ── Inject synthetic log if prediction was wrong ──────────────────────
+        # This is the self-improvement loop: wrong predictions → training signal.
+        reinforcement_note = ""
+        if was_correct.value in ("incorrect", "partial"):
+            synthetic_log = {
+                "suspect_name": suspect_name.lower(),
+                "gang":         None,
+                "officer_id":   interaction.user.id,
+                "crimes":       (
+                    f"[FEEDBACK] Went to {actual_node_data.get('poi', resolved_actual)} "
+                    f"(predicted: {predicted_node_data.get('poi', resolved_predicted)})"
+                ),
+                "location_raw": actual_node_data.get("poi") or resolved_actual,
+                "postal":       resolved_actual,
+                "poi":          actual_node_data.get("poi"),
+                "poi_type":     actual_node_data.get("type"),
+                "confidence":   0.9,
+                "entry_type":   "crime",
+                "timestamp":    interaction.created_at,
+            }
+            await self.bot.suspect_logs.insert_one(synthetic_log)
+
+            # Rebuild and persist the updated profile
+            cursor = (
+                self.bot.suspect_logs
+                .find({"suspect_name": suspect_name.lower()})
+                .sort("timestamp", 1)
+                .limit(50)
+            )
+            all_logs = await cursor.to_list(length=50)
+
+            profile = SuspectProfile()
+            profile.build_from_logs(all_logs, self.bot.erlc_graph.nodes_data)
+
+            await self.bot.mongo_client["erlc_database"]["suspect_profiles"].update_one(
+                {"_id": suspect_name.lower()},
+                {"$set": {**profile.to_dict(), "last_updated": interaction.created_at}},
+                upsert=True,
+            )
+            reinforcement_note = "\n⚙️ **Profile updated** — actual destination injected as training signal."
+        else:
+            reinforcement_note = "\n✅ **Prediction confirmed** — positive signal recorded."
+
+        outcome_emoji = {"correct": "✅", "incorrect": "❌", "partial": "🟡"}.get(
+            was_correct.value, "❓"
+        )
+
+        embed = discord.Embed(
+            title="<:LAPD_Metropolitan:1495867271501975552> S.I.M.O.N. Feedback Logged",
+            description=(
+                f"**Suspect:** `{suspect_name}`\n"
+                f"**Predicted:** `{predicted_node_data.get('poi', resolved_predicted) or resolved_predicted}`\n"
+                f"**Actual:** `{actual_node_data.get('poi', resolved_actual)}`\n"
+                f"**Outcome:** {outcome_emoji} `{was_correct.name}`"
+                + (f"\n**Notes:** {notes}" if notes else "")
+                + reinforcement_note
+            ),
+            color={
+                "correct":   discord.Color.green(),
+                "incorrect": discord.Color.red(),
+                "partial":   discord.Color.orange(),
+            }.get(was_correct.value, discord.Color.blurple()),
+        )
+        embed.set_footer(text="S.I.M.O.N. v2.1 • Predictive Feedback Module")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+        ops_cog = self.bot.get_cog("Operations")
+        if ops_cog:
+            await ops_cog._award_intel_points(
+                interaction.user.id, 1, "Prediction Feedback Submission"
+            )
 
     # ------------------------------------------------------------------ #
     # /metro_crime_heatmap                                               #
