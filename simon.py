@@ -36,6 +36,7 @@ RESOURCE_DIR = BASE_DIR / "resources"
 ARREST_BG_PATH = RESOURCE_DIR / "arrest_background.jpg"
 VEHICLE_DB_PATH = BASE_DIR / "erlc_vehicles.json"
 DIVIDER = "<:line:1500739607568842865>" * 21
+DIVIDER_SHORT = "<:line:1500739607568842865>" * 16
 
 # ==========================================
 # VEHICLE DATABASE
@@ -517,6 +518,54 @@ class GangWatchlistView(discord.ui.View):
             )
 
 # ==========================================
+# PROFILE MERGE HELPER
+# ==========================================
+
+def _merge_profiles(personal: "SuspectProfile", prior: "SuspectProfile") -> "SuspectProfile":
+    """
+    Merge a low-data personal profile with a gang-level prior.
+    Personal data takes full weight; gang data fills gaps at reduced weight (0.3x)
+    so it nudges without overriding when personal evidence arrives.
+    """
+    merged = SuspectProfile()
+
+    # POI frequency: personal full weight + gang at 30%
+    all_pois = set(personal.poi_frequency) | set(prior.poi_frequency)
+    for poi in all_pois:
+        merged.poi_frequency[poi] = (
+            personal.poi_frequency.get(poi, 0.0)
+            + prior.poi_frequency.get(poi, 0.0) * 0.3
+        )
+
+    # Type frequency: same blend
+    all_types = set(personal.type_frequency) | set(prior.type_frequency)
+    for t in all_types:
+        merged.type_frequency[t] = (
+            personal.type_frequency.get(t, 0.0)
+            + prior.type_frequency.get(t, 0.0) * 0.3
+        )
+
+    # Transition matrix: personal rows win; fill missing rows from gang prior
+    for from_poi, row in prior.transition_matrix.items():
+        if from_poi not in personal.transition_matrix:
+            merged.transition_matrix[from_poi] = {
+                k: v * 0.3 for k, v in row.items()
+            }
+        else:
+            merged.transition_matrix[from_poi] = personal.transition_matrix[from_poi]
+    for from_poi, row in personal.transition_matrix.items():
+        merged.transition_matrix[from_poi] = row
+
+    # Scalars: prefer personal, fall back to prior
+    merged.geo_centroid  = personal.geo_centroid or prior.geo_centroid
+    merged.total_weight  = personal.total_weight + prior.total_weight * 0.3
+    merged.total_crimes  = personal.total_crimes
+    merged.last_poi      = personal.last_poi or prior.last_poi
+
+    return merged
+
+
+# ==========================================
 # COG
 # ==========================================
 
@@ -583,6 +632,50 @@ class Simon(commands.Cog):
 
         return results
 
+    async def suspect_name_autocomplete(self, interaction: discord.Interaction, current: str):
+        """
+        Live autocomplete for suspect_name fields backed by the suspect_profiles
+        collection.  Queries MongoDB for names matching the current input so
+        officers never have to remember exact spellings — killing the main source
+        of fragmented profiles (same suspect logged under "playerx", "PlayerX",
+        "player x").
+        """
+        try:
+            current_lower = current.lower().strip()
+
+            if current_lower:
+                # Regex prefix match against stored lowercase names
+                cursor = (
+                    self.bot.mongo_client["erlc_database"]["suspect_profiles"]
+                    .find(
+                        {"_id": {"$regex": f"^{current_lower}"}},
+                        {"_id": 1, "total_crimes": 1}
+                    )
+                    .sort("total_crimes", -1)
+                    .limit(25)
+                )
+            else:
+                # No input yet — show the most-logged suspects as defaults
+                cursor = (
+                    self.bot.mongo_client["erlc_database"]["suspect_profiles"]
+                    .find({}, {"_id": 1, "total_crimes": 1})
+                    .sort("total_crimes", -1)
+                    .limit(25)
+                )
+
+            docs = await cursor.to_list(length=25)
+
+            return [
+                app_commands.Choice(
+                    name=f"{d['_id'].title()} ({d.get('total_crimes', 0)} logs)",
+                    value=d["_id"]
+                )
+                for d in docs
+            ]
+        except Exception as e:
+            print(f"[AUTOCOMPLETE] suspect_name_autocomplete error: {e}")
+            return []
+
     # ------------------------------------------------------------------ #
     # SHARED PROFILER BUILDER                                              #
     # ------------------------------------------------------------------ #
@@ -642,13 +735,21 @@ class Simon(commands.Cog):
             pages = []
             for i in range(0, len(logs), 5):
                 chunk = logs[i:i + 5]
-                desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Intelligence Profile: {roblox_username}\n{DIVIDER}\n"
+                desc = f"## <:LAPD_Metropolitan:1495867271501975552> | Intelligence Profile: {roblox_username}\n{DIVIDER_SHORT}\n"
 
                 for log in chunk:
+                    ts = log.get("timestamp")
+                    t_str = "Unknown"
+                    if hasattr(ts, "strftime"):
+                        t_str = ts.strftime("%Y-%m-%d %H:%M")
+                    elif isinstance(ts, str):
+                        t_str = ts.replace("T", " ")[:16]
+
                     desc += (
                         f"\n**Crime:** {log.get('crimes', 'Unknown')}\n"
-                    f"**Location:** {log.get('poi') or log.get('postal') or log.get('location_raw') or 'Unknown'}\n"
-                        f"{DIVIDER}\n"
+                        f"**Location:** {log.get('poi') or log.get('postal') or log.get('location_raw') or 'Unknown'}\n"
+                        f"**Logged:** `{t_str}`\n"
+                        f"{DIVIDER_SHORT}\n"
                     )
 
                 embed = discord.Embed(description=desc, color=discord.Color.dark_red())
@@ -936,11 +1037,10 @@ class Simon(commands.Cog):
         for suspect in top_suspects:
             last_seen = suspect.get("last_seen", "—")
             if last_seen and last_seen != "—":
-                # Convert ISO timestamp to a clean date or Discord timestamp
-                try:
-                    last_seen = last_seen.split("T")[0]
-                except:
-                    pass
+                if hasattr(last_seen, "strftime"):
+                    last_seen = last_seen.strftime("%Y-%m-%d %H:%M")
+                elif isinstance(last_seen, str):
+                    last_seen = last_seen.replace("T", " ")[:16]
 
             embed.add_field(
                 name=f"{suspect['_id']}",
@@ -1111,6 +1211,7 @@ class Simon(commands.Cog):
         name="metro_suspect_log",
         description="Log a suspect's crime history for future predictive training.",
     )
+    @app_commands.autocomplete(suspect_name=suspect_name_autocomplete)
     @app_commands.choices(gang=[
         app_commands.Choice(name="None", value="none"),
         app_commands.Choice(name="77th Saints Gang (77th)", value="77th"),
@@ -1201,9 +1302,45 @@ Return ONLY JSON in this format:
 
             await self.bot.mongo_client["erlc_database"]["suspect_profiles"].update_one(
                 {"_id": suspect_key},
-                {"$set": {**profile.to_dict(), "last_updated": now}},
+                {
+                    "$set":  {**profile.to_dict(), "last_updated": now},
+                    # Keep a rolling window of the last 3 profile snapshots.
+                    # Lets you roll back if a batch of bad logs corrupts a profile.
+                    "$push": {
+                        "version_history": {
+                            "$each":     [{"snapshot": profile.to_dict(), "saved_at": now}],
+                            "$slice":    -3,   # keep newest 3 only
+                            "$position": 0,
+                        }
+                    }
+                },
                 upsert=True,
             )
+
+            # ── Rebuild gang-level aggregate profile if affiliated ────────────
+            suspect_gang = log_entry.get("gang")
+            if suspect_gang and suspect_gang != "none":
+                try:
+                    gang_cursor = (
+                        self.bot.suspect_logs
+                        .find({"gang": suspect_gang, "postal": {"$ne": None}})
+                        .sort("timestamp", 1)
+                        .limit(200)
+                    )
+                    gang_logs = await gang_cursor.to_list(length=200)
+
+                    if gang_logs:
+                        gang_profile = SuspectProfile()
+                        gang_profile.build_from_logs(gang_logs, self.bot.erlc_graph.nodes_data)
+
+                        await self.bot.mongo_client["erlc_database"]["gang_profiles"].update_one(
+                            {"_id": suspect_gang},
+                            {"$set": {**gang_profile.to_dict(), "last_updated": now, "member_count": len(set(l["suspect_name"] for l in gang_logs))}},
+                            upsert=True,
+                        )
+                        print(f"[SUSPECT_LOG] Gang profile '{suspect_gang}' rebuilt from {len(gang_logs)} logs.")
+                except Exception as ge:
+                    print(f"[SUSPECT_LOG] Gang profile rebuild failed (non-critical): {ge}")
 
             # Intel Point Logic
             points = 1
@@ -1232,7 +1369,7 @@ Return ONLY JSON in this format:
         name="metro_predict",
         description="Run a predictive policing algorithm on a suspect.",
     )
-    @app_commands.autocomplete(vehicle=vehicle_autocomplete)
+    @app_commands.autocomplete(vehicle=vehicle_autocomplete, suspect_name=suspect_name_autocomplete)
     async def metro_predict(
         self,
         interaction: discord.Interaction,
@@ -1316,10 +1453,12 @@ Return ONLY JSON in this format:
             return
 
         # ── Build behavioral profile ───────────────────────────────────────────
-        # Attempt to load the pre-built persisted profile first (built by
-        # metro_suspect_log on every new log entry).  Fall back to building
-        # from raw logs for suspects who were logged before this update.
+        # Priority order:
+        #   1. Pre-built persisted profile (fastest — built by metro_suspect_log)
+        #   2. Build cold from raw logs (fallback for pre-update suspects)
+        #   3. Gang-level profile prior (fallback for new suspects with < 3 logs)
         profile = SuspectProfile()
+        gang_fallback_used = False
 
         if crime_logs:
             cached = await self.bot.mongo_client["erlc_database"]["suspect_profiles"].find_one(
@@ -1330,6 +1469,33 @@ Return ONLY JSON in this format:
             else:
                 sorted_logs = sorted(crime_logs, key=lambda x: x.get("timestamp") or "")
                 profile.build_from_logs(sorted_logs, self.bot.erlc_graph.nodes_data)
+
+        # ── Gang-level prior fallback ─────────────────────────────────────────
+        # If this suspect has fewer than 3 personal logs the Markov chain is
+        # effectively empty.  Load the gang's aggregate profile as a prior so
+        # we still beat pure Dijkstra on known gang affiliates.
+        if profile.total_crimes < 3:
+            suspect_gang = None
+            if crime_logs:
+                suspect_gang = crime_logs[0].get("gang")
+            elif not crime_logs:
+                # Check the profiles collection for any stored gang tag
+                stored = await self.bot.mongo_client["erlc_database"]["suspect_profiles"].find_one(
+                    {"_id": suspect_name.lower()}, {"gang": 1}
+                )
+                if stored:
+                    suspect_gang = stored.get("gang")
+
+            if suspect_gang and suspect_gang != "none":
+                gang_profile_doc = await self.bot.mongo_client["erlc_database"]["gang_profiles"].find_one(
+                    {"_id": suspect_gang}
+                )
+                if gang_profile_doc:
+                    gang_prior = SuspectProfile.from_dict(gang_profile_doc)
+                    # Merge: personal data wins, gang data fills the gaps
+                    profile = _merge_profiles(profile, gang_prior)
+                    gang_fallback_used = True
+                    print(f"[PREDICT] Using gang prior '{suspect_gang}' for low-data suspect '{suspect_name}'")
 
         # ── Score destinations using behavioral model ─────────────────────────
         scored_dests = []
@@ -1352,12 +1518,52 @@ Return ONLY JSON in this format:
         scored_dests.sort(key=lambda x: x["final_score"])
         top_dests = scored_dests[:7]
 
-        dest_lines = [
-            f"- {d['postal']} | POI: {d['poi']} | "
-            f"dist={d['distance_score']} | behavioral={d['behavioral_score']} | "
-            f"final={d['final_score']}"
-            for d in top_dests
-        ]
+        # ── Anomaly detection ────────────────────────────────────────────────────
+        # Flag when the suspect is operating far from their known centroid,
+        # or using a POI type they have never previously targeted.
+        anomaly_flags = []
+
+        if profile.geo_centroid and profile.total_crimes >= 5:
+            start_node_data = self.bot.erlc_graph.nodes_data.get(resolved_postal, {})
+            sx = start_node_data.get("x")
+            sy = start_node_data.get("y")
+            if sx is not None and sy is not None:
+                import math as _math
+                dist_from_centroid = _math.hypot(
+                    sx - profile.geo_centroid[0],
+                    sy - profile.geo_centroid[1]
+                )
+                # Threshold: 600 map units is roughly "other side of the city"
+                if dist_from_centroid > 600:
+                    anomaly_flags.append(
+                        f"⚠️ **Territory anomaly** — LKL is {dist_from_centroid:.0f} units from "
+                        f"known centroid ({profile.geo_centroid[0]:.0f}, {profile.geo_centroid[1]:.0f}). "
+                        "Possible new area or coordination with others."
+                    )
+
+        # New POI type the suspect has never targeted before
+        lkl_node_data = self.bot.erlc_graph.nodes_data.get(resolved_postal, {})
+        lkl_type = lkl_node_data.get("type")
+        if (
+            lkl_type
+            and profile.total_crimes >= 5
+            and lkl_type not in profile.type_frequency
+        ):
+            anomaly_flags.append(
+                f"⚠️ **Behavioural anomaly** — suspect operating near `{lkl_type}` zone "
+                "which doesn't appear in their historical profile."
+            )
+
+        dest_lines = []
+        for d in top_dests:
+            node_info = self.bot.erlc_graph.nodes_data.get(d["postal"], {})
+            n_type = node_info.get("type", "Unknown")
+            dest_lines.append(
+                f"- {d['postal']} | POI: {d['poi']} | Type: {n_type} | "
+                f"dist={d['distance_score']} | behavioral={d['behavioral_score']} | "
+                f"final={d['final_score']}"
+            )
+
         dest_summary = "DIJKSTRA + BEHAVIOURAL MODEL TOP RESULTS:\n" + "\n".join(dest_lines)
 
         llm_prompt = f"""
@@ -1375,6 +1581,7 @@ Return ONLY JSON in this format:
 
     TASK:
     Weight the transition matrix prediction heavily if a next-POI probability > 0.4 exists.
+    If session-level transition data exists and differs from lifetime data, weight session patterns more heavily — within-session behaviour is more predictive of immediate next moves.
     If the profile has fewer than 3 logged crimes, treat graph distance as the dominant factor.
     Prioritize the suspect's historical movement corridors and territory over raw proximity, especially if the profile indicates strong location loyalty (e.g., frequently returns to the same POIs).
     Output strictly follows the system instruction schema.
@@ -1500,7 +1707,7 @@ Return ONLY JSON in this format:
 
         embed = discord.Embed(
             title="<:LAPD_Metropolitan:1495867271501975552> S.I.M.O.N. Predictive Engine",
-            description=f"**Target Analysis:** LKL `{postal}` | Vehicle: `{vehicle}`\n{DIVIDER}",
+            description=f"**Target Analysis:** LKL `{postal}` | Vehicle: `{vehicle}`\n{DIVIDER_SHORT}",
             
             color=embed_color,
         )
@@ -1534,6 +1741,12 @@ Return ONLY JSON in this format:
             value=prediction_data.get("tactical_analysis", "N/A"),
             inline=False,
         )
+        if anomaly_flags:
+            embed.add_field(
+                name="🔍 Anomaly Alerts",
+                value="\n".join(anomaly_flags),
+                inline=False,
+            )
         embed.add_field(
             name="⚠️ Risk Level",
             value=prediction_data.get("risk_level", "Unknown"),
@@ -1552,9 +1765,49 @@ Return ONLY JSON in this format:
             )
         if map_image_buffer:
             embed.set_image(url="attachment://predictive_map.png")
+        # ── Profile confidence indicator (uses SuspectProfile.confidence_tier) ─
+        tier = profile.confidence_tier
+        conf_map = {
+            "NONE":   ("⬜ NONE",   "No history — pure graph routing"),
+            "LOW":    ("🟥 LOW",    f"{profile.total_crimes} log(s)" + (" · gang prior applied" if gang_fallback_used else "")),
+            "MEDIUM": ("🟧 MEDIUM", f"{profile.total_crimes} logs · pattern emerging"),
+            "HIGH":   ("🟩 HIGH",   f"{profile.total_crimes} logs · behavioral model dominant"),
+        }
+        conf_label, conf_note = conf_map.get(tier, ("⬜ UNKNOWN", ""))
+
+        embed.add_field(
+            name="🧠 Profile Confidence",
+            value=f"{conf_label} — {conf_note}",
+            inline=False,
+        )
+
         embed.set_footer(
             text="S.I.M.O.N v2.1 – Metropolitan Predictive Analysis"
         )
+
+        # ── Snapshot profile state for training pipeline ──────────────────────
+        # Stores what the profile looked like AT prediction time.
+        # This is critical for future fine-tuning — we need the historical
+        # profile state, not the current one after subsequent updates.
+        try:
+            await self.bot.mongo_client["erlc_database"]["prediction_logs"].insert_one({
+                "suspect_name":      suspect_name.lower(),
+                "postal":            postal,
+                "vehicle":           vehicle,
+                "unwl_units":        unwl_units,
+                "optional_tags":     optional_tags,
+                "live_context":      live_context,
+                "profile_snapshot":  profile.to_dict(),
+                "gang_prior_used":   gang_fallback_used,
+                "top_dests":         [
+                    {k: v for k, v in d.items() if k != "path"}  # path is large, skip
+                    for d in top_dests
+                ],
+                "llm_output":        prediction_data,
+                "timestamp":         interaction.created_at,
+            })
+        except Exception as e:
+            print(f"[PREDICT] prediction_logs insert failed (non-critical): {e}")
 
         if map_image_buffer:
             await interaction.followup.send(embed=embed, file=file)
@@ -1570,6 +1823,7 @@ Return ONLY JSON in this format:
         name="metro_feedback",
         description="Mark a prediction as correct/incorrect to improve future predictions.",
     )
+    @app_commands.autocomplete(suspect_name=suspect_name_autocomplete)
     @app_commands.describe(
         suspect_name   = "The suspect name used in the original /metro_predict call.",
         predicted_node = "Node ID S.I.M.O.N. predicted (e.g. N-205).",
@@ -1697,6 +1951,128 @@ Return ONLY JSON in this format:
             await ops_cog._award_intel_points(
                 interaction.user.id, 1, "Prediction Feedback Submission"
             )
+
+
+    # ------------------------------------------------------------------ #
+    # /metro_profile_drift                                                 #
+    # ------------------------------------------------------------------ #
+    @app_commands.command(
+        name="metro_profile_drift",
+        description="Check if a suspect's recent behaviour has drifted from their historical pattern.",
+    )
+    @app_commands.autocomplete(suspect_name=suspect_name_autocomplete)
+    async def metro_profile_drift(
+        self,
+        interaction: discord.Interaction,
+        suspect_name: str,
+    ):
+        await interaction.response.defer(ephemeral=True)
+
+        suspect_key = suspect_name.lower()
+
+        # Load persisted full profile
+        cached = await self.bot.mongo_client["erlc_database"]["suspect_profiles"].find_one(
+            {"_id": suspect_key}
+        )
+        if not cached or cached.get("total_crimes", 0) < 5:
+            await interaction.followup.send(
+                f"❌ **{suspect_name}** needs at least 5 logged crimes before drift analysis is meaningful.",
+                ephemeral=True,
+            )
+            return
+
+        lifetime_profile = SuspectProfile.from_dict(cached)
+
+        # Build a "recent" profile from the last 5 crime logs only
+        recent_cursor = (
+            self.bot.suspect_logs
+            .find({"suspect_name": suspect_key, "entry_type": {"$ne": "sighting"}})
+            .sort("timestamp", -1)
+            .limit(5)
+        )
+        recent_logs = await recent_cursor.to_list(length=5)
+        recent_logs = list(reversed(recent_logs))  # ascending for build_from_logs
+
+        recent_profile = SuspectProfile()
+        recent_profile.build_from_logs(recent_logs, self.bot.erlc_graph.nodes_data)
+
+        # ── Drift signals ─────────────────────────────────────────────────────
+        drift_signals = []
+        import math as _math
+
+        # Geographic drift
+        if lifetime_profile.geo_centroid and recent_profile.geo_centroid:
+            centroid_shift = _math.hypot(
+                recent_profile.geo_centroid[0] - lifetime_profile.geo_centroid[0],
+                recent_profile.geo_centroid[1] - lifetime_profile.geo_centroid[1],
+            )
+            if centroid_shift > 400:
+                drift_signals.append(
+                    f"📍 **Geographic shift** — recent centroid moved **{centroid_shift:.0f} units** "
+                    f"from lifetime average. Possible territory change."
+                )
+
+        # New POI types appearing recently that weren't in lifetime history
+        new_types = set(recent_profile.type_frequency) - set(lifetime_profile.type_frequency)
+        if new_types:
+            drift_signals.append(
+                f"🏢 **New target categories** — `{'`, `'.join(new_types)}` not seen in lifetime history."
+            )
+
+        # POI frequency pivot — are they suddenly hitting different locations?
+        top_lifetime = set(k for k, _ in sorted(lifetime_profile.poi_frequency.items(), key=lambda x: -x[1])[:3])
+        top_recent   = set(k for k, _ in sorted(recent_profile.poi_frequency.items(),  key=lambda x: -x[1])[:3])
+        new_targets  = top_recent - top_lifetime
+        if new_targets:
+            drift_signals.append(
+                f"🎯 **Target pivot** — recently targeting `{'`, `'.join(new_targets)}` "
+                f"which weren't in their top-3 historically."
+            )
+
+        # Build embed
+        if drift_signals:
+            color       = discord.Color.orange()
+            title_emoji = "⚠️"
+            status      = "DRIFT DETECTED"
+        else:
+            color       = discord.Color.green()
+            title_emoji = "✅"
+            status      = "PATTERN STABLE"
+
+        embed = discord.Embed(
+            title=f"<:LAPD_Metropolitan:1495867271501975552> S.I.M.O.N. Profile Drift Analysis",
+            description=(
+                f"**Suspect:** `{suspect_name}`\n"
+                f"**Status:** {title_emoji} `{status}`\n"
+                f"**Lifetime logs:** `{lifetime_profile.total_crimes}` | "
+                f"**Recent sample:** `{len(recent_logs)}`\n"
+                f"{DIVIDER}"
+            ),
+            color=color,
+        )
+
+        if drift_signals:
+            embed.add_field(
+                name="Drift Signals",
+                value="\n".join(drift_signals),
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="Analysis",
+                value="Recent behaviour is consistent with established historical patterns. No tactical escalation suggested.",
+                inline=False,
+            )
+
+        # Lifetime vs recent top POIs comparison
+        lifetime_top = ", ".join(f"{k} ({v:.1f})" for k, v in sorted(lifetime_profile.poi_frequency.items(), key=lambda x: -x[1])[:3])
+        recent_top   = ", ".join(f"{k} ({v:.1f})" for k, v in sorted(recent_profile.poi_frequency.items(),  key=lambda x: -x[1])[:3]) or "Insufficient data"
+
+        embed.add_field(name="📊 Lifetime Top Targets",  value=f"`{lifetime_top}`",  inline=False)
+        embed.add_field(name="🕐 Recent Top Targets",    value=f"`{recent_top}`",    inline=False)
+        embed.set_footer(text="S.I.M.O.N. v2.1 • Profile Drift Module")
+
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     # ------------------------------------------------------------------ #
     # /metro_crime_heatmap                                               #

@@ -96,6 +96,29 @@ class SuspectProfile:
         self.total_weight:     float = 0.0
         self.total_crimes:     int   = 0
         self.last_poi:         str | None = None
+        # Session-level transition matrix (within-session crime sequences only)
+        self.session_transition_matrix: dict[str, dict[str, float]] = {}
+        # Gang affiliation tag (populated when building from logs)
+        self.gang:             str | None = None
+
+    # ──────────────────────────────────────────────────────────────────────
+    # CONFIDENCE TIER
+    # ──────────────────────────────────────────────────────────────────────
+
+    @property
+    def confidence_tier(self) -> str:
+        """
+        Returns a human-readable confidence tier based on data volume.
+        Used by the predict embed and for gating features that need enough data.
+        """
+        if self.total_crimes == 0:
+            return "NONE"
+        elif self.total_crimes < 3:
+            return "LOW"
+        elif self.total_crimes < 10:
+            return "MEDIUM"
+        else:
+            return "HIGH"
 
     # ──────────────────────────────────────────────────────────────────────
     # BUILD
@@ -128,13 +151,20 @@ class SuspectProfile:
         xs: list[float] = []
         ys: list[float] = []
 
-        prev_poi: str | None = None
+        prev_poi:       str | None       = None
+        prev_ts:        datetime | None  = None
+        session_prev:   str | None       = None
+        SESSION_GAP_H   = 2.0  # hours gap that defines a new session
 
         for log in logs:
             poi      = (log.get("poi") or "Unknown").strip()
             poi_type = (log.get("poi_type") or log.get("type") or "unknown").strip()
             ts       = log.get("timestamp")
             w        = _recency_weight(ts)
+
+            # ── gang tag (take the first non-None value seen) ─────────────
+            if self.gang is None and log.get("gang"):
+                self.gang = log["gang"]
 
             # ── resolve x/y for centroid ──────────────────────────────────
             node_id = log.get("postal")
@@ -150,18 +180,41 @@ class SuspectProfile:
             )
             self.total_weight += w
 
-            # ── transition matrix ─────────────────────────────────────────
-            # Only record transitions for crime entries (not sightings)
-            # because sightings don't represent the suspect *choosing* a target.
-            if prev_poi is not None and log.get("entry_type", "crime") == "crime":
+            # ── session boundary detection ────────────────────────────────
+            # Two logs more than SESSION_GAP_H apart = new session.
+            # Reset session_prev so we don't record cross-session transitions
+            # in the session matrix (they pollute within-session patterns).
+            is_crime = log.get("entry_type", "crime") == "crime"
+
+            if ts is not None and prev_ts is not None:
+                ts_dt    = ts if isinstance(ts, datetime) else datetime.fromisoformat(str(ts))
+                prev_dt  = prev_ts if isinstance(prev_ts, datetime) else datetime.fromisoformat(str(prev_ts))
+                if ts_dt.tzinfo is None: ts_dt = ts_dt.replace(tzinfo=timezone.utc)
+                if prev_dt.tzinfo is None: prev_dt = prev_dt.replace(tzinfo=timezone.utc)
+                gap_h = abs((ts_dt - prev_dt).total_seconds()) / 3600.0
+                if gap_h > SESSION_GAP_H:
+                    session_prev = None   # new session — break the chain
+
+            # ── lifetime transition matrix ────────────────────────────────
+            if prev_poi is not None and is_crime:
                 if prev_poi not in self.transition_matrix:
                     self.transition_matrix[prev_poi] = {}
                 self.transition_matrix[prev_poi][poi] = (
                     self.transition_matrix[prev_poi].get(poi, 0.0) + w
                 )
 
-            if log.get("entry_type", "crime") == "crime":
-                prev_poi = poi
+            # ── session transition matrix (within-session only) ───────────
+            if session_prev is not None and is_crime:
+                if session_prev not in self.session_transition_matrix:
+                    self.session_transition_matrix[session_prev] = {}
+                self.session_transition_matrix[session_prev][poi] = (
+                    self.session_transition_matrix[session_prev].get(poi, 0.0) + w
+                )
+
+            if is_crime:
+                prev_poi     = poi
+                session_prev = poi
+            prev_ts = ts
 
         # ── last POI (most recent entry, so last in ascending list) ───────
         for log in reversed(logs):
@@ -279,13 +332,15 @@ class SuspectProfile:
     def to_dict(self) -> dict:
         """Serialise the profile to a plain dict for MongoDB upsert."""
         return {
-            "poi_frequency":     self.poi_frequency,
-            "type_frequency":    self.type_frequency,
-            "transition_matrix": self.transition_matrix,
-            "geo_centroid":      list(self.geo_centroid) if self.geo_centroid else None,
-            "total_weight":      self.total_weight,
-            "total_crimes":      self.total_crimes,
-            "last_poi":          self.last_poi,
+            "poi_frequency":            self.poi_frequency,
+            "type_frequency":           self.type_frequency,
+            "transition_matrix":        self.transition_matrix,
+            "session_transition_matrix": self.session_transition_matrix,
+            "geo_centroid":             list(self.geo_centroid) if self.geo_centroid else None,
+            "total_weight":             self.total_weight,
+            "total_crimes":             self.total_crimes,
+            "last_poi":                 self.last_poi,
+            "gang":                     self.gang,
         }
 
     @classmethod
@@ -297,9 +352,11 @@ class SuspectProfile:
         p.transition_matrix = data.get("transition_matrix", {})
         centroid            = data.get("geo_centroid")
         p.geo_centroid      = tuple(centroid) if centroid and len(centroid) == 2 else None
-        p.total_weight      = data.get("total_weight", 0.0)
-        p.total_crimes      = data.get("total_crimes", 0)
-        p.last_poi          = data.get("last_poi")
+        p.total_weight             = data.get("total_weight", 0.0)
+        p.total_crimes             = data.get("total_crimes", 0)
+        p.last_poi                 = data.get("last_poi")
+        p.session_transition_matrix = data.get("session_transition_matrix", {})
+        p.gang                     = data.get("gang")
         return p
 
     # ──────────────────────────────────────────────────────────────────────

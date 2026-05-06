@@ -388,18 +388,45 @@ class RolePicker(discord.ui.View):
         super().__init__(timeout=120)
         self.cog = cog
         self.cmd = cmd
+        self.roles = []
+        self.logic = "OR"
 
     @discord.ui.select(
         cls=discord.ui.RoleSelect,
         min_values=1,
-        max_values=10
+        max_values=10,
+        placeholder="Step 1: Select allowed roles...",
+        row=0
     )
     async def pick_roles(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
-        roles = [r.id for r in select.values]
+        self.roles = [r.id for r in select.values]
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.select(
+        placeholder="Step 2: Select logic (AND/OR)...",
+        options=[
+            discord.SelectOption(label="OR Logic (Any role works)", value="OR", default=True, description="User needs at least one of these roles."),
+            discord.SelectOption(label="AND Logic (Must have ALL)", value="AND", description="User needs ALL of the selected roles."),
+        ],
+        row=1
+    )
+    async def pick_logic(self, interaction: discord.Interaction, select: discord.ui.Select):
+        self.logic = select.values[0]
+        for opt in select.options:
+            opt.default = (opt.value == self.logic)
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="Save Permissions", style=discord.ButtonStyle.success, row=2)
+    async def save_perms(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.roles:
+            return await interaction.response.send_message("❌ Please select at least one role.", ephemeral=True)
 
         await self.cog.bot.mongo_client["erlc_database"]["settings"].update_one(
             {"_id": "guild_config"},
-            {"$set": {f"permissions.{self.cmd}": roles}},
+            {"$set": {f"permissions.{self.cmd}": {
+                "roles": self.roles,
+                "logic": self.logic
+            }}},
             upsert=True
         )
 
@@ -408,7 +435,7 @@ class RolePicker(discord.ui.View):
         await interaction.response.send_message(
             embed=_dashboard_panel_embed(
                 "✅ | Permissions Updated",
-                f"**{_command_label(self.cmd)}** is now restricted to `{len(roles)}` selected role{'s' if len(roles) != 1 else ''}.",
+                f"**{_command_label(self.cmd)}** is now restricted with **{self.logic}** logic to `{len(self.roles)}` roles.",
                 discord.Color.green(),
             ),
             ephemeral=True
@@ -638,7 +665,12 @@ class IntelHistoryView(discord.ui.View):
         
         for item in chunk:
             ts = item['timestamp']
-            time_str = ts.strftime("%Y-%m-%d %H:%M") if hasattr(ts, 'strftime') else str(ts)
+            if hasattr(ts, 'strftime'):
+                time_str = ts.strftime("%Y-%m-%d %H:%M")
+            elif isinstance(ts, str):
+                time_str = ts.replace("T", " ")[:16]
+            else:
+                time_str = str(ts)[:16]
 
             # Display both Weekly Score and Career Tokens in history
             w_gain = item.get('weekly_gain', item.get('points', 0))
@@ -906,6 +938,160 @@ class WeeklyResetView(discord.ui.View):
         await interaction.response.send_message("Reset cancelled.", ephemeral=True)
         self.stop()
 
+class TrainingSessionView(discord.ui.View):
+    """
+    Persistent view for Components V2 training session messages.
+    Buttons have static custom_ids so interactions survive bot restarts.
+    All state is read/written to MongoDB via the Operations cog.
+    The actual message is updated through raw HTTP PATCH because
+    discord.py has no native Components V2 edit support.
+    """
+ 
+    def __init__(self):
+        super().__init__(timeout=None)
+ 
+    # ── Attendance buttons ────────────────────────────────────
+ 
+    @discord.ui.button(
+        label="Attending",
+        emoji="✅",
+        style=discord.ButtonStyle.success,
+        custom_id="training_attend",
+    )
+    async def btn_attend(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await _handle_training_rsvp(interaction, "attending")
+ 
+    @discord.ui.button(
+        label="Maybe",
+        emoji="❔",
+        style=discord.ButtonStyle.secondary,
+        custom_id="training_maybe",
+    )
+    async def btn_maybe(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await _handle_training_rsvp(interaction, "maybe")
+ 
+    @discord.ui.button(
+        label="Not Attending",
+        emoji="❌",
+        style=discord.ButtonStyle.danger,
+        custom_id="training_decline",
+    )
+    async def btn_decline(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await _handle_training_rsvp(interaction, "declined")
+ 
+    # ── Host-only control buttons ─────────────────────────────
+ 
+    @discord.ui.button(
+        label="Lock Session",
+        emoji="🔒",
+        style=discord.ButtonStyle.secondary,
+        custom_id="training_lock",
+        row=1,
+    )
+    async def btn_lock(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await _handle_training_control(interaction, "lock")
+ 
+    @discord.ui.button(
+        label="End Session",
+        emoji="🔴",
+        style=discord.ButtonStyle.danger,
+        custom_id="training_end",
+        row=1,
+    )
+    async def btn_end(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await _handle_training_control(interaction, "end")
+ 
+ 
+# ── Module-level helpers (called by the persistent view) ─────
+ 
+async def _get_training_cog(interaction: discord.Interaction):
+    return interaction.client.get_cog("Operations")
+ 
+ 
+async def _handle_training_rsvp(interaction: discord.Interaction, status: str):
+    """Toggle an RSVP and rebuild the message."""
+    await interaction.response.defer()
+ 
+    cog = await _get_training_cog(interaction)
+    if not cog:
+        return
+ 
+    msg_id = str(interaction.message.id)
+    session = await cog.training_sessions.find_one({"_id": msg_id})
+    if not session:
+        await interaction.followup.send("❌ Session not found.", ephemeral=True)
+        return
+ 
+    if session.get("locked"):
+        await interaction.followup.send("🔒 This session is locked — sign-ups are closed.", ephemeral=True)
+        return
+ 
+    user_id = interaction.user.id
+ 
+    # Remove user from all lists, then add to the chosen one (toggle-off if same)
+    attending = [u for u in session.get("attending", []) if u != user_id]
+    maybe     = [u for u in session.get("maybe",     []) if u != user_id]
+    declined  = [u for u in session.get("declined",  []) if u != user_id]
+ 
+    was_already = user_id in session.get(status, [])
+ 
+    if not was_already:
+        if status == "attending":
+            attending.append(user_id)
+        elif status == "maybe":
+            maybe.append(user_id)
+        else:
+            declined.append(user_id)
+ 
+    await cog.training_sessions.update_one(
+        {"_id": msg_id},
+        {"$set": {"attending": attending, "maybe": maybe, "declined": declined}},
+    )
+ 
+    updated = {**session, "attending": attending, "maybe": maybe, "declined": declined}
+    await cog._patch_training_message(interaction, updated)
+ 
+ 
+async def _handle_training_control(interaction: discord.Interaction, action: str):
+    """Lock or end the training session (host/co-host only)."""
+    await interaction.response.defer(ephemeral=True)
+ 
+    cog = await _get_training_cog(interaction)
+    if not cog:
+        return
+ 
+    msg_id = str(interaction.message.id)
+    session = await cog.training_sessions.find_one({"_id": msg_id})
+    if not session:
+        await interaction.followup.send("❌ Session not found.", ephemeral=True)
+        return
+ 
+    # Only host, co-host, or High Command can control the session
+    uid = interaction.user.id
+    is_authorised = (
+        uid == session.get("host_id")
+        or uid == session.get("co_host_id")
+        or cog._is_high_command(interaction.user)
+    )
+    if not is_authorised:
+        await interaction.followup.send("❌ Only the session host or High Command can do that.", ephemeral=True)
+        return
+ 
+    if action == "lock":
+        if session.get("locked"):
+            await interaction.followup.send("Session is already locked.", ephemeral=True)
+            return
+ 
+        await cog.training_sessions.update_one({"_id": msg_id}, {"$set": {"locked": True}})
+        updated = {**session, "locked": True}
+        await cog._patch_training_message(interaction, updated)
+        await interaction.followup.send("🔒 Session locked — sign-ups are now closed.", ephemeral=True)
+ 
+    elif action == "end":
+        await cog.training_sessions.update_one({"_id": msg_id}, {"$set": {"ended": True}})
+        updated = {**session, "ended": True}
+        await cog._patch_training_message(interaction, updated)
+        await interaction.followup.send("🔴 Session ended and embed updated.", ephemeral=True)
 
 # ──────────────────────────────────────────────
 # COG
@@ -934,11 +1120,13 @@ class Operations(commands.Cog):
         
         self.config_cache = {}
         self._tracker_task: asyncio.Task | None = None
+        self.training_sessions = self.bot.mongo_client["erlc_database"]["training_sessions"]
 
     async def cog_load(self):
         await self.load_config()
         # Start the 24-hour training tracker refresh loop
         self._tracker_task = asyncio.create_task(self._training_tracker_loop())
+        self.bot.add_view(TrainingSessionView())
     
     async def cog_unload(self):
         if self._tracker_task:
@@ -1179,15 +1367,29 @@ class Operations(commands.Cog):
             return True
 
         perms = self.config_cache.get("permissions", {})
-        allowed_roles = perms.get(cmd_name, [])
+        config = perms.get(cmd_name)
 
-        if not allowed_roles:
+        if not config:
             # Default behavior for Rapid AAR: require MET role if no specific roles set in dashboard
             if cmd_name == "metro_rapid_aar":
                 return any("[𝐌𝐄𝐓]" in role.name for role in member.roles)
             return True
 
-        return any(role.id in allowed_roles for role in member.roles)
+        # Support legacy list structure and new dict structure
+        if isinstance(config, list):
+            allowed_roles = config
+            logic = "OR"
+        else:
+            allowed_roles = config.get("roles", [])
+            logic = config.get("logic", "OR")
+
+        if not allowed_roles:
+            return True
+
+        member_role_ids = [role.id for role in member.roles]
+        if logic == "AND":
+            return all(rid in member_role_ids for rid in allowed_roles)
+        return any(rid in member_role_ids for rid in allowed_roles)
 
     async def _get_target_channel(self, user_id: int, link_key: str, fallback: discord.abc.Messageable):
         """Resolves a linked thread for a user from MongoDB, or returns fallback."""
@@ -1634,8 +1836,13 @@ class Operations(commands.Cog):
 
         embed = discord.Embed(description=desc, color=discord.Color.blue())
         embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
-        file = discord.File(RESOURCE_DIR / "promotion.png", filename="promotion.png")
-        embed.set_image(url="attachment://promotion.png")
+
+        # Randomly select a promotion graphic from the pool
+        promo_pool = ["promotion.png", "promotion-2.png", "promotion-3.png", "promotion-4.png", "promotion-5.png"]
+        selected_img = random.choice(promo_pool)
+        file = discord.File(RESOURCE_DIR / selected_img, filename=selected_img)
+        embed.set_image(url=f"attachment://{selected_img}")
+
         embed.set_footer(
             text=f"Issued by {interaction.user.display_name}",
             icon_url=(
@@ -1791,9 +1998,215 @@ class Operations(commands.Cog):
             print(f"[MASS SHIFT REACTION ERROR] {e}")
 
     # ------------------------------------------------------------------ #
-    # /host_metro_training                                                 #
+    # /metro_host_training (HELPERS)                                     #
     # ------------------------------------------------------------------ #
-
+    def _build_training_components(self, session: dict) -> list:
+        """
+        Build the full Components V2 payload for a training session.
+        Attendance buttons are disabled when locked or ended.
+        """
+        attending = session.get("attending", [])
+        maybe     = session.get("maybe",     [])
+        declined  = session.get("declined",  [])
+        locked    = session.get("locked",    False)
+        ended     = session.get("ended",     False)
+ 
+        host_id     = session.get("host_id")
+        co_host_id  = session.get("co_host_id")
+        start_time  = session.get("start_time", "TBD")
+ 
+        attend_locked = locked or ended
+ 
+        # ── Status pill ───────────────────────────────────────
+        if ended:
+            status_text = "🔴  **Session Ended**"
+        elif locked:
+            status_text = "🔒  **Session Locked — Sign-ups Closed**"
+        else:
+            status_text = "🟢  **Session Open — Sign-ups Available**"
+ 
+        # ── Attendance lists ──────────────────────────────────
+        def _mentions(ids):
+            if not ids:
+                return "*None yet*"
+            return "  ".join(f"<@{uid}>" for uid in ids)
+ 
+        attend_line  = f"✅  **Attending  ({len(attending)})**\n{_mentions(attending)}"
+        maybe_line   = f"❔  **Maybe  ({len(maybe)})**\n{_mentions(maybe)}"
+        decline_line = f"❌  **Not Attending  ({len(declined)})**\n{_mentions(declined)}"
+ 
+        total_signed = len(attending) + len(maybe)
+        enough       = total_signed >= 4
+        threshold_note = (
+            f"-# ✅  {total_signed} sign-up{'s' if total_signed != 1 else ''} — "
+            "enough trainees to proceed."
+            if enough else
+            f"-# ⚠️  Only {total_signed} sign-up{'s' if total_signed != 1 else ''} — "
+            "minimum of 4 needed to run the session."
+        )
+ 
+        return [
+            {
+                "type": 17,             # Container
+                "accent_color": 0x1a1aff if not ended else 0x555555,
+                "components": [
+                    {
+                        "type": 10,
+                        "content": f"<@&{session.get('ping_role_id')}>" if session.get("ping_role_id") else "",
+                    },
+                    # Banner image
+                    {
+                        "type": 12,
+                        "items": [{"media": {"url": "attachment://training-sesh.png"}}],
+                    },
+ 
+                    {"type": 14, "divider": True, "spacing": 1},
+ 
+                    # Title + status
+                    {
+                        "type": 10,
+                        "content": (
+                            f"## <:LAPD_Metropolitan:1495867271501975552>  Metropolitan Entry Training\n"
+                            f"{status_text}"
+                        ),
+                    },
+ 
+                    {"type": 14, "divider": False, "spacing": 1},
+ 
+                    # Session metadata
+                    {
+                        "type": 10,
+                        "content": (
+                            f"**Host:** <@{host_id}>\n"
+                            f"**Co-Host:** {'<@' + str(co_host_id) + '>' if co_host_id else 'N/A'}\n"
+                            f"**Starting Time:** {start_time}"
+                        ),
+                    },
+ 
+                    {"type": 14, "divider": True, "spacing": 1},
+ 
+                    # Training description
+                    {
+                        "type": 10,
+                        "content": (
+                            "**Weaponry Trainings** are hands-on sessions designed to evaluate "
+                            "your performance and future in the Metropolitan Unit.\n\n"
+                            "This training consists of:\n"
+                            "• Active Shooter Exercise\n"
+                            "• Undercover (UC) Exercise\n"
+                            "• Protection Detail Exercise\n\n"
+                            "If you are a trainer, contact the host to join as a co-host!"
+                        ),
+                    },
+ 
+                    {"type": 14, "divider": True, "spacing": 1},
+ 
+                    # Attendance breakdown
+                    {
+                        "type": 10,
+                        "content": (
+                            f"{attend_line}\n\n"
+                            f"{maybe_line}\n\n"
+                            f"{decline_line}\n\n"
+                            f"{threshold_note}"
+                        ),
+                    },
+ 
+                    {"type": 14, "divider": True, "spacing": 1},
+ 
+                    # Row 1 — RSVP buttons
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 2,
+                                "style": 3,         # Success (green)
+                                "label": "Attending",
+                                "emoji": {"name": "✅"},
+                                "custom_id": "training_attend",
+                                "disabled": attend_locked,
+                            },
+                            {
+                                "type": 2,
+                                "style": 2,         # Secondary (grey)
+                                "label": "Maybe",
+                                "emoji": {"name": "❔"},
+                                "custom_id": "training_maybe",
+                                "disabled": attend_locked,
+                            },
+                            {
+                                "type": 2,
+                                "style": 4,         # Danger (red)
+                                "label": "Not Attending",
+                                "emoji": {"name": "❌"},
+                                "custom_id": "training_decline",
+                                "disabled": attend_locked,
+                            },
+                        ],
+                    },
+ 
+                    # Row 2 — Host control buttons
+                    {
+                        "type": 1,
+                        "components": [
+                            {
+                                "type": 2,
+                                "style": 2,
+                                "label": "Lock Session",
+                                "emoji": {"name": "🔒"},
+                                "custom_id": "training_lock",
+                                "disabled": locked or ended,
+                            },
+                            {
+                                "type": 2,
+                                "style": 4,
+                                "label": "End Session",
+                                "emoji": {"name": "🔴"},
+                                "custom_id": "training_end",
+                                "disabled": ended,
+                            },
+                        ],
+                    },
+ 
+                ],
+            }
+        ]
+ 
+    async def _patch_training_message(
+        self,
+        interaction: discord.Interaction,
+        session: dict,
+    ):
+        """PATCH the Components V2 training message with rebuilt content."""
+        channel_id = session.get("channel_id")
+        message_id = session.get("_id")        # stored as string
+        bot_token  = self.bot.http.token
+ 
+        components = self._build_training_components(session)
+        payload    = {"flags": 32768, "components": components}
+ 
+        patch_url = (
+            f"https://discord.com/api/v10/channels/{channel_id}"
+            f"/messages/{message_id}"
+        )
+ 
+        async with aiohttp.ClientSession() as http:
+            async with http.patch(
+                patch_url,
+                json=payload,
+                headers={
+                    "Authorization": f"Bot {bot_token}",
+                    "Content-Type": "application/json",
+                },
+            ) as resp:
+                if resp.status not in (200, 204):
+                    body = await resp.text()
+                    print(f"[training] PATCH failed {resp.status}: {body}")
+ 
+    # ----------------------------------------------------------
+    # /host_metro_training
+    # ----------------------------------------------------------
+ 
     @app_commands.command(
         name="host_metro_training",
         description="Host a Metropolitan Unit training session.",
@@ -1805,54 +2218,119 @@ class Operations(commands.Cog):
         start_time: str = "TBD",
     ):
         await interaction.response.defer(ephemeral=True)
-
+ 
         ping_role = discord.utils.get(
             interaction.guild.roles, name="[𝐌𝐄𝐓] Awaiting Training Ping"
         )
         if not ping_role:
             await interaction.followup.send(
-                "❌ Metropolitan Unit role not found.", ephemeral=True
+                "❌ Training ping role not found.", ephemeral=True
             )
             return
+ 
+        # ── Build initial session state ───────────────────────
+        session = {
+            "host_id":    interaction.user.id,
+            "co_host_id": co_host.id if co_host else None,
+            "start_time": start_time,
+            "attending":  [],
+            "maybe":      [],
+            "declined":   [],
+            "locked":     False,
+            "ended":      False,
+            "ping_role_id": ping_role.id
+            # channel_id and _id are filled in after the POST
+        }
+ 
+        components = self._build_training_components(session)
+        payload    = {
+            "flags":      32768,            # IS_COMPONENTS_V2
+            "components": components,
+        }
+ 
+        channel    = await self._resolve_output_channel(interaction, "host_metro_training")
+        bot_token  = self.bot.http.token
+        post_url   = f"https://discord.com/api/v10/channels/{channel.id}/messages"
+ 
 
-        host = interaction.user
-        desc = (
-            "## <:LAPD_Metropolitan:1495867271501975552> | Metropolitan Entry Training\n"
-            f"{DASHBOARD_DIVIDER}\n\n"
-            f"**Host:** {host.mention}\n\n"
-            f"**Co-Host:** {co_host.mention if co_host else 'N/A'}\n\n"
-            f"**Starting Time:** {start_time}\n\n"
-            "**Weaponry Trainings** are hands-on trainings in which you, the trainee, "
-            "undergo several scenarios designed to evaluate your performance and future "
-            "in the Metropolitan Unit.\nIf you are a trainer, contact the host to "
-            "join as a co-host!\n"
-            "This training consists of:\n"
-            "• Active Shooter Exercise\n"
-            "• Undercover (UC) Exercise\n"
-            "• Protection Detail Exercise\n\n"
-            f"{DASHBOARD_DIVIDER}\n"
-        )
-
-        embed = discord.Embed(description=desc, color=discord.Color.blue())
-        embed.set_thumbnail(url="https://i.imgur.com/qdvbBqe.png")
-        file = discord.File(RESOURCE_DIR / "training-sesh.png", filename="training-sesh.png")
-        embed.set_image(url="attachment://training-sesh.png")
-        embed.set_footer(
-            text=f"Announced by {host.display_name}",
-            icon_url=host.display_avatar.url if host.display_avatar else None,
-        )
-
-        await interaction.followup.send(
-            "✅ Host training issued.", ephemeral=True
-        )
-        channel = await self._resolve_output_channel(interaction, "host_metro_training")
-        msg = await channel.send(content=ping_role.mention, embed=embed, file=file)
-
+        
+        # ── POST with banner image ────────────────────────────
+        image_path = RESOURCE_DIR / "training-sesh.png"
+        new_msg_id = None
+ 
         try:
-            for emoji in ("✅", "❔", "❌"):
-                await msg.add_reaction(emoji)
-        except Exception as e:
-            print(f"[TRAINING REACTION ERROR] {e}")
+            with open(image_path, "rb") as f:
+                image_bytes = f.read()
+ 
+            async with aiohttp.ClientSession() as http:
+                form = aiohttp.FormData()
+                form.add_field(
+                    "payload_json",
+                    json.dumps(payload),
+                    content_type="application/json",
+                )
+                form.add_field(
+                    "files[0]",
+                    image_bytes,
+                    filename="training-sesh.png",
+                    content_type="image/png",
+                )
+                async with http.post(
+                    post_url,
+                    data=form,
+                    headers={"Authorization": f"Bot {bot_token}"},
+                ) as resp:
+                    if resp.status in (200, 201):
+                        data = await resp.json()
+                        new_msg_id = data["id"]
+                    else:
+                        body = await resp.text()
+                        print(f"[training] POST failed {resp.status}: {body}")
+                        await interaction.followup.send(
+                            "❌ Failed to post training session. Check bot logs.", ephemeral=True
+                        )
+                        return
+ 
+        except FileNotFoundError:
+            # Banner missing — strip the Media Gallery and retry text-only
+            text_components = [
+                {
+                    **components[0],
+                    "components": [
+                        c for c in components[0]["components"]
+                        if c.get("type") != 12
+                    ],
+                }
+            ]
+            text_payload = {**payload, "components": text_components}
+ 
+            async with aiohttp.ClientSession() as http:
+                async with http.post(
+                    post_url,
+                    json=text_payload,
+                    headers={
+                        "Authorization": f"Bot {bot_token}",
+                        "Content-Type": "application/json",
+                    },
+                ) as resp:
+                    if resp.status in (200, 201):
+                        data = await resp.json()
+                        new_msg_id = data["id"]
+                    else:
+                        await interaction.followup.send(
+                            "❌ Failed to post training session (fallback also failed).", ephemeral=True
+                        )
+                        return
+ 
+        # ── Persist session to MongoDB ────────────────────────
+        session["_id"]        = str(new_msg_id)
+        session["channel_id"] = str(channel.id)
+ 
+        await self.training_sessions.insert_one(session)
+ 
+        await interaction.followup.send(
+            f"✅ Training session posted in {channel.mention}.", ephemeral=True
+        )
 
     # ------------------------------------------------------------------ #
     # /metro_openings                                                      #
@@ -1874,29 +2352,27 @@ class Operations(commands.Cog):
             await guild.chunk()
 
         rank_groups = [
-            ("     [MET] Directorate     ", [
+            ("     [𝐌𝐄𝐓] Directorate     ", [
                 ("[𝐌𝐄𝐓] Commanding Officer",1),
-                ("[𝐌𝐄𝐓] Deputy Commanding Officer",4),
+                ("[𝐌𝐄𝐓] Deputy Commanding Officer", 4),
             ]),
-            (" [MET] Command Inspector General ", [
+            (" [𝐌𝐄𝐓] Command Inspector General ", [
+                ("[𝐌𝐄𝐓] Detective Chief Inspector", 2),
                 ("[𝐌𝐄𝐓] Chief Inspector",4),
             ]),
-            (" ▬▬ [𝐌𝐄𝐓] Major Crimes Staff ▬▬▬▬▬▬▬▬▬▬ ", [
-                ("▬▬ [𝐌𝐄𝐓] Major Crimes Staff ▬▬▬▬▬▬▬▬▬▬", 0), # Divider role
+            ("[𝐌𝐄𝐓] General Supervisory Staff", [
                 ("[𝐌𝐄𝐓] Detective Supervisory Sergeant", 2),
-            ]),
-            ("[MET] General Supervisory Staff", [
                 ("[𝐌𝐄𝐓] Supervisory Sergeant", 4),
             ]),
-            ("  [MCS] Major Crimes Detectives  ", [
+            ("  [𝐌𝐄𝐓] Major Crimes Detectives  ", [
                 ("[𝐌𝐄𝐓] Senior Detective", 7),
                 ("[𝐌𝐄𝐓] Junior Detective", 20),
             ]),
-            ("   [MET] B/C Platoon Operatives  ", [
+            ("   [𝐌𝐄𝐓] B/C Platoon Operatives  ", [
                 ("[𝐌𝐄𝐓] Senior Officer", 20),
                 ("[𝐌𝐄𝐓] Junior Officer", 20),
             ]),
-            ("[MET] Probationary Rank Openings", [
+            ("[𝐌𝐄𝐓] Probationary Rank Openings", [
                 ("[𝐌𝐄𝐓] Probationary Officer", 20),
             ]),
         ]
@@ -1914,13 +2390,32 @@ class Operations(commands.Cog):
             )
         )
 
+        # Fetch the differentiating role once for filtering
+        mcs_role = discord.utils.get(guild.roles, name="▬▬ [𝐌𝐄𝐓] Major Crimes Staff ▬▬▬▬▬▬▬▬▬▬")
+
         for group_name, ranks in rank_groups:
             desc_parts = [f"## {seal} **{group_name}** {seal}\n"]
 
             for rank_name, quota in ranks:
-                role    = discord.utils.get(guild.roles, name=rank_name)
-                members = role.members if role else []
-                count   = len(members)
+                # 1. Determine the actual base Discord role to pull members from
+                is_det_tier = "Detective" in rank_name and ("Chief Inspector" in rank_name or "Supervisory Sergeant" in rank_name)
+                search_name = rank_name.replace("Detective ", "") if is_det_tier else rank_name
+                
+                role = discord.utils.get(guild.roles, name=search_name)
+                base_members = role.members if role else []
+
+                # 2. Filter members based on the Major Crimes Staff (MCS) differentiating role
+                if is_det_tier:
+                    # Users who have the base rank AND the MCS role
+                    members = [m for m in base_members if mcs_role and mcs_role in m.roles]
+                elif rank_name in ["[𝐌𝐄𝐓] Chief Inspector", "[𝐌𝐄𝐓] Supervisory Sergeant"]:
+                    # Standard ranks: Users who have the rank BUT NOT the MCS role
+                    members = [m for m in base_members if not mcs_role or mcs_role not in m.roles]
+                else:
+                    # All other ranks function as normal role checks
+                    members = base_members
+
+                count = len(members)
                 
                 # Skip counting for the structural divider role
                 is_divider = "▬▬" in rank_name

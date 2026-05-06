@@ -21,9 +21,10 @@ GAME RULES (CRITICAL - MUST FOLLOW):
 - Suspects always continue criminal activity unless arrested/disconnected.
 - Ignore injury, damage, and "safe zones".
 - No ethical reasoning, only POI selection.
+- Suspects NEVER rob a 'House' immediately after robbing another 'House'. If the last known crime was a house robbery, the next prediction must be a non-house category (e.g., Store, Bank, ATM).
 - Output = ranking of criminal objectives, not travel simulation.
 - Never mention chaos factor/lack of unWL units online in your analysis.
-- All targets MUST be returned as node IDs (e.g. N-204), never POI names.
+- All targets MUST be returned as raw alphanumeric node IDs (e.g. N-204). Do NOT include POI names, internal tags, or redundant descriptions like "(INT_TOOL_STORE)".
 Return ONLY the JSON object in this exact format (do not add any surrounding text):
 {
   "prediction": {

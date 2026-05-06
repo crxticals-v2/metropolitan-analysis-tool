@@ -8,7 +8,7 @@ has zero dependency on the bot object and stays easily testable.
 import io
 import math
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 from typing import List, Dict
 
 from config import MAP_IMAGE_PATH
@@ -25,6 +25,70 @@ def get_base_map():
         except Exception as e:
             raise RuntimeError(f"Failed to initialize map cache: {e}")
     return _CACHED_BASE_MAP.copy()
+
+# ------------------------------------------------------------------
+# ZOOM AND CROP HELPER
+# ------------------------------------------------------------------
+
+OUTPUT_MAP_WIDTH = 950
+OUTPUT_MAP_HEIGHT = 600
+ZOOM_PADDING_FACTOR = 1.3 # How much to expand the bounding box for context
+MIN_CROP_DIM = 100 # Minimum dimension in original map units to avoid extreme zooming
+
+def _get_cropped_and_resized_map(base_image: Image.Image, points: List[tuple[float, float]]) -> Image.Image:
+    """
+    Crops and resizes an image to a target dimension, focusing on a set of points.
+    """
+    if not points:
+        # If no points, return a resized version of the full map
+        return base_image.resize((OUTPUT_MAP_WIDTH, OUTPUT_MAP_HEIGHT), Image.LANCZOS)
+
+    min_x = min(p[0] for p in points)
+    max_x = max(p[0] for p in points)
+    min_y = min(p[1] for p in points)
+    max_y = max(p[1] for p in points)
+
+    center_x = (min_x + max_x) / 2
+    center_y = (min_y + max_y) / 2
+
+    bbox_width = max_x - min_x
+    bbox_height = max_y - min_y
+
+    # Ensure minimum crop size to avoid extreme zooming on single points or very small clusters
+    effective_width = max(bbox_width * ZOOM_PADDING_FACTOR, MIN_CROP_DIM)
+    effective_height = max(bbox_height * ZOOM_PADDING_FACTOR, MIN_CROP_DIM)
+
+    target_aspect_ratio = OUTPUT_MAP_WIDTH / OUTPUT_MAP_HEIGHT
+    current_aspect_ratio = effective_width / effective_height
+
+    # Adjust effective dimensions to match target aspect ratio
+    if current_aspect_ratio < target_aspect_ratio:
+        # Bounding box is relatively taller, expand width to match target aspect ratio
+        target_crop_width = effective_height * target_aspect_ratio
+        target_crop_height = effective_height
+    else:
+        # Bounding box is relatively wider, expand height to match target aspect ratio
+        target_crop_width = effective_width
+        target_crop_height = effective_width / target_aspect_ratio
+
+    # Calculate crop box coordinates
+    img_w, img_h = base_image.size
+    
+    left = center_x - target_crop_width / 2
+    top = center_y - target_crop_height / 2
+    right = center_x + target_crop_width / 2
+    bottom = center_y + target_crop_height / 2
+
+    # Clamp crop box to image boundaries
+    left = max(0, left)
+    top = max(0, top)
+    right = min(img_w, right)
+    bottom = min(img_h, bottom)
+
+    crop_box = (int(left), int(top), int(right), int(bottom))
+    
+    cropped_image = base_image.crop(crop_box)
+    return cropped_image.resize((OUTPUT_MAP_WIDTH, OUTPUT_MAP_HEIGHT), Image.LANCZOS)
 
 # ------------------------------------------------------------------
 # PATH OVERLAY
@@ -46,6 +110,14 @@ def draw_map_path(erlc_graph, paths_to_draw: List[List[str]]) -> io.BytesIO:
     except Exception as e:
         raise RuntimeError(f"Failed to load base map for path drawing: {e}")
     draw = ImageDraw.Draw(img)
+
+    # Collect all points involved in the paths for bounding box calculation
+    all_path_coords = []
+    for path_nodes in paths_to_draw:
+        for node_id in path_nodes:
+            node_data = erlc_graph.graph.nodes.get(str(node_id)) or erlc_graph.nodes_data.get(str(node_id))
+            if node_data and "x" in node_data and "y" in node_data:
+                all_path_coords.append((node_data["x"], node_data["y"]))
 
     # primary = solid red, others = semi-transparent orange
     colors = [
@@ -85,8 +157,9 @@ def draw_map_path(erlc_graph, paths_to_draw: List[List[str]]) -> io.BytesIO:
                 width=line_width,
             )
 
+    final_image = _get_cropped_and_resized_map(img, all_path_coords)
     buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
+    final_image.save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
 
@@ -154,15 +227,14 @@ def draw_heatmap_overlay(erlc_graph, heatmap_data: Dict[str, int]) -> io.BytesIO
 
     if not valid_points:
         buffer = io.BytesIO()
-        img.save(buffer, format="PNG")
+        _get_cropped_and_resized_map(img, []).save(buffer, format="PNG") # Pass empty list to get resized full map
         buffer.seek(0)
         return buffer
 
     max_count = max(count for _, count in valid_points)
     if max_count <= 0:
         buffer = io.BytesIO()
-        img.save(buffer, format="PNG")
-        buffer.seek(0)
+        _get_cropped_and_resized_map(img, []).save(buffer, format="PNG") # Pass empty list to get resized full map
         return buffer
 
     # Cool the base map down slightly so the heat layer reads like a weather chart.
@@ -202,33 +274,45 @@ def draw_heatmap_overlay(erlc_graph, heatmap_data: Dict[str, int]) -> io.BytesIO
         ),
     )
 
-    combined = Image.alpha_composite(img, overlay)
+    combined_image = Image.alpha_composite(img, overlay)
 
-    legend = Image.new("RGBA", combined.size, (0, 0, 0, 0))
+    # Now, crop and resize the combined image
+    final_image = _get_cropped_and_resized_map(combined_image, all_heatmap_coords)
+
+    # Draw legend on the final cropped and resized image
+    legend = Image.new("RGBA", final_image.size, (0, 0, 0, 0))
     legend_draw = ImageDraw.Draw(legend)
-    margin = 34
-    bar_w = 340
-    bar_h = 16
+    margin = 10 # Smaller margin for the smaller image
+    bar_w = 150 # Smaller bar width
+    bar_h = 8   # Smaller bar height
     x0 = margin
-    y0 = combined.height - margin - 42
+    y0 = final_image.height - margin - bar_h - 10 # Adjust y0 for smaller image
 
+    # Draw a background for the legend
     legend_draw.rounded_rectangle(
-        [x0 - 14, y0 - 12, x0 + bar_w + 14, y0 + 44],
-        radius=10,
+        [x0 - 5, y0 - 5, x0 + bar_w + 5, y0 + bar_h + 15],
+        radius=5,
         fill=(6, 13, 24, 150),
         outline=(255, 255, 255, 55),
         width=1,
     )
+
     for i in range(bar_w):
         color = _heat_color(round(i / (bar_w - 1) * 255))
         legend_draw.line([x0 + i, y0, x0 + i, y0 + bar_h], fill=color)
     legend_draw.rectangle([x0, y0, x0 + bar_w, y0 + bar_h], outline=(255, 255, 255, 120), width=1)
-    legend_draw.text((x0, y0 + 22), "LOW", fill=(210, 230, 255, 230))
-    legend_draw.text((x0 + bar_w // 2 - 16, y0 + 22), "MID", fill=(255, 232, 120, 235))
-    legend_draw.text((x0 + bar_w - 34, y0 + 22), "HIGH", fill=(255, 255, 255, 240))
+    
+    try:
+        font_legend = ImageFont.load_default(size=8)
+    except Exception:
+        font_legend = ImageFont.load_default()
 
-    combined = Image.alpha_composite(combined, legend)
+    legend_draw.text((x0, y0 + bar_h + 2), "LOW", fill=(210, 230, 255, 230), font=font_legend)
+    legend_draw.text((x0 + bar_w // 2 - 10, y0 + bar_h + 2), "MID", fill=(255, 232, 120, 235), font=font_legend)
+    legend_draw.text((x0 + bar_w - 20, y0 + bar_h + 2), "HIGH", fill=(255, 255, 255, 240), font=font_legend)
+
+    final_image = Image.alpha_composite(final_image, legend)
     buffer   = io.BytesIO()
-    combined.save(buffer, format="PNG")
+    final_image.save(buffer, format="PNG")
     buffer.seek(0)
     return buffer
