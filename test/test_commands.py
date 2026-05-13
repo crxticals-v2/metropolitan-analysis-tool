@@ -12,6 +12,7 @@ gateway) to verify:
 """
 
 import time
+import re
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
@@ -24,6 +25,7 @@ from test.conftest import (
     make_member,
     make_role,
 )
+from simon import WATERMARK_CHARS
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -195,7 +197,10 @@ class TestMetroPredict:
                 "behavioral_profile":    "Experienced robber.",
                 "tactical_recommendation": "Set up perimeter.",
                 "probability_score":     0.82,
-                "reasoning":             "Suspect favours financial targets.",
+                "reasoning":             (
+                    "Suspect favours financial targets and usually continues toward "
+                    "nearby stores after pressure increases."
+                ),
             }
         }
 
@@ -219,12 +224,17 @@ class TestMetroPredict:
         call_kwargs = interaction.followup.send.call_args.kwargs
         embed = call_kwargs.get("embed")
         assert embed is not None
-        assert "Metro Predictive Engine" in embed.title
+        assert "Predictive Engine" in embed.title
         # Check that risk / probability fields are present
         field_names = [f.name for f in embed.fields]
         assert any("Probability" in fn     for fn in field_names)
         assert any("Risk Level"  in fn     for fn in field_names)
         assert any("ETA"         in fn     for fn in field_names)
+
+        assert not any(ch in embed.description for ch in WATERMARK_CHARS)
+        tactical_field = next(f for f in embed.fields if "Tactical Analysis" in f.name)
+        assert any(ch in tactical_field.value for ch in WATERMARK_CHARS)
+        assert not re.search(rf"[A-Za-z0-9][{re.escape(WATERMARK_CHARS)}]+[A-Za-z0-9]", tactical_field.value)
 
     @pytest.mark.asyncio
     async def test_postal_normalization_in_predict(self, simon_cog):
@@ -333,7 +343,7 @@ class TestRequestMetro:
         channel     = make_channel()
         interaction = make_interaction(guild=guild, channel=channel)
 
-        operations_cog._resolve_output_channel = MagicMock(return_value=channel)
+        operations_cog._resolve_output_channel = AsyncMock(return_value=channel)
         operations_cog.bot.request_metro_cooldowns = {}
 
         with patch("operations.discord.utils.get", side_effect=[
@@ -345,13 +355,15 @@ class TestRequestMetro:
             )
 
         # Confirmation sent to interaction user
-        interaction.response.send_message.assert_called_once()
-        assert "✅" in str(interaction.response.send_message.call_args)
+        interaction.response.defer.assert_called_once()
+        assert "✅" in str(interaction.followup.send.call_args)
 
-        # Embed sent to the channel
+        # Embed sent to the channel with role pings in content
         channel.send.assert_called_once()
         embed = channel.send.call_args.kwargs["embed"]
         assert "Active hostage situation" in embed.description
+        assert "content" in channel.send.call_args.kwargs
+        assert "flags" not in channel.send.call_args.kwargs
 
     @pytest.mark.asyncio
     async def test_cooldown_blocks_second_request(self, operations_cog):
@@ -366,8 +378,8 @@ class TestRequestMetro:
         )
 
         # Should receive a cooldown message, NOT ✅
-        interaction.response.send_message.assert_called_once()
-        response = str(interaction.response.send_message.call_args)
+        interaction.response.defer.assert_called_once()
+        response = str(interaction.followup.send.call_args)
         assert "cooldown" in response.lower() or "⏳" in response
 
     @pytest.mark.asyncio
@@ -378,7 +390,7 @@ class TestRequestMetro:
 
         # 7 hours ago — outside the 6-hour window
         operations_cog.bot.request_metro_cooldowns = {guild.id: time.time() - 25200}
-        operations_cog._resolve_output_channel = MagicMock(return_value=channel)
+        operations_cog._resolve_output_channel = AsyncMock(return_value=channel)
 
         with patch("operations.discord.utils.get", side_effect=[
             make_role("Metropolitan Division"),
@@ -389,11 +401,12 @@ class TestRequestMetro:
             )
 
         # Should succeed
-        assert "✅" in str(interaction.response.send_message.call_args)
+        assert "✅" in str(interaction.followup.send.call_args)
 
     @pytest.mark.asyncio
     async def test_missing_roles_sends_error(self, operations_cog):
         guild       = make_guild()
+        guild.roles = []
         interaction = make_interaction(guild=guild)
         operations_cog.bot.request_metro_cooldowns = {}
 
@@ -402,7 +415,7 @@ class TestRequestMetro:
                 operations_cog, interaction, reason="Test"
             )
 
-        response = str(interaction.response.send_message.call_args)
+        response = str(interaction.followup.send.call_args)
         assert "No valid response roles" in response or "❌" in response
 
 

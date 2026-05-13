@@ -1,6 +1,7 @@
 """Live operation planning and readiness board components."""
 
 import time
+import re
 import asyncio
 import io
 import json
@@ -17,6 +18,42 @@ USE_COMPONENTS_V2 = True
 # ──────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ──────────────────────────────────────────────────────────────────────────────
+
+def _encode_watermark(data_str: str) -> str:
+    # Convert hex string to bits
+    binary = bin(int(data_str, 16))[2:].zfill(len(data_str) * 4)
+    mapping = {'0': '\u200b', '1': '\u200a'}
+    return "".join(mapping[bit] for bit in binary)
+
+
+def _weave_watermark(text: str, bits: str) -> str:
+    """Weaves hidden ID bits into the end of each individual word in a text blob."""
+    full_seq = f"\u200c{bits}\u200c"
+    # Identify spans of non-whitespace characters as words
+    word_matches = list(re.finditer(r'\S+', text))
+    if not word_matches:
+        return text + full_seq
+
+    bits_per_word = len(full_seq) // len(word_matches)
+    extra_bits = len(full_seq) % len(word_matches)
+    
+    result = ""
+    last_idx = 0
+    bit_idx = 0
+    
+    for i, match in enumerate(word_matches):
+        word_end = match.end()
+        result += text[last_idx:word_end]
+        
+        # Distribute a chunk of the watermark sequence after this word
+        chunk_size = bits_per_word + (1 if i < extra_bits else 0)
+        result += full_seq[bit_idx : bit_idx + chunk_size]
+        bit_idx += chunk_size
+        last_idx = word_end
+        
+    result += text[last_idx:]
+    return result
+
 
 METRO_ICON   = "https://i.imgur.com/qdvbBqe.png"
 METRO_EMOJI  = "<:LAPD_Metropolitan:1495867271501975552>"
@@ -107,10 +144,9 @@ def _group_assignments(assignments: dict) -> dict[str, dict]:
     return {k: v for k, v in groups.items() if v}
 
 
-# ── Embed builders ─────────────────────────────────────────────────────────────
+# ── Message builders ───────────────────────────────────────────────────────────
 
-def _embed_setup(ic: discord.Member, postal: str, assignments: dict, members: list, start_time: str = "Immediate", target_gang: str = "None", warrant_id: str = None) -> discord.Embed:
-    """Ephemeral 'Operation Setup' embed shown while the IC assigns roles."""
+def _setup_lines(ic: discord.Member, postal: str, assignments: dict, members: list, start_time: str = "Immediate", target_gang: str = "None", warrant_id: str = None) -> list[str]:
     warrant_str = f"**Warrant ID:** `{warrant_id}`\n" if warrant_id else ""
     desc_lines = [
         f"## {METRO_EMOJI} | Operation Tactical Planning",
@@ -137,6 +173,21 @@ def _embed_setup(ic: discord.Member, postal: str, assignments: dict, members: li
             "*Use the dropdown to begin assigning tactical roles.*",
         ]
 
+    return desc_lines
+
+
+def _setup_container(ic: discord.Member, postal: str, assignments: dict, members: list, start_time: str = "Immediate", target_gang: str = "None", warrant_id: str = None) -> discord.ui.Container:
+    """Components v2 planning panel shown while the IC assigns roles."""
+    container = discord.ui.Container(accent_colour=discord.Color.blue())
+    container.add_item(discord.ui.TextDisplay("\n".join(_setup_lines(ic, postal, assignments, members, start_time, target_gang, warrant_id))))
+    container.add_item(discord.ui.Separator())
+    container.add_item(discord.ui.TextDisplay("-# OPERATION SETUP  ·  Select a role, then assign an operative"))
+    return container
+
+
+def _embed_setup(ic: discord.Member, postal: str, assignments: dict, members: list, start_time: str = "Immediate", target_gang: str = "None", warrant_id: str = None) -> discord.Embed:
+    """Legacy embed builder retained for tests and non-V2 callers."""
+    desc_lines = _setup_lines(ic, postal, assignments, members, start_time, target_gang, warrant_id)
     embed = discord.Embed(description="\n".join(desc_lines), color=discord.Color.blue())
     embed.set_thumbnail(url=METRO_ICON)
     embed.set_footer(text="OPERATION SETUP  ·  Select a role, then assign an operative")
@@ -331,11 +382,11 @@ def _terminated_report_view(
 # VIEWS
 # ──────────────────────────────────────────────────────────────────────────────
 
-class LiveOpAssignmentView(discord.ui.View):
+class LiveOpAssignmentView(discord.ui.LayoutView):
     """
     Ephemeral setup view shown to the IC.
     Provides a role dropdown → member dropdown flow, building assignments
-    live with an updating embed, then a Finalize button to post the briefing.
+    live with an updating Components v2 panel, then a Finalize button to post the briefing.
     """
 
     ROLE_LIST = [
@@ -355,32 +406,50 @@ class LiveOpAssignmentView(discord.ui.View):
         self.warrant_id  = warrant_id
         self.members     = members
         self.assignments: dict[str, discord.Member] = {}
+        self.pending_role: str | None = None
         self._refresh()
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
     def _refresh(self):
         self.clear_items()
+        container = _setup_container(
+            self.ic,
+            self.postal,
+            self.assignments,
+            self.members,
+            self.start_time,
+            self.target_gang,
+            self.warrant_id,
+        )
+
+        if self.pending_role:
+            member_select = self._member_select(self.pending_role)
+            member_select.callback = self._member_picked
+            container.add_item(discord.ui.ActionRow(member_select))
+            self.add_item(container)
+            return
+
         unassigned = [r for r in self.ROLE_LIST if r not in self.assignments]
+        role_options = [discord.SelectOption(label=r, value=r) for r in unassigned][:25]
 
         role_select = discord.ui.Select(
             placeholder="🎯  Select a role to assign…" if unassigned else "✅  All roles filled",
-            options=[discord.SelectOption(label=r, value=r) for r in unassigned][:25],
+            options=role_options or [discord.SelectOption(label="All roles assigned", value="complete")],
             disabled=not unassigned,
-            row=0,
         )
         role_select.callback = self._role_picked
-        self.add_item(role_select)
+        container.add_item(discord.ui.ActionRow(role_select))
 
         finalize = discord.ui.Button(
             label="Finalize & Notify Operatives",
             style=discord.ButtonStyle.primary,
             emoji="📡",
             disabled=not self.assignments,
-            row=1,
         )
         finalize.callback = self._finalize
-        self.add_item(finalize)
+        container.add_item(discord.ui.ActionRow(finalize))
+        self.add_item(container)
 
     def _member_select(self, role: str) -> discord.ui.Select:
         return discord.ui.Select(
@@ -389,31 +458,27 @@ class LiveOpAssignmentView(discord.ui.View):
                 discord.SelectOption(label=m.display_name, value=str(m.id))
                 for m in self.members
             ][:25],
-            row=0,
         )
 
     # ── Callbacks ─────────────────────────────────────────────────────────────
 
     async def _role_picked(self, interaction: discord.Interaction):
         role = interaction.data["values"][0]
+        self.pending_role = role
+        self._refresh()
+        await interaction.response.edit_message(content=None, embed=None, view=self)
 
-        member_view = discord.ui.View(timeout=120)
-        sel = self._member_select(role)
-
-        async def _member_picked(inter: discord.Interaction):
-            uid = int(inter.data["values"][0])
-            member = discord.utils.get(self.members, id=uid)
-            self.assignments[role] = member
-            self._refresh()
-            embed = _embed_setup(self.ic, self.postal, self.assignments, self.members, self.start_time, self.target_gang, self.warrant_id)
-            await inter.response.edit_message(embed=embed, view=self)
-
-        sel.callback = _member_picked
-        member_view.add_item(sel)
-
-        # Keep the embed visible while picking
-        embed = _embed_setup(self.ic, self.postal, self.assignments, self.members, self.start_time, self.target_gang, self.warrant_id)
-        await interaction.response.edit_message(embed=embed, view=member_view)
+    async def _member_picked(self, interaction: discord.Interaction):
+        if not self.pending_role:
+            return await interaction.response.send_message(
+                "❌ No role is currently selected.", ephemeral=True
+            )
+        uid = int(interaction.data["values"][0])
+        member = discord.utils.get(self.members, id=uid)
+        self.assignments[self.pending_role] = member
+        self.pending_role = None
+        self._refresh()
+        await interaction.response.edit_message(content=None, embed=None, view=self)
 
     async def _finalize(self, interaction: discord.Interaction):
         if not self.assignments:
@@ -516,11 +581,13 @@ class LiveOpAssignmentView(discord.ui.View):
                 discrete_serial = f"METOPERATION-{op_id}-{m_hash}"
                 role_lines = "\n".join(f"> `{role}`" for role in roles)
                 role_header = "Assigned Roles" if len(roles) > 1 else "Assigned Role"
+                
+                header_text = f"## {METRO_EMOJI} | CONFIDENTIAL BRIEFING: {self.postal}"
 
                 try:
                     dm_embed = discord.Embed(
                         description=(
-                            f"## {METRO_EMOJI} | CONFIDENTIAL BRIEFING: {self.postal}\n"
+                            f"{_weave_watermark(header_text, _encode_watermark(op_id))}\n"
                             f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
                             f"You have been assigned to a live operation. Your briefing is available here\n"
                             f"{f'**Warrant:** `{self.warrant_id}`' if self.warrant_id else ''}\n"

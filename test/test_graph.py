@@ -51,6 +51,41 @@ class TestGraphLoading:
         ]
         assert len(robable) > 0, "No robable nodes found — LLM routing targets are broken"
 
+    def test_curved_edges_load_geometry_and_cost(self, tmp_path):
+        """Curved map edges must carry sampled geometry and curve-length cost."""
+        map_path = tmp_path / "curved_map.json"
+        map_path.write_text(
+            """
+            {
+              "system_config": {},
+              "nodes": {
+                "a": {"x": 0, "y": 0, "robable": false},
+                "b": {"x": 100, "y": 0, "robable": true}
+              },
+              "edges": [
+                {
+                  "source": "a",
+                  "target": "b",
+                  "road": "Curve Road",
+                  "type": "local",
+                  "bidirectional": true,
+                  "connectionstyle": "arc3,rad=0.5"
+                }
+              ]
+            }
+            """
+        )
+
+        curved_graph = ERLCGraph(str(map_path))
+        edge = curved_graph.graph.get_edge_data("a", "b")
+        reverse = curved_graph.graph.get_edge_data("b", "a")
+
+        assert edge["connectionstyle"] == "arc3,rad=0.5"
+        assert reverse["connectionstyle"] == "arc3,rad=-0.5"
+        assert len(edge["geometry"]) > 2
+        assert edge["base_cost"] > 100
+        assert reverse["geometry"] == list(reversed(edge["geometry"]))
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # RESOLUTION

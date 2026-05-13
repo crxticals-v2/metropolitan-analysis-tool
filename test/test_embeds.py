@@ -19,11 +19,40 @@ from test.conftest import (
     make_member,
     make_role,
 )
+from simon import WATERMARK_CHARS, _encode_watermark, _weave_watermark
+
+
+def _strip_watermark(text: str) -> str:
+    return text.translate({ord(ch): None for ch in WATERMARK_CHARS})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OPERATIONS COG – EMBED CONSTRUCTION
 # ─────────────────────────────────────────────────────────────────────────────
+
+class TestSimonSensitiveSerialization:
+    def test_watermark_marks_word_ends_only(self):
+        source = (
+            "Alpha bravo's N-205, then AI-generated analysis predicts a westbound "
+            "move toward jewelry."
+        )
+
+        marked = _weave_watermark(source, _encode_watermark(111))
+
+        assert _strip_watermark(marked) == source
+        assert any(ch in marked for ch in WATERMARK_CHARS)
+        for idx, char in enumerate(marked):
+            if char in WATERMARK_CHARS:
+                assert idx > 0
+                assert marked[idx - 1].isalnum()
+
+    def test_short_text_is_not_forced_to_carry_watermark(self):
+        source = "N/A"
+
+        marked = _weave_watermark(source, _encode_watermark(111))
+
+        assert marked == source
+
 
 class TestOperationsEmbeds:
     """

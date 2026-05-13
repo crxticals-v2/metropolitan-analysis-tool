@@ -74,16 +74,30 @@ def _get_cropped_and_resized_map(base_image: Image.Image, points: List[tuple[flo
     # Calculate crop box coordinates
     img_w, img_h = base_image.size
     
+    # Ensure the crop box does not exceed image dimensions while maintaining ratio
+    if target_crop_width > img_w:
+        target_crop_width = img_w
+        target_crop_height = target_crop_width / target_aspect_ratio
+    if target_crop_height > img_h:
+        target_crop_height = img_h
+        target_crop_width = target_crop_height * target_aspect_ratio
+
     left = center_x - target_crop_width / 2
     top = center_y - target_crop_height / 2
-    right = center_x + target_crop_width / 2
-    bottom = center_y + target_crop_height / 2
 
-    # Clamp crop box to image boundaries
-    left = max(0, left)
-    top = max(0, top)
-    right = min(img_w, right)
-    bottom = min(img_h, bottom)
+    # Shift the box rather than clamping individual sides to preserve aspect ratio
+    if left < 0:
+        left = 0
+    elif left + target_crop_width > img_w:
+        left = img_w - target_crop_width
+
+    if top < 0:
+        top = 0
+    elif top + target_crop_height > img_h:
+        top = img_h - target_crop_height
+
+    right = left + target_crop_width
+    bottom = top + target_crop_height
 
     crop_box = (int(left), int(top), int(right), int(bottom))
     
@@ -118,6 +132,10 @@ def draw_map_path(erlc_graph, paths_to_draw: List[List[str]]) -> io.BytesIO:
             node_data = erlc_graph.graph.nodes.get(str(node_id)) or erlc_graph.nodes_data.get(str(node_id))
             if node_data and "x" in node_data and "y" in node_data:
                 all_path_coords.append((node_data["x"], node_data["y"]))
+        for i in range(len(path_nodes) - 1):
+            edge_data = erlc_graph.graph.get_edge_data(path_nodes[i], path_nodes[i + 1])
+            if edge_data and edge_data.get("geometry"):
+                all_path_coords.extend(edge_data["geometry"])
 
     # primary = solid red, others = semi-transparent orange
     colors = [
@@ -235,6 +253,7 @@ def draw_heatmap_overlay(erlc_graph, heatmap_data: Dict[str, int]) -> io.BytesIO
     if max_count <= 0:
         buffer = io.BytesIO()
         _get_cropped_and_resized_map(img, []).save(buffer, format="PNG") # Pass empty list to get resized full map
+        buffer.seek(0)
         return buffer
 
     # Cool the base map down slightly so the heat layer reads like a weather chart.
@@ -277,6 +296,7 @@ def draw_heatmap_overlay(erlc_graph, heatmap_data: Dict[str, int]) -> io.BytesIO
     combined_image = Image.alpha_composite(img, overlay)
 
     # Now, crop and resize the combined image
+    all_heatmap_coords = [(pt[0]["x"], pt[0]["y"]) for pt in valid_points]
     final_image = _get_cropped_and_resized_map(combined_image, all_heatmap_coords)
 
     # Draw legend on the final cropped and resized image

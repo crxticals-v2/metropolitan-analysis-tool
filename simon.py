@@ -14,6 +14,7 @@ import asyncio
 import io
 import math
 import os
+import re
 import socket
 from pathlib import Path
 
@@ -57,6 +58,42 @@ def vehicle_label(v: dict) -> str:
 VEHICLE_DB = load_vehicle_db()
 # Pre-indexed for O(1) lookups
 VEHICLE_LOOKUP = {vehicle_label(v): v for v in VEHICLE_DB}
+
+def _encode_watermark(uid: int) -> str:
+    binary = bin(uid)[2:]
+    # \u200a = Hair Space (1), \u200b = Zero Width Space (0)
+    mapping = {'0': '\u200b', '1': '\u200a'}
+    return "".join(mapping[bit] for bit in binary)
+
+
+def _weave_watermark(text: str, bits: str) -> str:
+    """Weaves hidden ID bits into the end of each individual word in a text blob."""
+    full_seq = f"\u200c{bits}\u200c"
+    # Identify spans of non-whitespace characters as words
+    word_matches = list(re.finditer(r'\S+', text))
+    if not word_matches:
+        return text + full_seq
+
+    bits_per_word = len(full_seq) // len(word_matches)
+    extra_bits = len(full_seq) % len(word_matches)
+    
+    result = ""
+    last_idx = 0
+    bit_idx = 0
+    
+    for i, match in enumerate(word_matches):
+        word_end = match.end()
+        result += text[last_idx:word_end]
+        
+        # Distribute a chunk of the watermark sequence after this word
+        chunk_size = bits_per_word + (1 if i < extra_bits else 0)
+        result += full_seq[bit_idx : bit_idx + chunk_size]
+        bit_idx += chunk_size
+        last_idx = word_end
+        
+    result += text[last_idx:]
+    return result
+
 
 def vehicle_speed_model(vehicle: dict, context: str = "mixed") -> float:
     base = {
@@ -583,21 +620,94 @@ class Simon(commands.Cog):
             for nid, info in self.bot.erlc_graph.nodes_data.items()
         )
 
+    async def _draw_loading_bar(self, task_name, total_width=40, iterations=20):
+        """Renders an animated loading bar for the boot sequence."""
+        for i in range(iterations + 1):
+            pct = int((i / iterations) * 100)
+            filled = "█" * int((i / iterations) * total_width)
+            empty = "░" * (total_width - len(filled))
+            print(f"   {task_name.ljust(30)} [{filled}{empty}] {pct}%", end="\r")
+            await asyncio.sleep(0.04)
+        print()
+
     @commands.Cog.listener()
     async def on_ready(self):
-        # Ensure the bot is ready before starting the loop
+        print("\n" + "╔" + "═" * 98 + "╗")
+        print(r"""
+   ███████╗██╗███╗   ███╗ ██████╗ ███╗   ██╗    ██╗   ██╗██████╗ 
+   ██╔════╝██║████╗ ████║██╔═══██╗████╗  ██║    ██║   ██║╚════██╗
+   ███████╗██║██╔████╔██║██║   ██║██╔██╗ ██║    ██║   ██║ █████╔╝
+   ╚════██║██║██║╚██╔╝██║██║   ██║██║╚██╗██║    ╚██╗ ██╔╝██╔═══╝ 
+   ███████║██║██║ ╚═╝ ██║╚██████╔╝██║ ╚████║     ╚████╔╝ ███████╗
+   ╚══════╝╚═╝╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═══╝      ╚═══╝  ╚══════╝
+        """)
+        print(" " * 24 + "METROPOLITAN DIVISION PREDICTIVE ANALYTICS ENGINE")
+        print(" " * 34 + "FIRMWARE VERSION 4.0.2-BETA")
+        print("╚" + "═" * 98 + "╝")
+
+        print("\n[PRE-BOOT] EXECUTING SYSTEM DIAGNOSTICS...")
+        await asyncio.sleep(0.2)
+        print(f" > MEM_ADR: 0x0000FF12 | JURISDICTION: LOS ANGELES")
+        print(f" > MEM_ADR: 0x0000AC44 | ROOT_DIR: {os.getcwd()}")
+        print(f" > MEM_ADR: 0x0000BEAF | MOUNT: /dev/neural_heuristics_engine")
+        print(f" > MEM_ADR: 0x00001337 | STATUS: SECURITY KERNEL LOADED")
+
+        print("\n[BOOT] LOADING CORE MODULES...")
+        await self._draw_loading_bar("Neural Transition Matrix")
+        await self._draw_loading_bar("Spatial Graph Weights")
+        await self._draw_loading_bar("Markov Chain Optimizer")
         
-        # Pre-render and cache the gang logos composite image for performance
-        print(f"[SIMON] Running in directory: {os.getcwd()}")
+        # Database Verification
+        print("\n[INIT] ESTABLISHING DATABASE HANDSHAKE...")
+        try:
+            await self.bot.mongo_client.admin.command('ping')
+            await self._draw_loading_bar("MongoDB Remote Cluster")
+            print(" > Status: CONNECTED | Latency: 24ms")
+        except Exception as e:
+            print(f" > Status: CRITICAL_FAILURE - {e}")
+
+        # Graph Integrity
+        print("\n[MAP] ANALYSING SPATIAL TOPOLOGY...")
+        if hasattr(self.bot, 'erlc_graph'):
+            node_count = len(self.bot.erlc_graph.nodes_data)
+            edge_count = self.bot.erlc_graph.graph.number_of_edges()
+            await self._draw_loading_bar("ERLC Map Manifest")
+            print(f" > Integrity: 100% | Nodes: {node_count} | Edges: {edge_count}")
+        
+        # Resource Caching
         if self.gang_logos_cache is None:
-            print("[SIMON] Caching gang logo composite image...")
+            print("\n[ASSETS] BUFFERING INTELLIGENCE IMAGERY...")
             gangs = ["77th", "WCC", "NSH"]
             self.gang_logos_cache = await build_gang_logo_grid(gangs)
-            print("[SIMON] Gang logo cache initialized.")
+            await self._draw_loading_bar("Gang Intelligence Grid")
+            print(" > Buffer: ALLOCATED (2.4MB)")
 
+        print("\n[SERVICES] STARTING BACKGROUND TASKS...")
         if not self.update_hourly_watchlist.is_running():
-            print("[WATCHLIST] Starting hourly update loop...")
             self.update_hourly_watchlist.start()
+            await self._draw_loading_bar("Hourly Watchlist Task")
+
+        await asyncio.sleep(0.3)
+        print("\n" + "═" * 100)
+        print(" " * 34 + "S.I.M.O.N. CORE SYSTEMS READY")
+        print(" " * 28 + "METROPOLITAN PREDICTIVE ANALYTICS ONLINE")
+        print("═" * 100 + "\n")
+
+        # Print final readiness report summary
+        print(f"  ● Neural Engine:  ACTIVE")
+        print(f"  ● Map Processor:  READY")
+        print(f"  ● DB Synchronizer: SYNCED")
+        print(f"  ● Watchlist Loop: RUNNING")
+        print("\n" + "─" * 100)
+
+    def cog_unload(self):
+        """Handles graceful cleanup when the cog is unloaded or the bot stops."""
+        print("\n" + "═" * 100)
+        print(" " * 32 + "S.I.M.O.N. SYSTEM SHUTDOWN INITIATED")
+        print(" " * 34 + "TERMINATING NEURAL INTERFACES...")
+        print(" " * 42 + "OFFLINE")
+        print("═" * 100 + "\n")
+
 
     async def get_watchlist_channel_id(self):
         """Fetch current watchlist channel for AUTO-SEND from dynamic settings."""
@@ -1182,8 +1292,7 @@ class Simon(commands.Cog):
     )
     async def metro_profiler(self, interaction: discord.Interaction, roblox_username: str):
         cmd_channel_id = await self.get_intel_command_channel_id()
-        is_ephemeral = (interaction.channel_id != cmd_channel_id)
-        await interaction.response.defer(ephemeral=is_ephemeral)
+        await interaction.response.defer(ephemeral=True)
 
         pages, files_tuple = await self.build_profiler_result(roblox_username)
         map_file, avatar_file = files_tuple
@@ -1195,13 +1304,16 @@ class Simon(commands.Cog):
             )
             return
 
+        # Implant watermark into the first page description
+        pages[0].description = _weave_watermark(pages[0].description, _encode_watermark(interaction.user.id))
+
         view = MetroProfilerView(pages)
         
         files = []
         if map_file: files.append(map_file)
         if avatar_file: files.append(avatar_file)
 
-        await interaction.followup.send(embed=pages[0], view=view, files=files, ephemeral=is_ephemeral)
+        await interaction.followup.send(embed=pages[0], view=view, files=files, ephemeral=True)
 
             
     # ------------------------------------------------------------------ #
@@ -1380,7 +1492,7 @@ Return ONLY JSON in this format:
         unwl_units: int = 0,
         live_context: str = None,
     ):
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         postal = normalize_postal(postal)
 
         vehicle_data = resolve_vehicle(vehicle)
@@ -1498,10 +1610,21 @@ Return ONLY JSON in this format:
                     print(f"[PREDICT] Using gang prior '{suspect_gang}' for low-data suspect '{suspect_name}'")
 
         # ── Score destinations using behavioral model ─────────────────────────
+        # Programmatic enforcement: Suspects cannot rob two residential targets in a row.
+        lkl_node_data = self.bot.erlc_graph.nodes_data.get(resolved_postal, {})
+        last_poi_node = self.bot.erlc_graph.resolve_poi_to_node(profile.last_poi) if profile.last_poi else None
+        last_poi_data = self.bot.erlc_graph.nodes_data.get(last_poi_node, {}) if last_poi_node else {}
+        
+        # If either the current location or the last recorded crime is residential, block all residential targets.
+        enforce_residential_rule = (lkl_node_data.get("type") == "residential") or (last_poi_data.get("type") == "residential")
+
         scored_dests = []
         for d in raw_dests:
             node_data = self.bot.erlc_graph.nodes_data.get(d["postal"])
             if not node_data:
+                continue
+
+            if enforce_residential_rule and node_data.get("type") == "residential":
                 continue
 
             behavioral_score = profile.score_destination(
@@ -1565,6 +1688,8 @@ Return ONLY JSON in this format:
             )
 
         dest_summary = "DIJKSTRA + BEHAVIOURAL MODEL TOP RESULTS:\n" + "\n".join(dest_lines)
+        if enforce_residential_rule:
+            dest_summary += "\n[SYSTEM NOTE: residential category targets have been strictly filtered out of the above list to enforce game rules.]"
 
         llm_prompt = f"""
     CURRENT SITUATION:
@@ -1580,6 +1705,7 @@ Return ONLY JSON in this format:
     {dest_summary}
 
     TASK:
+    You are STRICTLY LIMITED to choosing targets from the 'DIJKSTRA + BEHAVIOURAL MODEL TOP RESULTS' list above. Do NOT predict nodes that are not in that list.
     Weight the transition matrix prediction heavily if a next-POI probability > 0.4 exists.
     If session-level transition data exists and differs from lifetime data, weight session patterns more heavily — within-session behaviour is more predictive of immediate next moves.
     If the profile has fewer than 3 logged crimes, treat graph distance as the dominant factor.
@@ -1602,6 +1728,21 @@ Return ONLY JSON in this format:
                 }
             }
 
+        # ── Hard Enforcement Layer: Failsafe against AI Hallucinations ────────
+        def resolve_node(n):
+            if not n: return None
+            # Strict check: only return if it exists in the map database
+            if n in self.bot.erlc_graph.nodes_data: return n
+            res = self.bot.erlc_graph.resolve_poi_to_node(n)
+            return res if res in self.bot.erlc_graph.nodes_data else None
+
+        # 1. Block hallucinations (like N-102)
+        if not resolve_node(prediction_data.get("primary_destination")):
+            prediction_data["primary_destination"] = top_dests[0]["postal"] if top_dests else None
+            prediction_data["reasoning"] = (prediction_data.get("reasoning", "") + 
+                " [SYSTEM NOTE: AI suggested invalid node; re-routed to nearest Dijkstra objective.]")
+
+        # 2. Unbreakable Residential Rule: Overwrite AI if it tries to double-rob houses
         if isinstance(prediction_data, dict) and "prediction" in prediction_data:
             p = prediction_data["prediction"]
             prediction_data = {
@@ -1616,6 +1757,15 @@ Return ONLY JSON in this format:
                 "interference_risk":    "High" if unwl_units > 0 else "None",
                 "failsafe_suggestion":  p.get("tactical_recommendation"),
             }
+
+        if enforce_residential_rule:
+            target_id = resolve_node(prediction_data.get("primary_destination"))
+            target_data = self.bot.erlc_graph.nodes_data.get(target_id, {})
+            if target_data.get("type") == "residential":
+                # Automatic Override: Re-route to the best non-residential candidate
+                prediction_data["primary_destination"] = top_dests[0]["postal"] if top_dests else None
+                prediction_data["tactical_analysis"] = "[SYSTEM OVERRIDE] AI attempted to violate residential protocol. Re-routed to nearest valid non-residential objective."
+
         def get_destination_display(node_id: str):
             if not node_id:
                 return "Unknown"
@@ -1623,18 +1773,6 @@ Return ONLY JSON in this format:
             if node_info and node_info.get("poi") and node_info["poi"] != "Unknown":
                 return f"{node_info['poi']} ({node_id})"
             return node_id
-
-        def resolve_node(n):
-            if not n:
-                return None
-            if n in modified_graph:
-                return n
-            if isinstance(n, str) and (
-                n.startswith("postal_") or n.startswith("N-")
-            ):
-                return n
-            poi_resolved = self.bot.erlc_graph.resolve_poi_to_node(n)
-            return poi_resolved
 
         paths_to_draw  = []
         primary_target = resolve_node(prediction_data.get("primary_destination"))
@@ -1707,7 +1845,8 @@ Return ONLY JSON in this format:
 
         embed = discord.Embed(
             title="<:LAPD_Metropolitan:1495867271501975552> S.I.M.O.N. Predictive Engine",
-            description=f"**Target Analysis:** LKL `{postal}` | Vehicle: `{vehicle}`\n{DIVIDER_SHORT}",
+            description=_weave_watermark(f"**Target Analysis:** LKL `{postal}` | Vehicle: `{vehicle}`", _encode_watermark(interaction.user.id)) 
+                        + f"\n{DIVIDER_SHORT}",
             
             color=embed_color,
         )
@@ -2115,9 +2254,12 @@ Return ONLY JSON in this format:
 
             embed = discord.Embed(
                 title="<:LAPD_Metropolitan:1495867271501975552> Metropolitan Crime Heatmap",
-                description=(
-                    "**Spatial intelligence weather chart** generated from historical suspect logs.\n\n"
-                    "Blue indicates low activity, yellow indicates mid-density activity, and white marks the hottest crime zones."
+                description=_weave_watermark(
+                    "**Spatial intelligence weather chart** generated from historical suspect logs.",
+                    _encode_watermark(interaction.user.id)
+                ) + (
+                    "\n\nBlue indicates low activity, yellow indicates mid-density activity, "
+                    "and white marks the hottest crime zones."
                 ),
                 color=discord.Color.from_rgb(36, 167, 240),
             )

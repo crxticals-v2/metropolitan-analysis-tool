@@ -21,8 +21,8 @@
       "y": 1986
     },
     "ind_main": {
-      "x": 916,
-      "y": 1986
+      "x": 914,
+      "y": 1988
     },
     "ind_park": {
       "x": 1071,
@@ -31,10 +31,6 @@
     "ind_riverside": {
       "x": 1243,
       "y": 1986
-    },
-    "ind_cross": {
-      "x": 1556,
-      "y": 2000
     },
     "ind_cline": {
       "x": 1827,
@@ -53,8 +49,8 @@
       "y": 2078
     },
     "orch_main": {
-      "x": 918,
-      "y": 2156
+      "x": 930,
+      "y": 2155
     },
     "orch_park": {
       "x": 1078,
@@ -69,8 +65,8 @@
       "y": 2159
     },
     "orch_cross": {
-      "x": 1582,
-      "y": 2152
+      "x": 1574,
+      "y": 2159
     },
     "orch_cline": {
       "x": 1728,
@@ -136,10 +132,6 @@
       "x": 612,
       "y": 2521
     },
-    "south_sandstone": {
-      "x": 669,
-      "y": 2590
-    },
     "south_durham": {
       "x": 799,
       "y": 2529
@@ -149,12 +141,16 @@
       "y": 2534
     },
     "south_park": {
-      "x": 1074,
-      "y": 2530
+      "x": 1078,
+      "y": 2537
     },
     "georgia_industrial": {
       "x": 1421,
-      "y": 2275
+      "y": 2275,
+      "label": "N-303",
+      "poi": null,
+      "type": null,
+      "robable": false
     },
     "georgia_cross": {
       "x": 1572,
@@ -162,22 +158,34 @@
     },
     "georgia_cline": {
       "x": 1730,
-      "y": 2276
+      "y": 2276,
+      "label": "N-310",
+      "poi": null,
+      "type": null,
+      "robable": false
     },
-    "madison_main": {
+    "N-300": {
       "x": 1441,
-      "y": 2529
+      "y": 2529,
+      "label": "N-300",
+      "poi": null,
+      "type": null,
+      "robable": false
     },
     "madison_cross": {
       "x": 1696,
-      "y": 2521
+      "y": 2530,
+      "label": "N-3010",
+      "poi": null,
+      "type": null,
+      "robable": false
     },
     "col_lower": {
       "x": 1421,
       "y": 1857
     },
     "col_complex": {
-      "x": 1816,
+      "x": 1828,
       "y": 2156
     },
     "riv_upper": {
@@ -197,16 +205,16 @@
       "y": 645
     },
     "hwy55_n1": {
-      "x": 2137,
-      "y": 816
+      "x": 2126,
+      "y": 793
     },
     "hwy55_n2": {
       "x": 2157,
       "y": 1117
     },
     "hwy55_mid": {
-      "x": 2154,
-      "y": 1508
+      "x": 2153,
+      "y": 1544
     },
     "hwy55_s1": {
       "x": 2154,
@@ -268,10 +276,6 @@
       "x": 516,
       "y": 1215
     },
-    "valley_s": {
-      "x": 330,
-      "y": 2300
-    },
     "fairfax_outer": {
       "x": 480,
       "y": 2200
@@ -286,8 +290,8 @@
     },
     "N-201": {
       "label": "INT_DURHAM_FREEDOM",
-      "x": 655,
-      "y": 2496,
+      "x": 660,
+      "y": 2520,
       "poi": "DMV",
       "robable": false,
       "type": "government"
@@ -334,8 +338,8 @@
     },
     "N-208": {
       "label": "INT_PARK_GRAND",
-      "x": 1077,
-      "y": 2274,
+      "x": 1074,
+      "y": 2331,
       "poi": "News Station",
       "robable": false,
       "type": "commercial"
@@ -358,24 +362,24 @@
     },
     "N-212": {
       "label": "INT_COURTHOUSE",
-      "x": 813,
-      "y": 2178,
+      "x": 858,
+      "y": 2218,
       "poi": "Courthouse",
       "robable": false,
       "type": "government"
     },
     "N-213": {
       "label": "INT_MAIN_ORCHARD",
-      "x": 909,
-      "y": 2150,
+      "x": 917,
+      "y": 2156,
       "poi": "RC Parking Complex",
       "robable": false,
       "type": "commercial"
     },
     "N-216": {
       "label": "INT_SANDSTONE_MAIN",
-      "x": 678,
-      "y": 1994,
+      "x": 673,
+      "y": 2005,
       "poi": "Park",
       "robable": false,
       "type": "recreational"
@@ -390,8 +394,8 @@
     },
     "N-218": {
       "label": "INT_PARK_ORCHARD",
-      "x": 1076,
-      "y": 2141,
+      "x": 1130,
+      "y": 2211,
       "poi": "Park",
       "robable": false,
       "type": "recreational"
@@ -414,24 +418,16 @@
     },
     "N-222": {
       "label": "INT_MAIN_SOUTH",
-      "x": 916,
-      "y": 2649,
-      "poi": "La Mesa",
-      "robable": true,
-      "type": "commercial"
-    },
-    "N-223": {
-      "label": "INT_PARK_SOUTH_FAR",
-      "x": 1045,
-      "y": 2634,
-      "poi": "Dead End Road",
+      "x": 917,
+      "y": 2644,
+      "poi": null,
       "robable": false,
-      "type": "utility"
+      "type": null
     },
     "N-301": {
       "label": "INT_CROSS_FREE",
-      "x": 1574,
-      "y": 2527,
+      "x": 1573,
+      "y": 2535,
       "poi": "Warehouse",
       "robable": false,
       "type": "industrial"
@@ -446,16 +442,16 @@
     },
     "N-304": {
       "label": "INT_CROSS_GEORGIA",
-      "x": 1607,
-      "y": 2214,
+      "x": 1627,
+      "y": 2305,
       "poi": "Outdoor Parking",
       "robable": false,
       "type": "utility"
     },
     "N-305": {
       "label": "INT_POLICE_STATION",
-      "x": 1471,
-      "y": 2067,
+      "x": 1467,
+      "y": 2034,
       "poi": "Police Station",
       "robable": false,
       "type": "government"
@@ -470,15 +466,15 @@
     },
     "N-307": {
       "label": "INT_CROSS_ORCHARD",
-      "x": 1579,
-      "y": 2170,
+      "x": 1606,
+      "y": 2204,
       "poi": "Industrial Supply",
       "robable": false,
       "type": "industrial"
     },
     "N-309": {
       "label": "INT_IND_RIVERSIDE_IND",
-      "x": 1426,
+      "x": 1417,
       "y": 1984,
       "poi": "Shops",
       "robable": false,
@@ -502,8 +498,8 @@
     },
     "N-314": {
       "label": "INT_SOUTH_FAR",
-      "x": 799,
-      "y": 2687,
+      "x": 802,
+      "y": 2652,
       "poi": "Grasslands",
       "robable": false,
       "type": "utility"
@@ -534,8 +530,8 @@
     },
     "N-404": {
       "label": "INT_HOSPITAL",
-      "x": 1050,
-      "y": 1910,
+      "x": 1053,
+      "y": 1926,
       "poi": "Hospital",
       "robable": false,
       "type": "government"
@@ -734,8 +730,8 @@
     },
     "N-905": {
       "label": "INT_COUNTY_UPPER_E",
-      "x": 1960,
-      "y": 863,
+      "x": 1968,
+      "y": 861,
       "poi": "Lakeview Housing",
       "robable": true,
       "type": "utility"
@@ -758,8 +754,8 @@
     },
     "N-908": {
       "label": "INT_LASD_STATION",
-      "x": 1911,
-      "y": 1166,
+      "x": 1912,
+      "y": 1110,
       "poi": "LASD",
       "robable": false,
       "type": "government"
@@ -782,11 +778,11 @@
     },
     "N-1105": {
       "label": "INT_HOUSING_COUNTY",
-      "x": 2593,
-      "y": 887,
+      "x": 2575,
+      "y": 889,
       "poi": "Basic Housing",
       "robable": true,
-      "type": "Housing"
+      "type": "residential"
     },
     "N-1106": {
       "label": "INT_TERRACE_E",
@@ -812,26 +808,18 @@
       "robable": false,
       "type": "commercial"
     },
-    "N-1109": {
-      "label": "INT_FAR_E_SE",
-      "x": 2557,
-      "y": 1214,
-      "poi": "Far East County SE",
-      "robable": false,
-      "type": "utility"
-    },
     "N-1110": {
       "label": "INT_GAS_STATION_COUNTY",
-      "x": 2300,
-      "y": 1312,
+      "x": 2365,
+      "y": 1273,
       "poi": "Gas Station (County)",
       "robable": true,
       "type": "commercial"
     },
     "N-1111": {
       "label": "INT_OAK_VALLEY_E",
-      "x": 2453,
-      "y": 1242,
+      "x": 2451,
+      "y": 1221,
       "poi": "Oak Valley Far East",
       "robable": false,
       "type": "utility"
@@ -923,8 +911,8 @@
       "robable": false
     },
     "N-406": {
-      "x": 1027,
-      "y": 1620,
+      "x": 1015,
+      "y": 1630,
       "label": "Fairfax Road",
       "type": "commercial",
       "robable": false
@@ -937,22 +925,22 @@
       "robable": false
     },
     "N-910": {
-      "x": 2103,
+      "x": 2097,
       "y": 1091,
       "label": "HW55 North East On-Ramp",
       "type": "commercial",
       "robable": false
     },
     "N-11131": {
-      "x": 2217,
+      "x": 2213,
       "y": 1094,
       "label": "HW55 North East Off-Ramp",
       "type": "commercial",
       "robable": false
     },
     "N-7071": {
-      "x": 1081,
-      "y": 1222,
+      "x": 1079,
+      "y": 1215,
       "label": "frank_upper",
       "poi": "Housing Suburbs",
       "robable": false
@@ -962,15 +950,16 @@
       "y": 1205,
       "label": "INT_JOYNER_FRANKLIN",
       "poi": "Housing Suburbs",
-      "type": "Housing",
-      "robable": true
+      "type": "residential",
+      "robable": false
     },
     "N-70021": {
       "x": 945,
       "y": 1393,
       "poi": "Housing Suburbs",
       "type": "Housing Suburbs",
-      "robable": true
+      "robable": false,
+      "label": null
     },
     "N-70091": {
       "x": 700,
@@ -978,15 +967,15 @@
       "label": "PINEVIEW",
       "poi": "Housing Suburbs",
       "type": "Housing",
-      "robable": true
+      "robable": false
     },
     "N-70092": {
-      "x": 927,
-      "y": 1072,
+      "x": 926,
+      "y": 1073,
       "label": "PINEVIEW CIRCLE",
       "poi": "Housing Suburbs",
       "type": "Housing",
-      "robable": true
+      "robable": false
     },
     "N-12011": {
       "x": 2344,
@@ -1025,8 +1014,8 @@
       "robable": false
     },
     "N-503": {
-      "x": 1473,
-      "y": 1739,
+      "x": 1494,
+      "y": 1737,
       "label": "Gibson Lane",
       "type": "Utility",
       "robable": false
@@ -1068,11 +1057,11 @@
       "robable": false
     },
     "N-504": {
-      "x": 1648,
-      "y": 1602,
+      "x": 1645,
+      "y": 1596,
       "label": "CDU_Vine",
       "type": "commercial",
-      "robable": true,
+      "robable": false,
       "poi": null
     },
     "N-506": {
@@ -1083,8 +1072,8 @@
       "robable": false
     },
     "N-5041": {
-      "x": 1692,
-      "y": 1737,
+      "x": 1687,
+      "y": 1732,
       "label": "INT_GIB_LEE",
       "type": "Utility",
       "robable": false
@@ -1098,8 +1087,8 @@
       "robable": false
     },
     "INT_TOOL_STORE": {
-      "x": 905,
-      "y": 1773,
+      "x": 884,
+      "y": 1741,
       "label": "Tool Store",
       "poi": "Tool Store",
       "type": "commercial",
@@ -1127,7 +1116,7 @@
       "label": "Academy Place",
       "poi": "Housing",
       "type": "residential",
-      "robable": true
+      "robable": false
     },
     "N-7001": {
       "x": 395,
@@ -1182,7 +1171,7 @@
       "y": 1249,
       "label": "Housing N-7054",
       "poi": "Housing N-7054",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7052": {
@@ -1190,7 +1179,7 @@
       "y": 1256,
       "label": "Housing N-7052",
       "poi": "Housing N-7052",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7053": {
@@ -1198,15 +1187,15 @@
       "y": 1247,
       "label": "Housing N-7053",
       "poi": "Housing N-7053",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7055": {
-      "x": 745,
-      "y": 1349,
+      "x": 735,
+      "y": 1352,
       "label": "Housing N-7055",
       "poi": "Housing N-7055",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7056": {
@@ -1214,7 +1203,7 @@
       "y": 1348,
       "label": "Housing N-7056",
       "poi": "Housing N-7056",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7061": {
@@ -1222,7 +1211,7 @@
       "y": 1259,
       "label": "Housing N-7061",
       "poi": "Housing N-7061",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7062": {
@@ -1230,7 +1219,7 @@
       "y": 1263,
       "label": "Housing N-7062",
       "poi": "Housing N-7062",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7063": {
@@ -1238,7 +1227,7 @@
       "y": 1348,
       "label": "Housing N-7063",
       "poi": "Housing N-7063",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7064": {
@@ -1246,7 +1235,7 @@
       "y": 1350,
       "label": "Housing N-7064",
       "poi": "Housing N-7064",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7091": {
@@ -1254,7 +1243,7 @@
       "y": 1105,
       "label": "Housing N-7091",
       "poi": "Housing N-7091",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7092": {
@@ -1262,7 +1251,7 @@
       "y": 1112,
       "label": "Housing N-7092",
       "poi": "Housing N-7092",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7093": {
@@ -1270,7 +1259,7 @@
       "y": 1113,
       "label": "Housing N-7093",
       "poi": "Housing N-7093",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7094": {
@@ -1278,7 +1267,7 @@
       "y": 1162,
       "label": "Housing N-7094",
       "poi": "Housing N-7094",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7095": {
@@ -1286,7 +1275,7 @@
       "y": 1168,
       "label": "Housing N-7095",
       "poi": "Housing N-7095",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7011": {
@@ -1294,7 +1283,7 @@
       "y": 1442,
       "label": "Housing N-7011",
       "poi": "Housing N-7011",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7012": {
@@ -1302,7 +1291,7 @@
       "y": 1439,
       "label": "Housing N-7012",
       "poi": "Housing N-7012",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7013": {
@@ -1310,7 +1299,7 @@
       "y": 1431,
       "label": "Housing N-7013",
       "poi": "Housing N-7013",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7021": {
@@ -1318,7 +1307,7 @@
       "y": 1436,
       "label": "Housing N-7021",
       "poi": "Housing N-7021",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7022": {
@@ -1326,7 +1315,7 @@
       "y": 1438,
       "label": "Housing N-7022",
       "poi": "Housing N-7022",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-7023": {
@@ -1334,7 +1323,7 @@
       "y": 1437,
       "label": "Housing N-7023",
       "poi": "Housing N-7023",
-      "type": "commercial",
+      "type": "residential",
       "robable": true
     },
     "N-4052": {
@@ -1680,6 +1669,39 @@
       "poi": "Mountain Housing N-9062",
       "type": "residential",
       "robable": true
+    },
+    "N-11112": {
+      "x": 2296,
+      "y": 1321,
+      "label": "N-11112",
+      "type": "commercial",
+      "robable": false
+    },
+    "N-4044": {
+      "x": 965,
+      "y": 1925,
+      "label": "Egress Hospital",
+      "type": "commercial",
+      "robable": false
+    },
+    "N-4100": {
+      "x": 917,
+      "y": 1623,
+      "robable": false
+    },
+    "N-412": {
+      "x": 571,
+      "y": 1575,
+      "label": "Outdoor Store",
+      "poi": "Outdoor Store",
+      "type": "commercial",
+      "robable": true
+    },
+    "N-219": {
+      "x": 1109,
+      "y": 2109,
+      "label": "N-219",
+      "robable": false
     }
   },
   "edges": [
@@ -2256,32 +2278,6 @@
       }
     },
     {
-      "source": "south_fairfax",
-      "target": "south_sandstone",
-      "road": "Southern Avenue",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "224",
-          "220"
-        ]
-      }
-    },
-    {
-      "source": "south_sandstone",
-      "target": "south_fairfax",
-      "road": "Southern Avenue",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "224",
-          "220"
-        ]
-      }
-    },
-    {
       "source": "south_durham",
       "target": "south_main",
       "road": "Southern Avenue",
@@ -2386,30 +2382,6 @@
       }
     },
     {
-      "source": "madison_main",
-      "target": "madison_cross",
-      "road": "Madison Court",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "313"
-        ]
-      }
-    },
-    {
-      "source": "madison_cross",
-      "target": "madison_main",
-      "road": "Madison Court",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "313"
-        ]
-      }
-    },
-    {
       "source": "N-401",
       "target": "orch_fairfax",
       "road": "Fairfax Road",
@@ -2482,18 +2454,6 @@
       }
     },
     {
-      "source": "N-205",
-      "target": "free_fairfax",
-      "road": "Fairfax Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "205"
-        ]
-      }
-    },
-    {
       "source": "free_fairfax",
       "target": "N-205",
       "road": "Fairfax Road",
@@ -2503,6 +2463,11 @@
         "postals": [
           "205"
         ]
+      },
+      "connectionstyle": "arc3,rad=-0.6",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.6
       }
     },
     {
@@ -2550,30 +2515,6 @@
       "metadata": {
         "postals": [
           "200"
-        ]
-      }
-    },
-    {
-      "source": "N-216",
-      "target": "orch_sandstone",
-      "road": "Sandstone Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "216"
-        ]
-      }
-    },
-    {
-      "source": "orch_sandstone",
-      "target": "N-216",
-      "road": "Sandstone Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "216"
         ]
       }
     },
@@ -2646,78 +2587,6 @@
       "metadata": {
         "postals": [
           "201"
-        ]
-      }
-    },
-    {
-      "source": "N-201",
-      "target": "south_sandstone",
-      "road": "Sandstone Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "201"
-        ]
-      }
-    },
-    {
-      "source": "south_sandstone",
-      "target": "N-201",
-      "road": "Sandstone Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "201"
-        ]
-      }
-    },
-    {
-      "source": "south_sandstone",
-      "target": "N-220",
-      "road": "Sandstone Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "220"
-        ]
-      }
-    },
-    {
-      "source": "N-220",
-      "target": "south_sandstone",
-      "road": "Sandstone Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "220"
-        ]
-      }
-    },
-    {
-      "source": "N-212",
-      "target": "grand_durham",
-      "road": "Durham Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "212"
-        ]
-      }
-    },
-    {
-      "source": "grand_durham",
-      "target": "N-212",
-      "road": "Durham Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "212"
         ]
       }
     },
@@ -2866,18 +2735,6 @@
       }
     },
     {
-      "source": "ind_main",
-      "target": "orch_main",
-      "road": "Main Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "219"
-        ]
-      }
-    },
-    {
       "source": "orch_main",
       "target": "ind_main",
       "road": "Main Street",
@@ -2887,6 +2744,11 @@
         "postals": [
           "219"
         ]
+      },
+      "connectionstyle": "arc3,rad=0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.15
       }
     },
     {
@@ -3058,30 +2920,6 @@
       }
     },
     {
-      "source": "ind_park",
-      "target": "N-218",
-      "road": "Park Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "218"
-        ]
-      }
-    },
-    {
-      "source": "N-218",
-      "target": "ind_park",
-      "road": "Park Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "218"
-        ]
-      }
-    },
-    {
       "source": "N-218",
       "target": "orch_park",
       "road": "Park Street",
@@ -3222,30 +3060,6 @@
       "metadata": {
         "postals": [
           "204"
-        ]
-      }
-    },
-    {
-      "source": "south_park",
-      "target": "N-223",
-      "road": "Park Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "223"
-        ]
-      }
-    },
-    {
-      "source": "N-223",
-      "target": "south_park",
-      "road": "Park Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "223"
         ]
       }
     },
@@ -3342,30 +3156,6 @@
       "metadata": {
         "postals": [
           "306"
-        ]
-      }
-    },
-    {
-      "source": "ind_cross",
-      "target": "N-309",
-      "road": "Cross Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "309"
-        ]
-      }
-    },
-    {
-      "source": "N-309",
-      "target": "ind_cross",
-      "road": "Cross Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "309"
         ]
       }
     },
@@ -3802,30 +3592,6 @@
       }
     },
     {
-      "source": "south_sandstone",
-      "target": "N-220",
-      "road": "Southern Avenue",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "220"
-        ]
-      }
-    },
-    {
-      "source": "N-220",
-      "target": "south_sandstone",
-      "road": "Southern Avenue",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "220"
-        ]
-      }
-    },
-    {
       "source": "south_durham",
       "target": "N-221",
       "road": "Southern Avenue",
@@ -3870,30 +3636,6 @@
       "metadata": {
         "postals": [
           "222"
-        ]
-      }
-    },
-    {
-      "source": "south_park",
-      "target": "N-223",
-      "road": "Southern Avenue",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "223"
-        ]
-      }
-    },
-    {
-      "source": "N-223",
-      "target": "south_park",
-      "road": "Southern Avenue",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "223"
         ]
       }
     },
@@ -4018,18 +3760,6 @@
       }
     },
     {
-      "source": "orch_fairfax",
-      "target": "N-402",
-      "road": "Fairfax Road",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "402"
-        ]
-      }
-    },
-    {
       "source": "N-402",
       "target": "orch_fairfax",
       "road": "Fairfax Road",
@@ -4039,6 +3769,11 @@
         "postals": [
           "402"
         ]
+      },
+      "connectionstyle": "arc3,rad=-0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.1
       }
     },
     {
@@ -4090,18 +3825,6 @@
       }
     },
     {
-      "source": "N-600",
-      "target": "N-601",
-      "road": "Colonial Drive",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "601"
-        ]
-      }
-    },
-    {
       "source": "N-601",
       "target": "N-600",
       "road": "Colonial Drive",
@@ -4111,18 +3834,11 @@
         "postals": [
           "601"
         ]
-      }
-    },
-    {
-      "source": "N-601",
-      "target": "N-602",
-      "road": "Colonial Drive",
-      "type": "arterial",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "602"
-        ]
+      },
+      "connectionstyle": "arc3,rad=-0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.15
       }
     },
     {
@@ -4135,6 +3851,11 @@
         "postals": [
           "602"
         ]
+      },
+      "connectionstyle": "arc3,rad=0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.1
       }
     },
     {
@@ -4262,19 +3983,6 @@
       }
     },
     {
-      "source": "N-708",
-      "target": "N-705",
-      "road": "Franklin Court",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "708",
-          "705"
-        ]
-      }
-    },
-    {
       "source": "N-705",
       "target": "N-708",
       "road": "Franklin Court",
@@ -4285,6 +3993,11 @@
           "708",
           "705"
         ]
+      },
+      "connectionstyle": "arc3,rad=0.25",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.25
       }
     },
     {
@@ -4390,19 +4103,6 @@
       }
     },
     {
-      "source": "N-802",
-      "target": "N-804",
-      "road": "Riverside Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "802",
-          "804"
-        ]
-      }
-    },
-    {
       "source": "N-804",
       "target": "N-802",
       "road": "Riverside Drive",
@@ -4413,6 +4113,11 @@
           "802",
           "804"
         ]
+      },
+      "connectionstyle": "arc3,rad=-0.25",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.25
       }
     },
     {
@@ -4442,19 +4147,6 @@
       }
     },
     {
-      "source": "hwy55_north",
-      "target": "hwy55_n1",
-      "road": "Highway 55",
-      "type": "highway",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "900",
-          "901"
-        ]
-      }
-    },
-    {
       "source": "hwy55_n1",
       "target": "hwy55_north",
       "road": "Highway 55",
@@ -4465,19 +4157,11 @@
           "900",
           "901"
         ]
-      }
-    },
-    {
-      "source": "hwy55_n1",
-      "target": "hwy55_n2",
-      "road": "Highway 55",
-      "type": "highway",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "901",
-          "902"
-        ]
+      },
+      "connectionstyle": "arc3,rad=-0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.1
       }
     },
     {
@@ -4491,6 +4175,11 @@
           "901",
           "902"
         ]
+      },
+      "connectionstyle": "arc3,rad=-0.05",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.05
       }
     },
     {
@@ -4598,18 +4287,6 @@
       }
     },
     {
-      "source": "N-900",
-      "target": "hwy55_north",
-      "road": "Highway 55",
-      "type": "highway",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "900"
-        ]
-      }
-    },
-    {
       "source": "hwy55_north",
       "target": "N-900",
       "road": "Highway 55",
@@ -4619,6 +4296,11 @@
         "postals": [
           "900"
         ]
+      },
+      "connectionstyle": "arc3,rad=-0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.15
       }
     },
     {
@@ -4646,19 +4328,6 @@
       }
     },
     {
-      "source": "N-806",
-      "target": "N-900",
-      "road": "Highway 55 Top",
-      "type": "highway",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "806",
-          "900"
-        ]
-      }
-    },
-    {
       "source": "N-900",
       "target": "N-806",
       "road": "Highway 55 Top",
@@ -4669,6 +4338,11 @@
           "806",
           "900"
         ]
+      },
+      "connectionstyle": "arc3,rad=-0.05",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.05
       }
     },
     {
@@ -4748,19 +4422,6 @@
       }
     },
     {
-      "source": "spring_creek_w",
-      "target": "N-907",
-      "road": "Spring Creek Rd",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "904",
-          "907"
-        ]
-      }
-    },
-    {
       "source": "N-907",
       "target": "spring_creek_w",
       "road": "Spring Creek Rd",
@@ -4771,6 +4432,11 @@
           "904",
           "907"
         ]
+      },
+      "connectionstyle": "arc3,rad=0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.1
       }
     },
     {
@@ -4850,58 +4516,6 @@
       }
     },
     {
-      "source": "N-1106",
-      "target": "N-1109",
-      "road": "Terrace Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1106",
-          "1109"
-        ]
-      }
-    },
-    {
-      "source": "N-1109",
-      "target": "N-1106",
-      "road": "Terrace Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1106",
-          "1109"
-        ]
-      }
-    },
-    {
-      "source": "N-1109",
-      "target": "N-1111",
-      "road": "Oak Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1109",
-          "1111"
-        ]
-      }
-    },
-    {
-      "source": "N-1111",
-      "target": "N-1109",
-      "road": "Oak Valley Drive",
-      "type": "winding",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1109",
-          "1111"
-        ]
-      }
-    },
-    {
       "source": "N-1113",
       "target": "N-1107",
       "road": "Maple Street",
@@ -4976,32 +4590,6 @@
         "postals": [
           "1108",
           "1106"
-        ]
-      }
-    },
-    {
-      "source": "N-1113",
-      "target": "N-1110",
-      "road": "Elm Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1113",
-          "1110"
-        ]
-      }
-    },
-    {
-      "source": "N-1110",
-      "target": "N-1113",
-      "road": "Elm Street",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": [
-          "1113",
-          "1110"
         ]
       }
     },
@@ -5432,21 +5020,19 @@
       }
     },
     {
-      "source": "N-213",
-      "target": "N-212",
-      "type": "local",
-      "bidirectional": true,
-      "metadata": {
-        "postals": []
-      }
-    },
-    {
       "source": "N-406",
       "target": "riv_mid",
       "type": "local",
       "bidirectional": true,
       "metadata": {
         "postals": []
+      },
+      "road": "Unnamed Road",
+      "is_one_way": false,
+      "connectionstyle": "arc3,rad=0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.1
       }
     },
     {
@@ -5468,30 +5054,19 @@
       }
     },
     {
-      "source": "N-408",
-      "target": "valley_s",
-      "type": "local",
-      "bidirectional": true,
-      "metadata": {
-        "postals": []
-      }
-    },
-    {
-      "source": "valley_s",
-      "target": "free_fairfax",
-      "type": "local",
-      "bidirectional": true,
-      "metadata": {
-        "postals": []
-      }
-    },
-    {
       "source": "riv_upper",
       "target": "N-703",
       "type": "local",
       "bidirectional": true,
       "metadata": {
         "postals": []
+      },
+      "road": "Unnamed Road",
+      "is_one_way": false,
+      "connectionstyle": "arc3,rad=-0.3",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.3
       }
     },
     {
@@ -5504,26 +5079,8 @@
       }
     },
     {
-      "source": "N-223",
-      "target": "N-222",
-      "type": "local",
-      "bidirectional": true,
-      "metadata": {
-        "postals": []
-      }
-    },
-    {
       "source": "N-904",
       "target": "N-802",
-      "type": "local",
-      "bidirectional": true,
-      "metadata": {
-        "postals": []
-      }
-    },
-    {
-      "source": "ind_cross",
-      "target": "orch_cross",
       "type": "local",
       "bidirectional": true,
       "metadata": {
@@ -5557,6 +5114,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.2",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.2
       }
     },
     {
@@ -5567,6 +5129,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.15
       }
     },
     {
@@ -5607,6 +5174,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.1
       }
     },
     {
@@ -5617,6 +5189,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.1
       }
     },
     {
@@ -5627,6 +5204,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.1
       }
     },
     {
@@ -5637,6 +5219,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.25",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.25
       }
     },
     {
@@ -5647,6 +5234,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.55",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.55
       }
     },
     {
@@ -5677,6 +5269,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.1
       }
     },
     {
@@ -5687,6 +5284,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.15
       }
     },
     {
@@ -5697,6 +5299,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.15
       }
     },
     {
@@ -5717,12 +5324,17 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.1
       }
     },
     {
       "source": "georgia_industrial",
       "target": "free_industrial",
-      "road": "Industrial",
+      "road": "Industrial Road",
       "type": "local",
       "is_one_way": false,
       "metadata": {
@@ -5737,6 +5349,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.15
       }
     },
     {
@@ -5757,6 +5374,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.2",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.2
       }
     },
     {
@@ -5837,6 +5459,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.2",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.2
       }
     },
     {
@@ -5847,6 +5474,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.1
       }
     },
     {
@@ -5867,6 +5499,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.1
       }
     },
     {
@@ -5877,6 +5514,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.05",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.05
       }
     },
     {
@@ -5887,6 +5529,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.1
       }
     },
     {
@@ -5927,6 +5574,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.15
       }
     },
     {
@@ -5977,6 +5629,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.05",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.05
       }
     },
     {
@@ -5997,6 +5654,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.15
       }
     },
     {
@@ -6007,6 +5669,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.2",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.2
       }
     },
     {
@@ -6017,6 +5684,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.1
       }
     },
     {
@@ -6027,6 +5699,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.35",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.35
       }
     },
     {
@@ -6053,16 +5730,6 @@
       "source": "orch_cline",
       "target": "col_complex",
       "road": "Orchard Boulevard",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": []
-      }
-    },
-    {
-      "source": "col_complex",
-      "target": "N-500",
-      "road": "Vine Street",
       "type": "local",
       "is_one_way": false,
       "metadata": {
@@ -6127,6 +5794,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.15
       }
     },
     {
@@ -6137,6 +5809,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.1
       }
     },
     {
@@ -6167,6 +5844,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.05",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.05
       }
     },
     {
@@ -6240,16 +5922,6 @@
       }
     },
     {
-      "source": "N-216",
-      "target": "ind_durham",
-      "road": "Independence Parkway",
-      "type": "local",
-      "is_one_way": false,
-      "metadata": {
-        "postals": []
-      }
-    },
-    {
       "source": "N-410",
       "target": "INT_FAIRFAX_ARBOR",
       "road": "Dirt Road",
@@ -6307,6 +5979,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.05",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.05
       }
     },
     {
@@ -6317,6 +5994,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.1
       }
     },
     {
@@ -6337,6 +6019,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.25",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.25
       }
     },
     {
@@ -6347,6 +6034,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.2",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.2
       }
     },
     {
@@ -6357,6 +6049,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.15
       }
     },
     {
@@ -6367,6 +6064,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.25",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.25
       }
     },
     {
@@ -6397,6 +6099,11 @@
       "is_one_way": false,
       "metadata": {
         "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.1
       }
     },
     {
@@ -6460,16 +6167,6 @@
       }
     },
     {
-      "source": "N-4101",
-      "target": "N-406",
-      "road": "Unnamed Road",
-      "type": "offroad",
-      "is_one_way": false,
-      "metadata": {
-        "postals": []
-      }
-    },
-    {
       "source": "N-708",
       "target": "N-7000",
       "road": "Academy Place",
@@ -6494,6 +6191,1286 @@
       "target": "col_complex",
       "road": "Unnamed Road",
       "type": "offroad",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-9073",
+      "target": "N-907",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-902",
+      "target": "N-9073",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-9041",
+      "target": "iron_road_n",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-902",
+      "target": "N-9041",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-9042",
+      "target": "iron_road_n",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "iron_road_n",
+      "target": "N-9043",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-9043",
+      "target": "N-905",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-905",
+      "target": "N-9044",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-9061",
+      "target": "iron_road_n",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-9061",
+      "target": "N-905",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-9072",
+      "target": "iron_road_n",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-9071",
+      "target": "N-907",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-9071",
+      "target": "N-902",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-907",
+      "target": "N-9082",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-909",
+      "target": "N-9082",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "spring_creek_e",
+      "target": "N-9062",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-9062",
+      "target": "N-905",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-11032",
+      "target": "N-1105",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-11031",
+      "target": "N-1105",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-11091",
+      "target": "N-1106",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-11092",
+      "target": "N-1106",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-1113",
+      "target": "N-11112",
+      "road": "Elm Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-11112",
+      "target": "N-1112",
+      "road": "Grant Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-11112",
+      "target": "N-11122",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-11123",
+      "target": "N-11112",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-11112",
+      "target": "N-11121",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-908",
+      "target": "iron_road_s",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-504",
+      "target": "N-503",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-6001",
+      "target": "N-504",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5044",
+      "target": "N-504",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5043",
+      "target": "N-504",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5042",
+      "target": "N-506",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5061",
+      "target": "N-506",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-504",
+      "target": "N-5061",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-506",
+      "target": "N-5062",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5053",
+      "target": "N-5041",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5051",
+      "target": "N-506",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5052",
+      "target": "N-505",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5063",
+      "target": "N-505",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5063",
+      "target": "N-506",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5054",
+      "target": "INT_COL_GIBSON",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5054",
+      "target": "N-5041",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5022",
+      "target": "N-5041",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-5022",
+      "target": "INT_COL_GIBSON",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "riv_lower",
+      "target": "N-4044",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.25",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.25
+      }
+    },
+    {
+      "source": "N-404",
+      "target": "N-4044",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-4044",
+      "target": "N-403",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.25",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.25
+      }
+    },
+    {
+      "source": "N-4044",
+      "target": "ind_main",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-4054",
+      "target": "N-410",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-4052",
+      "target": "N-410",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-4053",
+      "target": "N-410",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-4056",
+      "target": "N-410",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-4055",
+      "target": "N-410",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7002",
+      "target": "N-708",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7001",
+      "target": "N-708",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7000",
+      "target": "N-7001",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7000",
+      "target": "N-7002",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7041",
+      "target": "arbor_upper",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7042",
+      "target": "N-800",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "arbor_upper",
+      "target": "N-7042",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7054",
+      "target": "N-800",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7094",
+      "target": "N-800",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-70091",
+      "target": "N-7091",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7092",
+      "target": "N-70092",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7093",
+      "target": "N-70092",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7091",
+      "target": "N-70092",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7092",
+      "target": "N-70091",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7093",
+      "target": "N-70091",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7044",
+      "target": "N-707",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7044",
+      "target": "N-705",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7043",
+      "target": "N-705",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-707",
+      "target": "N-7055",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7052",
+      "target": "N-70056",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7053",
+      "target": "N-70056",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-70056",
+      "target": "N-7054",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-800",
+      "target": "N-7052",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-800",
+      "target": "N-7053",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-702",
+      "target": "N-7055",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7013",
+      "target": "N-702",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-707",
+      "target": "N-7013",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7012",
+      "target": "N-707",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7011",
+      "target": "N-705",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-705",
+      "target": "N-7012",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7011",
+      "target": "N-707",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-702",
+      "target": "N-7021",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7056",
+      "target": "N-70021",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7056",
+      "target": "N-702",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7022",
+      "target": "N-70021",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7021",
+      "target": "N-70021",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7023",
+      "target": "riv_upper",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-70021",
+      "target": "N-7023",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7063",
+      "target": "N-70021",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7064",
+      "target": "riv_upper",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7062",
+      "target": "N-703",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7062",
+      "target": "N-7071",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-70056",
+      "target": "N-7061",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-7061",
+      "target": "N-7071",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-4100",
+      "target": "riv_upper",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.25",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.25
+      }
+    },
+    {
+      "source": "N-4100",
+      "target": "N-406",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-4100",
+      "target": "N-4101",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-409",
+      "target": "N-412",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-412",
+      "target": "N-4101",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "riv_lower",
+      "target": "N-411",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-2221",
+      "target": "south_main",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-2221",
+      "target": "south_park",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-314",
+      "target": "N-222",
+      "road": "Liberty Way",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "orch_sandstone",
+      "target": "N-216",
+      "road": "Sandstone Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.1",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.1
+      }
+    },
+    {
+      "source": "N-216",
+      "target": "ind_durham",
+      "road": "Independence Parkway",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.15",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.15
+      }
+    },
+    {
+      "source": "free_fairfax",
+      "target": "N-408",
+      "road": "Tunnel",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.25",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.25
+      }
+    },
+    {
+      "source": "col_complex",
+      "target": "N-500",
+      "road": "Vine Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.35",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.35
+      }
+    },
+    {
+      "source": "south_park",
+      "target": "N-222",
+      "road": "Liberty Way",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.6",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.6
+      }
+    },
+    {
+      "source": "south_fairfax",
+      "target": "N-201",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-201",
+      "target": "N-220",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.5",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.5
+      }
+    },
+    {
+      "source": "grand_durham",
+      "target": "N-213",
+      "road": "Durham Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.65",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.65
+      }
+    },
+    {
+      "source": "grand_main",
+      "target": "N-212",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "grand_durham",
+      "target": "N-212",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-212",
+      "target": "N-213",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "orch_cross",
+      "target": "N-309",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=-0.8",
+      "curve": {
+        "style": "arc3",
+        "rad": -0.8
+      }
+    },
+    {
+      "source": "N-1106",
+      "target": "N-1111",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      },
+      "connectionstyle": "arc3,rad=0.75",
+      "curve": {
+        "style": "arc3",
+        "rad": 0.75
+      }
+    },
+    {
+      "source": "georgia_cross",
+      "target": "orch_cross",
+      "road": "Cross Street",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "N-306",
+      "target": "orch_cross",
+      "road": "Unnamed Road",
+      "type": "local",
+      "is_one_way": false,
+      "metadata": {
+        "postals": []
+      }
+    },
+    {
+      "source": "orch_park",
+      "target": "ind_park",
+      "road": "Park Street",
+      "type": "local",
       "is_one_way": false,
       "metadata": {
         "postals": []

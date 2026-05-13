@@ -3,11 +3,13 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk, ImageDraw
 
+from map_geometry import apply_curve_to_edge, edge_curve_rad, edge_points_from_nodes
+
 # ==========================================
 # CONFIG
 # ==========================================
 MAP_JSON        = "erlc_map.json"
-MAP_IMAGE       = "fall_postals.jpg"
+MAP_IMAGE       = "resources/fall_postals.jpg"
 OUTPUT_PNG      = "debug_map_overlay.png"
 GUI_SAVE_JSON   = "erlc_map_updated.json"
 
@@ -32,8 +34,8 @@ def draw_map():
         if s in nodes and t in nodes:
             n1, n2 = nodes[s], nodes[t]
             if all(k in n for n in (n1, n2) for k in ("x", "y")):
-                draw.line([(n1["x"], n1["y"]), (n2["x"], n2["y"])],
-                          fill=(120, 120, 120), width=2)
+                points = edge_points_from_nodes(nodes, s, t, edge)
+                draw.line(points, fill=(120, 120, 120), width=2)
 
     for node_id, info in nodes.items():
         x, y = info.get("x"), info.get("y")
@@ -89,9 +91,6 @@ class MapEditor:
         self.oval_to_node  = {}   # {canvas_oval_id: node_id}
         self.node_to_oval  = {}   # {node_id: canvas_oval_id}
         self.node_to_label = {}   # {node_id: canvas_text_id}
-
-        # Canvas item → edge index
-        self.line_to_edge  = {}   # {canvas_line_id: index into self.edges}
 
         # Canvas item → edge index
         self.line_to_edge  = {}   # {canvas_line_id: index into self.edges}
@@ -223,17 +222,32 @@ class MapEditor:
                         "local":      "#90a4ae",
                         "winding":    "#ce93d8",
                     }.get(etype, "#90a4ae")
+                    points = self._edge_canvas_points(edge)
+                    smooth = len(points) > 4
                     # Wide invisible line for easy clicking
                     hit_line = self.canvas.create_line(
-                        n1["x"], n1["y"], n2["x"], n2["y"],
-                        fill="", width=12, tags="edge"
+                        *points, fill="", width=12, smooth=smooth,
+                        splinesteps=24, tags="edge"
                     )
                     vis_line = self.canvas.create_line(
-                        n1["x"], n1["y"], n2["x"], n2["y"],
-                        fill=color, width=2, tags="edge"
+                        *points, fill=color, width=2, smooth=smooth,
+                        splinesteps=24, tags="edge"
                     )
                     self.line_to_edge[hit_line] = idx
                     self.line_to_edge[vis_line] = idx
+
+    def _edge_canvas_points(self, edge):
+        points = edge_points_from_nodes(
+            self.nodes,
+            edge.get("source"),
+            edge.get("target"),
+            edge,
+        )
+        return [coord for point in points for coord in point]
+
+    def _curve_label(self, edge):
+        rad = edge_curve_rad(edge)
+        return "straight" if abs(rad) < 1e-9 else f"rad={rad:g}"
 
     def _draw_all_nodes(self):
         for node_id, info in self.nodes.items():
@@ -344,7 +358,11 @@ class MapEditor:
                 if hit:
                     self._show_info_panel(hit)
                 else:
-                    self._close_info_panel()
+                    edge_idx = self._find_edge_at(cx, cy)
+                    if edge_idx is not None:
+                        self._edit_edge_dialog(edge_idx)
+                    else:
+                        self._close_info_panel()
             return
 
         if self.mode == self.MODE_MOVE:
@@ -456,12 +474,23 @@ class MapEditor:
             tip  = f"{hit}  |  POI: {info.get('poi','—')}  |  robable: {info.get('robable','—')}  |  x={info.get('x')} y={info.get('y')}"
             self._status(tip)
         else:
-            self._status(f"x={int(cx)}, y={int(cy)}  |  Mode: {self.mode}")
+            edge_idx = self._find_edge_at(cx, cy)
+            if edge_idx is not None:
+                edge = self.edges[edge_idx]
+                self._status(
+                    f"edge {edge.get('source')} → {edge.get('target')}  |  "
+                    f"{edge.get('road', 'Unnamed Road')}  |  {self._curve_label(edge)}"
+                )
+            else:
+                self._status(f"x={int(cx)}, y={int(cy)}  |  Mode: {self.mode}")
 
     def _on_right_click(self, event):
         cx, cy = self._canvas_xy(event)
         hit    = self._find_node_at(cx, cy)
         if not hit:
+            edge_idx = self._find_edge_at(cx, cy)
+            if edge_idx is not None:
+                self._on_right_click_edge(event, edge_idx)
             return
         menu = tk.Menu(self.root, tearoff=0)
         menu.add_command(label=f"Edit: {hit}",         command=lambda: self._edit_node_dialog(hit))
@@ -473,6 +502,7 @@ class MapEditor:
     def _on_right_click_edge(self, event, edge_idx):
         menu = tk.Menu(self.root, tearoff=0)
         edge = self.edges[edge_idx]
+        menu.add_command(label=f"Edit edge: {edge.get('source')} → {edge.get('target')}", command=lambda: self._edit_edge_dialog(edge_idx))
         menu.add_command(label=f"Delete edge: {edge.get('source')} → {edge.get('target')}", command=lambda: self._delete_edge(edge_idx))
         menu.tk_popup(event.x_root, event.y_root)
 
@@ -631,14 +661,28 @@ class MapEditor:
         road_var    = row("Road name", "")
         type_var    = row("Type",      "local")
         postals_var = row("Postals (comma sep)", "")
+        curve_var   = row("Curve rad", "0")
 
         oneway_var = tk.BooleanVar()
         fr2 = tk.Frame(win); fr2.pack(fill=tk.X, padx=8, pady=2)
         tk.Checkbutton(fr2, text="One-way", variable=oneway_var).pack(side=tk.LEFT)
 
+        curve_scale_var = tk.DoubleVar(value=0.0)
+        curve_scale = tk.Scale(
+            win, from_=-1.0, to=1.0, resolution=0.05,
+            orient=tk.HORIZONTAL, variable=curve_scale_var, length=260,
+            command=lambda value: curve_var.set(f"{float(value):g}")
+        )
+        curve_scale.pack(fill=tk.X, padx=8, pady=(0, 4))
+
         def confirm():
             postals_raw = postals_var.get().strip()
             postals     = [p.strip() for p in postals_raw.split(",") if p.strip()] if postals_raw else []
+            try:
+                curve_rad = float(curve_var.get().strip() or 0)
+            except ValueError:
+                messagebox.showerror("Error", "Curve rad must be a number.", parent=win)
+                return
 
             edge = {
                 "source":     src,
@@ -648,6 +692,7 @@ class MapEditor:
                 "is_one_way": oneway_var.get(),
                 "metadata":   {"postals": postals}
             }
+            apply_curve_to_edge(edge, curve_rad)
 
             # Check for duplicate
             for e in self.edges:
@@ -660,12 +705,75 @@ class MapEditor:
             self.edges.append(edge)
             self.canvas.delete("edge")
             self._draw_all_edges()
-            self._status(f"Edge added: {src} → {tgt}")
+            self._status(f"Edge added: {src} → {tgt} ({self._curve_label(edge)})")
             win.destroy()
 
         btn_fr = tk.Frame(win); btn_fr.pack(pady=6)
         tk.Button(btn_fr, text="Add Edge", command=confirm).pack(side=tk.LEFT, padx=4)
         tk.Button(btn_fr, text="Cancel",   command=win.destroy).pack(side=tk.LEFT, padx=4)
+
+    def _edit_edge_dialog(self, edge_idx):
+        if edge_idx < 0 or edge_idx >= len(self.edges):
+            return
+        edge = self.edges[edge_idx]
+        src = edge.get("source")
+        tgt = edge.get("target")
+
+        win = tk.Toplevel(self.root)
+        win.title(f"Edit Edge: {src} → {tgt}")
+        win.grab_set()
+
+        def row(label, default=""):
+            fr = tk.Frame(win); fr.pack(fill=tk.X, padx=8, pady=2)
+            tk.Label(fr, text=label, width=14, anchor="w").pack(side=tk.LEFT)
+            var = tk.StringVar(value=default)
+            tk.Entry(fr, textvariable=var, width=28).pack(side=tk.LEFT)
+            return var
+
+        tk.Label(win, text=f"{src}  →  {tgt}", font=("Helvetica", 11, "bold")).pack(pady=6)
+
+        metadata = edge.get("metadata") if isinstance(edge.get("metadata"), dict) else {}
+        postals = metadata.get("postals") or []
+        road_var    = row("Road name", edge.get("road", "") or "")
+        type_var    = row("Type",      edge.get("type", "local") or "local")
+        postals_var = row("Postals (comma sep)", ", ".join(str(p) for p in postals))
+        curve_var   = row("Curve rad", f"{edge_curve_rad(edge):g}")
+
+        oneway_var = tk.BooleanVar(value=bool(edge.get("is_one_way", False)))
+        fr2 = tk.Frame(win); fr2.pack(fill=tk.X, padx=8, pady=2)
+        tk.Checkbutton(fr2, text="One-way", variable=oneway_var).pack(side=tk.LEFT)
+
+        curve_scale_var = tk.DoubleVar(value=max(-1.0, min(1.0, edge_curve_rad(edge))))
+        curve_scale = tk.Scale(
+            win, from_=-1.0, to=1.0, resolution=0.05,
+            orient=tk.HORIZONTAL, variable=curve_scale_var, length=260,
+            command=lambda value: curve_var.set(f"{float(value):g}")
+        )
+        curve_scale.pack(fill=tk.X, padx=8, pady=(0, 4))
+
+        def confirm():
+            postals_raw = postals_var.get().strip()
+            postals = [p.strip() for p in postals_raw.split(",") if p.strip()] if postals_raw else []
+            try:
+                curve_rad = float(curve_var.get().strip() or 0)
+            except ValueError:
+                messagebox.showerror("Error", "Curve rad must be a number.", parent=win)
+                return
+
+            edge["road"] = road_var.get().strip() or "Unnamed Road"
+            edge["type"] = type_var.get().strip() or "local"
+            edge["is_one_way"] = oneway_var.get()
+            edge["metadata"] = {"postals": postals}
+            apply_curve_to_edge(edge, curve_rad)
+
+            self.canvas.delete("edge")
+            self._draw_all_edges()
+            self._status(f"Edge updated: {src} → {tgt} ({self._curve_label(edge)})")
+            win.destroy()
+
+        btn_fr = tk.Frame(win); btn_fr.pack(pady=6)
+        tk.Button(btn_fr, text="Save Edge", command=confirm).pack(side=tk.LEFT, padx=4)
+        tk.Button(btn_fr, text="Cancel",    command=win.destroy).pack(side=tk.LEFT, padx=4)
 
     def _start_edge(self, node_id):
         self.mode_var.set(self.MODE_EDGE)
@@ -770,7 +878,7 @@ class MapEditor:
                 direction = "→" if e.get("source") == node_id else "←"
                 other     = e.get("target") if e.get("source") == node_id else e.get("source")
                 tk.Label(body,
-                         text=f"  {direction} {other}  [{e.get('road','?')}  {e.get('type','local')}]",
+                         text=f"  {direction} {other}  [{e.get('road','?')}  {e.get('type','local')}  {self._curve_label(e)}]",
                          font=("Helvetica", 8), fg="#555", anchor="w").pack(fill=tk.X)
         else:
             tk.Label(body, text="  None", font=("Helvetica", 8), fg="#999").pack(anchor="w")

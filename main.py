@@ -2,8 +2,10 @@
 main.py – Metropolitan Services Bot
 """
 
+import asyncio
 import certifi
 import discord
+import random
 from discord.ext import commands
 from motor.motor_asyncio import AsyncIOMotorClient
 
@@ -46,12 +48,13 @@ class MetroBot(commands.Bot):
         self.request_metro_cooldowns: dict = {}
 
     async def setup_hook(self):
-        """Load all cogs and sync slash commands."""
+        """Load all cogs and optionally sync slash commands."""
         self.watchlist_channel_id = WATCHLIST_CHANNEL_ID
         await self.load_extension("simon")
         await self.load_extension("operations")
         await self.load_extension("handbook")
         await self.load_extension("raffle")
+
         await self.tree.sync()
         print("✅ Slash commands synced.")
 
@@ -69,6 +72,30 @@ class MetroBot(commands.Bot):
 # ENTRY POINT
 # ──────────────────────────────────────────────
 
+async def run_bot_with_backoff():
+    """Start the bot, retrying transient Discord login/server failures."""
+    attempt = 0
+
+    while True:
+        bot = MetroBot()
+        try:
+            await bot.start(TOKEN, reconnect=True)
+        except (discord.DiscordServerError, discord.HTTPException, OSError) as exc:
+            attempt += 1
+            await bot.close()
+
+            # Authentication/configuration problems should fail loudly; retries only help
+            # transient 429/5xx/network cases.
+            status = getattr(exc, "status", None)
+            if status is not None and status < 500 and status != 429:
+                raise
+
+            delay = min(300, (2 ** min(attempt, 8)) + random.uniform(0, 5))
+            print(f"⚠️ Discord startup failed ({exc!r}). Retrying in {delay:.1f}s.")
+            await asyncio.sleep(delay)
+        else:
+            return
+
+
 if __name__ == "__main__":
-    bot = MetroBot()
-    bot.run(TOKEN)
+    asyncio.run(run_bot_with_backoff())

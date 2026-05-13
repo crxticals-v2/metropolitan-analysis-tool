@@ -1,6 +1,13 @@
 import json
-import math
 import networkx as nx
+
+from map_geometry import (
+    edge_connectionstyle,
+    edge_curve_rad,
+    edge_points_from_nodes,
+    format_connectionstyle,
+    polyline_length,
+)
 
 
 class ERLCGraph:
@@ -65,11 +72,8 @@ class ERLCGraph:
             if s not in data.get("nodes", {}) or t not in data.get("nodes", {}):
                 continue
 
-            n1 = data["nodes"][s]
-            n2 = data["nodes"][t]
-            sx, sy = n1.get("x", 0), n1.get("y", 0)
-            tx, ty = n2.get("x", 0), n2.get("y", 0)
-            base_cost = math.hypot(tx - sx, ty - sy)
+            geometry = edge_points_from_nodes(data["nodes"], s, t, edge)
+            base_cost = polyline_length(geometry)
 
             edge_type = edge.get("type", "local")
             road      = edge.get("road") or f"{s}__{t}"
@@ -82,7 +86,11 @@ class ERLCGraph:
 
             metadata      = edge.get("metadata") or {}
             postals       = metadata.get("postals") or []
-            bidirectional = edge.get("bidirectional", True)
+            bidirectional = edge.get("bidirectional")
+            if bidirectional is None:
+                bidirectional = not bool(edge.get("is_one_way", False))
+            curve_rad = edge_curve_rad(edge)
+            connectionstyle = edge_connectionstyle(edge)
 
             # Index Postals to Nodes
             for p in postals:
@@ -91,6 +99,12 @@ class ERLCGraph:
                     self.postal_nodes[p_str] = s
 
             def add_edge(u, v):
+                is_forward = (u, v) == (s, t)
+                edge_geometry = geometry if is_forward else list(reversed(geometry))
+                edge_rad = curve_rad if is_forward else -curve_rad
+                edge_curve = edge.get("curve")
+                if not is_forward and isinstance(edge_curve, dict):
+                    edge_curve = {**edge_curve, "rad": edge_rad}
                 self.graph.add_edge(
                     u, v,
                     road=road,
@@ -99,11 +113,10 @@ class ERLCGraph:
                     postals=postals,
                     base_cost=base_cost,
                     weight=base_cost,
+                    connectionstyle=connectionstyle if is_forward else format_connectionstyle(edge_rad),
+                    curve=edge_curve,
                 )
-                self.graph[u][v]["geometry"] = [
-                    (self.nodes_data[u]["x"], self.nodes_data[u]["y"]),
-                    (self.nodes_data[v]["x"], self.nodes_data[v]["y"]),
-                ]
+                self.graph[u][v]["geometry"] = edge_geometry
 
             add_edge(s, t)
             if bidirectional:
@@ -116,41 +129,25 @@ class ERLCGraph:
     # ------------------------------------------------------------------
 
     def build_road_geometry(self):
-        """Build ordered polylines per road using DFS traversal."""
+        """Build per-road polylines from edge geometry, including curves."""
         self.road_geometry = {}
 
-        for road, adjacency in self.road_graph.items():
-            visited  = set()
-            segments = []
-            nodes    = list(adjacency.keys())
-            if not nodes:
+        grouped = {}
+        for _u, _v, data in self.graph.edges(data=True):
+            road = data.get("road")
+            geometry = data.get("geometry") or []
+            if not road or len(geometry) < 2:
                 continue
+            grouped.setdefault(road, []).extend(geometry)
 
-            stack = [(nodes[0], None)]
-            while stack:
-                node, parent = stack.pop()
-                if node in visited:
-                    continue
-                visited.add(node)
-
-                if parent is not None:
-                    n1 = self.nodes_data.get(parent)
-                    n2 = self.nodes_data.get(node)
-                    if n1 and n2:
-                        segments.append((n1["x"], n1["y"]))
-                        segments.append((n2["x"], n2["y"]))
-
-                for neighbor in adjacency.get(node, []):
-                    if neighbor not in visited:
-                        stack.append((neighbor, node))
-
-            # deduplicate while preserving order
+        for road, points in grouped.items():
             seen    = set()
             cleaned = []
-            for p in segments:
-                if p not in seen:
-                    seen.add(p)
-                    cleaned.append(p)
+            for x, y in points:
+                key = (round(x, 3), round(y, 3))
+                if key not in seen:
+                    seen.add(key)
+                    cleaned.append((x, y))
 
             self.road_geometry[road] = cleaned
 
